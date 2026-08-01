@@ -1,5 +1,7 @@
 :root {
   font-family: Inter, ui-rounded, "SF Pro Rounded", "PingFang TC", "Noto Sans TC", system-ui, sans-serif;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
   color: #3f4756;
   background: #fff8ed;
   font-synthesis: none;
@@ -92,10 +94,10 @@ button:focus-visible { outline: 3px solid #4f9dd9; outline-offset: 2px; }
 .goal-chips span { padding: 4px 7px; border-radius: 999px; background: #f4eee7; color: #87796a; font-size: 10px; font-weight: 800; }
 .goal-chips span.done { background: #e4f6ed; color: #338064; text-decoration: line-through; }
 .icon-button { width: 32px; height: 32px; border: 0; border-radius: 10px; background: #f8f3ec; cursor: pointer; }
-.sudoku-board { display: grid; grid-template-columns: repeat(9, 1fr); aspect-ratio: 1; overflow: hidden; border: 2px solid var(--navy); border-radius: 12px; background: white; }
+.sudoku-board { display: grid; grid-template-columns: repeat(9, minmax(0, 1fr)); grid-template-rows: repeat(9, minmax(0, 1fr)); aspect-ratio: 1; overflow: hidden; border: 2px solid var(--navy); border-radius: 12px; background: white; }
 .sudoku-board.waiting { background: repeating-linear-gradient(135deg, #fff, #fff 12px, #faf6f1 12px, #faf6f1 24px); }
 .sudoku-board.waiting .cell { cursor: default; background: transparent; }
-.cell { position: relative; min-width: 0; padding: 0; border: 0; border-right: 1px solid #d9dce0; border-bottom: 1px solid #d9dce0; background: white; color: #3b9074; font-size: clamp(19px, 3.2vw, 28px); font-weight: 800; cursor: pointer; }
+.cell { position: relative; min-width: 0; min-height: 0; padding: 0; border: 0; border-right: 1px solid #d9dce0; border-bottom: 1px solid #d9dce0; background: white; color: #3b9074; font-size: clamp(19px, 3.2vw, 28px); font-weight: 800; line-height: 1; cursor: pointer; }
 .cell:nth-child(9n) { border-right: 0; }
 .cell:nth-child(n+73) { border-bottom: 0; }
 .cell:nth-child(3n):not(:nth-child(9n)) { border-right: 2px solid var(--navy); }

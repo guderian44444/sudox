@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { countSolutions, createGame, DIFFICULTIES, generatePuzzle, PUZZLES, relatedCells, solveSudoku } from "../src/game/sudoku.js";
 import { activateAutomaticTreasures, ADVENTURE_RULES, applyHintTreasure, applyImmediateTreasure, candidatesFor, completedSudokuUnits, drawTreasureCards, newlyCompletedSudokuUnits, strongestEquippedRevive, sudokuUnitCells, treasureClaimsForFloor, treasurePool, TREASURE_AUTO_EFFECTS, TREASURE_CARDS, TREASURE_EFFECTS } from "../src/game/adventure.js";
 import { validCloudPin } from "../src/state/cloud.js";
@@ -7,6 +8,10 @@ import { exportSaveCode, importSaveCode } from "../src/state/store.js";
 function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
+
+const stylesheet = readFileSync(new URL("../src/styles.css", import.meta.url), "utf8");
+assert(/grid-template-rows:\s*repeat\(9,\s*minmax\(0,\s*1fr\)\)/.test(stylesheet), "數獨盤面必須固定為 9 個可縮小橫列");
+assert(/-webkit-text-size-adjust:\s*100%/.test(stylesheet), "iOS 內建瀏覽器不可自動放大文字而裁掉最下列");
 
 function validSolution(solution) {
   const target = "123456789";
