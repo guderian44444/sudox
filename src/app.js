@@ -1,5 +1,5 @@
 import { createGame, DIFFICULTIES, relatedCells } from "./game/sudoku.js";
-import { ADVENTURE_RULES, applyImmediateTreasure, calculateStars, drawTreasureCards, strongestEquippedRevive, TREASURE_CARDS } from "./game/adventure.js";
+import { activateAutomaticTreasures, ADVENTURE_RULES, applyHintTreasure, applyImmediateTreasure, calculateStars, drawTreasureCards, strongestEquippedRevive, treasureClaimsForFloor, TREASURE_AUTO_EFFECTS, TREASURE_CARDS } from "./game/adventure.js";
 import { cloudConfigured, loadCloudPin, loadCloudProgress, saveCloudPin, saveCloudProgress, validCloudPin } from "./state/cloud.js";
 import { buildScore, fetchLeaderboard, flushPendingScores, leaderboardConfigured, pendingScoreCount, queueLeaderboardScore } from "./state/leaderboard.js";
 import { addCard, clearSession, consumeCard, exportSaveCode, importSaveCode, loadProgress, loadSession, rewardProgress, saveProgress, saveSession, spendCoins } from "./state/store.js";
@@ -24,6 +24,8 @@ let cloudSyncTimer;
 let equippedCards = restoredSession?.equippedCards || [];
 let timerId;
 let celebrationId = 0;
+let gameEffectQueue = [];
+let gameEffectActive = false;
 
 const formatTime = (seconds) => `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
 const currentHintCost = () => alinMode ? 0 : DIFFICULTIES[game.difficulty].hintCost;
@@ -60,6 +62,35 @@ function showCelebration(icon, title, detail) {
       if (!stack.children.length) stack.remove();
     }, { once: true });
   }, 2600);
+}
+
+function showGameEffect(icon, title, detail, tone = "success") {
+  gameEffectQueue.push({ icon, title, detail, tone });
+  playNextGameEffect();
+}
+
+function playNextGameEffect() {
+  if (gameEffectActive || !gameEffectQueue.length) return;
+  gameEffectActive = true;
+  const { icon, title, detail, tone } = gameEffectQueue.shift();
+  const effect = document.createElement("section");
+  effect.className = `game-effect ${tone}`;
+  effect.setAttribute("role", "status");
+  effect.setAttribute("aria-live", "polite");
+  effect.innerHTML = `
+    <span class="effect-spark one">✦</span><span class="effect-spark two">●</span><span class="effect-spark three">✦</span>
+    <div class="effect-character" aria-hidden="true">${icon}</div>
+    <div class="effect-bubble"><strong>${title}</strong><small>${detail}</small></div>
+    <span class="effect-spark four">●</span><span class="effect-spark five">✦</span>`;
+  document.body.append(effect);
+  document.body.classList.remove("flash-success", "flash-mistake", "flash-shield", "flash-card");
+  document.body.classList.add(`flash-${tone}`);
+  setTimeout(() => document.body.classList.remove(`flash-${tone}`), 780);
+  setTimeout(() => {
+    effect.remove();
+    gameEffectActive = false;
+    playNextGameEffect();
+  }, 1750);
 }
 
 function setupAdventure() {
@@ -134,6 +165,7 @@ function render() {
         </aside>
 
         <section class="board-card" aria-label="數獨遊戲">
+          <div class="board-buddies" aria-hidden="true"><span class="cat-buddy">🐱</span><span class="mouse-buddy">🐭</span></div>
           <div class="game-meta">
             <span class="difficulty-pill">${DIFFICULTIES[game.difficulty].icon} ${DIFFICULTIES[game.difficulty].label}・第 ${game.floor} 層</span>
             <span class="timer-block" aria-label="經過時間，沒有時間限制"><span>⏱ <strong id="timer">${formatTime(game.elapsed)}</strong></span><small>不限時 · ${formatTime(DIFFICULTIES[game.difficulty].bonusTime)} 內 +${DIFFICULTIES[game.difficulty].bonusCoins} 🪙 <i id="freeze-time">${game.frozenSeconds ? `· 凍結 ${game.frozenSeconds}s` : ""}</i></small></span>
@@ -168,7 +200,10 @@ function render() {
             ${game.equippedCards.length ? game.equippedCards.map((cardId) => {
               const card = TREASURE_CARDS[cardId];
               const reviveOnly = card.effect === "revive";
-              return `<button data-use-card="${cardId}" ${progress.inventory[cardId] && !reviveOnly ? "" : "disabled"}><span>${card.icon}</span><small>${card.name}${reviveOnly ? "・倒下時使用" : ` ×${progress.inventory[cardId]}`}</small></button>`;
+              const automatic = TREASURE_AUTO_EFFECTS.includes(card.effect);
+              const used = game.usedCards.includes(cardId);
+              const status = reviveOnly ? "・倒下時使用" : automatic ? "・已自動生效" : used ? "・本局已使用" : ` ×${progress.inventory[cardId]}`;
+              return `<button data-use-card="${cardId}" ${progress.inventory[cardId] && !reviveOnly && !automatic && !used ? "" : "disabled"}><span>${card.icon}</span><small>${card.name}${status}</small></button>`;
             }).join("") : `<small class="empty-loadout">開局前可從背包裝備兩張卡</small>`}
           </div>
         </section>
@@ -189,7 +224,7 @@ function render() {
 function startModal() {
   const selectedCards = equippedCards.map((cardId) => TREASURE_CARDS[cardId]).filter(Boolean);
   return `<div class="modal-backdrop"><section class="modal start-modal" role="dialog" aria-modal="true" aria-labelledby="start-title">
-    <div class="celebrate">🏝️</div><p class="eyebrow">FLOOR ${game.floor}</p><h2 id="start-title">出發前選寶物</h2>
+    <div class="start-friends" aria-hidden="true"><span>🐱</span><span>🏝️</span><span>🐭</span></div><p class="eyebrow">FLOOR ${game.floor}</p><h2 id="start-title">出發前選寶物</h2>
     <p>先確認難度與本關寶物，按下開始後才會顯示題目並開始計時。</p>
     <div class="prestart-difficulties" aria-label="選擇難度">${Object.entries(DIFFICULTIES).map(([key, item]) => `<button data-prestart-difficulty="${key}" class="${game.difficulty === key ? "active" : ""}">${item.icon} ${item.label}</button>`).join("")}</div>
     <button id="prestart-alin-mode" class="prestart-alin ${alinMode ? "active" : ""}" aria-pressed="${alinMode}">♾️ 阿霖模式：${alinMode ? "開啟" : "關閉"}</button>
@@ -198,6 +233,7 @@ function startModal() {
       <span>${selectedCards.length ? selectedCards.map((card) => `${card.icon} ${card.name}`).join("　") : "尚未選擇（也可空手出發）"}</span>
     </div>
     <button id="choose-start-cards" class="secondary-button">🎒 選擇／更換寶物</button>
+    <button id="open-start-leaderboard" class="secondary-button leaderboard-button">🏆 查看排行榜</button>
     <button id="start-game" class="primary-button">▶ 開始第 ${game.floor} 層</button>
   </section></div>`;
 }
@@ -311,6 +347,7 @@ function bindEvents() {
   document.querySelector("#choose-start-cards")?.addEventListener("click", openBackpack);
   document.querySelector("#start-game")?.addEventListener("click", startGame);
   document.querySelector("#open-leaderboard")?.addEventListener("click", openLeaderboardModal);
+  document.querySelector("#open-start-leaderboard")?.addEventListener("click", openLeaderboardModal);
   document.querySelector("#close-leaderboard")?.addEventListener("click", () => { showLeaderboard = false; render(); });
   document.querySelectorAll("[data-rank-difficulty]").forEach((button) => button.addEventListener("click", () => changeLeaderboardDifficulty(button.dataset.rankDifficulty)));
   document.querySelector("#open-save-center")?.addEventListener("click", openSaveCenter);
@@ -471,14 +508,20 @@ function enterNumber(number) {
     game.actions += 1;
     game.mistakes += 1;
     game.correctStreak = 0;
+    let blockedByShield = false;
     if (!alinMode) {
-      if (game.shields) game.shields -= 1;
+      if (game.shields) {
+        game.shields -= 1;
+        blockedByShield = true;
+      }
       else game.health -= 1;
       if (game.health <= 0) {
         game.failed = true;
         clearInterval(timerId);
       }
     }
+    if (blockedByShield) showGameEffect("🛡️", "鏘！成功格擋", "護盾替你擋住這次錯誤", "shield");
+    else showGameEffect(alinMode ? "🐭" : "😿", "哎呀，差一點點", alinMode ? "小老鼠陪你慢慢想，答錯也不會失敗" : "小貓說：別灰心，再試一次！", "mistake");
     document.body.classList.add("shake");
     setTimeout(() => document.body.classList.remove("shake"), 320);
   } else {
@@ -518,7 +561,11 @@ function healOrShield() {
 
 function completeHealGoal(goal, label) {
   game.healGoals[goal] = true;
-  showCelebration("🎉", `恭喜完成「${label}」！`, healOrShield());
+  const reward = healOrShield();
+  const friend = goal === "row" ? "🐱" : goal === "box" ? "🐭" : "✨";
+  const praise = goal === "row" ? "一整行完成啦！" : goal === "box" ? "九宮格完成啦！" : "連續答對，太厲害了！";
+  showCelebration("🎉", `恭喜完成「${label}」！`, reward);
+  showGameEffect(friend, praise, `${label}・${reward}`, "success");
 }
 
 function checkHealGoals() {
@@ -551,21 +598,19 @@ function useHint() {
 }
 
 function useCard(cardId) {
-  if (!game.started || !game.equippedCards.includes(cardId) || !progress.inventory[cardId] || game.completed || game.failed) return;
+  if (!game.started || !game.equippedCards.includes(cardId) || !progress.inventory[cardId] || game.usedCards.includes(cardId) || game.completed || game.failed) return;
   const card = TREASURE_CARDS[cardId];
   const index = game.selected;
+  let resultDetail = card.description;
   if (card.effect === "hint") {
-    const targets = [];
-    if (!game.puzzle[index] && !game.values[index]) targets.push(index);
-    const otherEmptyCells = game.values.map((value, cell) => !value && !game.puzzle[cell] && cell !== index ? cell : -1).filter((cell) => cell >= 0);
-    while (targets.length < card.value && otherEmptyCells.length) targets.push(otherEmptyCells.splice(Math.floor(Math.random() * otherEmptyCells.length), 1)[0]);
+    const targets = applyHintTreasure(game, card, index);
     if (!targets.length) return;
     game.actions += 1;
     game.hintsUsed += targets.length;
     targets.forEach((target) => {
-      game.values[target] = game.solution[target];
       removeRelatedNotes(target, game.values[target]);
     });
+    resultDetail = `已填入 ${targets.length} 格正確答案`;
     checkHealGoals();
     checkCompletion();
   } else if (card.effect === "revive") return;
@@ -573,27 +618,30 @@ function useCard(cardId) {
   progress = consumeCard(progress, cardId);
   game.usedCards.push(cardId);
   render();
+  showGameEffect(card.icon, `${card.name}發動！`, resultDetail, "card");
 }
 
 function reviveWithCard() {
   const cardId = availableReviveCard();
   if (!cardId) return;
-  const health = TREASURE_CARDS[cardId].value;
+  const card = TREASURE_CARDS[cardId];
+  const health = card.value;
   progress = consumeCard(progress, cardId);
-  resumeAfterRevive(health);
+  resumeAfterRevive(health, card);
 }
 
 function reviveWithCoins() {
   if (progress.coins < 20) return;
   progress = spendCoins(progress, 20);
-  resumeAfterRevive();
+  resumeAfterRevive(2, { icon: "🪙", name: "金幣復活", description: "恢復 2 顆心，繼續挑戰" });
 }
 
-function resumeAfterRevive(health = 2) {
+function resumeAfterRevive(health = 2, source = null) {
   game.failed = false;
   game.health = Math.min(health, game.maxHealth);
   startTimer();
   render();
+  if (source) showGameEffect(source.icon, `${source.name}發動！`, source.description, "card");
 }
 
 function claimCard(cardId) {
@@ -615,8 +663,7 @@ function checkCompletion() {
   const farmMultiplier = game.floor > 1 ? 0.55 : 1;
   game.xpReward = Math.max(10, Math.round(reward.xp * game.xpMultiplier * farmMultiplier));
   game.timeBonus = game.elapsed <= reward.bonusTime ? reward.bonusCoins : 0;
-  const treasureDropped = game.floor === 1 || game.floor % 3 === 0;
-  game.remainingClaims = (treasureDropped ? 1 : 0) + game.extraCardClaims;
+  game.remainingClaims = treasureClaimsForFloor(game.floor, game.extraCardClaims);
   game.cardChoices = game.remainingClaims ? drawTreasureCards(game.difficulty, game.stars, Math.max(3, game.remainingClaims)) : [];
   progress = rewardProgress(progress, game.xpReward, game.timeBonus, game.stars, game.difficulty);
   clearSession();
@@ -643,8 +690,16 @@ function startGame() {
   game.started = true;
   game.startedAt = Date.now();
   game.equippedCards = [...equippedCards];
+  const activatedCards = activateAutomaticTreasures(game, game.equippedCards, progress.inventory, { alinMode });
+  activatedCards.forEach((cardId) => {
+    progress = consumeCard(progress, cardId);
+  });
   startTimer();
   render();
+  activatedCards.forEach((cardId) => {
+    const card = TREASURE_CARDS[cardId];
+    showGameEffect(card.icon, `${card.name}自動發動！`, card.description, "card");
+  });
 }
 
 function newGame(difficulty) {

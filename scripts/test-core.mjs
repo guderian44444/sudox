@@ -1,5 +1,5 @@
 import { countSolutions, createGame, DIFFICULTIES, generatePuzzle, PUZZLES, relatedCells, solveSudoku } from "../src/game/sudoku.js";
-import { ADVENTURE_RULES, applyImmediateTreasure, candidatesFor, drawTreasureCards, strongestEquippedRevive, treasurePool, TREASURE_CARDS, TREASURE_EFFECTS } from "../src/game/adventure.js";
+import { activateAutomaticTreasures, ADVENTURE_RULES, applyHintTreasure, applyImmediateTreasure, candidatesFor, drawTreasureCards, strongestEquippedRevive, treasureClaimsForFloor, treasurePool, TREASURE_AUTO_EFFECTS, TREASURE_CARDS, TREASURE_EFFECTS } from "../src/game/adventure.js";
 import { validCloudPin } from "../src/state/cloud.js";
 import { buildScore, leaderboardConfigured } from "../src/state/leaderboard.js";
 import { exportSaveCode, importSaveCode } from "../src/state/store.js";
@@ -87,6 +87,7 @@ assert(ADVENTURE_RULES.medium.maxHealth > ADVENTURE_RULES.hard.maxHealth, "動�
 assert(Object.keys(TREASURE_CARDS).length === 60, "寶物圖鑑應提供 60 種寶物");
 assert(Object.values(TREASURE_CARDS).every((card) => TREASURE_EFFECTS.includes(card.effect)), "每張寶物都必須使用遊戲支援的效果");
 assert(Object.values(TREASURE_CARDS).every((card) => Number.isFinite(card.value) && card.value > 0), "每張寶物的效果數值都必須有效");
+assert(TREASURE_AUTO_EFFECTS.every((effect) => TREASURE_EFFECTS.includes(effect)), "自動生效寶物必須使用遊戲支援的效果");
 assert(treasurePool("easy").length === 10, "輕鬆難度應使用前 10 種寶物");
 assert(treasurePool("medium").length === 30, "動腦難度應使用前 30 種寶物");
 assert(treasurePool("hard").length === 60, "高手難度應使用完整 60 種寶物");
@@ -105,7 +106,49 @@ assert(applyImmediateTreasure(effectGame, TREASURE_CARDS.candidateLens) && effec
 assert(applyImmediateTreasure(effectGame, TREASURE_CARDS.hourglass) && effectGame.frozenSeconds === 60, "計時寶物應增加凍結秒數");
 assert(applyImmediateTreasure(effectGame, TREASURE_CARDS.luckyStar) && effectGame.xpMultiplier === 2, "經驗寶物應套用正確倍率");
 assert(applyImmediateTreasure(effectGame, TREASURE_CARDS.goldKey) && effectGame.extraCardClaims === 2, "鑰匙寶物應增加正確抽卡數");
-assert(!applyImmediateTreasure(effectGame, TREASURE_CARDS.cometBadge), "同一局不可重複疊加經驗倍率");
+assert(applyImmediateTreasure(effectGame, TREASURE_CARDS.cometBadge) && effectGame.xpMultiplier === 4, "不同經驗寶物應可累加生效");
+assert(applyImmediateTreasure(effectGame, TREASURE_CARDS.silverKey) && effectGame.extraCardClaims === 3, "不同鑰匙寶物應可累加選卡次數");
+assert(treasureClaimsForFloor(1, effectGame.extraCardClaims) === 4, "第一層使用鑰匙後應包含基本掉落與額外選卡");
+assert(treasureClaimsForFloor(2, effectGame.extraCardClaims) === 3, "一般探索層使用鑰匙仍應取得額外選卡");
+
+const automaticGame = { xpMultiplier: 1, extraCardClaims: 0, usedCards: [] };
+const automaticallyActivated = activateAutomaticTreasures(
+  automaticGame,
+  ["treasureKey", "luckyStar"],
+  { treasureKey: 1, luckyStar: 1 }
+);
+assert(automaticallyActivated.length === 2 && automaticGame.usedCards.length === 2, "開局時應自動啟動所有已裝備的被動寶物");
+assert(automaticGame.extraCardClaims === 1 && treasureClaimsForFloor(1, automaticGame.extraCardClaims) === 2, "寶物鑰匙應讓第一層可選兩張寶物");
+assert(automaticGame.xpMultiplier === 2, "經驗寶物應在開局時自動生效");
+assert(activateAutomaticTreasures(automaticGame, ["treasureKey"], { treasureKey: 1 }).length === 0, "同一張被動寶物每局只能啟動一次");
+
+for (const [cardId, card] of Object.entries(TREASURE_CARDS)) {
+  const catalogGame = createGame("easy");
+  Object.assign(catalogGame, {
+    health: 1,
+    maxHealth: 10,
+    shields: 0,
+    frozenSeconds: 0,
+    xpMultiplier: 1,
+    extraCardClaims: 0
+  });
+  const selected = catalogGame.values.findIndex((value) => value === 0);
+  catalogGame.selected = selected;
+  if (card.effect === "hint") {
+    const targets = applyHintTreasure(catalogGame, card, selected);
+    assert(targets.length === card.value && targets.every((index) => catalogGame.values[index] === catalogGame.solution[index]), `${cardId} 必須填入正確答案`);
+  } else if (card.effect === "revive") {
+    assert(strongestEquippedRevive([cardId], { [cardId]: 1 }) === cardId, `${cardId} 必須可被復活流程辨識`);
+  } else {
+    assert(applyImmediateTreasure(catalogGame, card, { index: selected }), `${cardId} 必須可成功套用效果`);
+    if (card.effect === "heal") assert(catalogGame.health === Math.min(10, 1 + card.value), `${cardId} 回血量必須正確`);
+    if (card.effect === "shield") assert(catalogGame.shields === card.value, `${cardId} 護盾量必須正確`);
+    if (card.effect === "candidates") assert(catalogGame.notes[selected].length > 0, `${cardId} 必須標示候選數字`);
+    if (card.effect === "freeze") assert(catalogGame.frozenSeconds === card.value, `${cardId} 凍結秒數必須正確`);
+    if (card.effect === "xpBoost") assert(catalogGame.xpMultiplier === card.value, `${cardId} XP 倍率必須正確`);
+    if (card.effect === "extraClaim") assert(treasureClaimsForFloor(2, catalogGame.extraCardClaims) === card.value, `${cardId} 必須增加選卡次數`);
+  }
+}
 
 const memory = new Map();
 globalThis.localStorage = {

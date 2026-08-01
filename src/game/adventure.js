@@ -74,6 +74,7 @@ export const TREASURE_CARDS = Object.fromEntries(definitions.map(([id, name, ico
 }]));
 
 export const TREASURE_EFFECTS = Object.freeze(["heal", "shield", "candidates", "hint", "freeze", "revive", "xpBoost", "extraClaim"]);
+export const TREASURE_AUTO_EFFECTS = Object.freeze(["xpBoost", "extraClaim"]);
 
 export function strongestEquippedRevive(equippedCards = [], inventory = {}) {
   return equippedCards
@@ -92,13 +93,46 @@ export function applyImmediateTreasure(game, card, { alinMode = false, index = g
     game.notes[index] = candidatesFor(game.values, index);
   } else if (card.effect === "freeze") game.frozenSeconds += card.value;
   else if (card.effect === "xpBoost") {
-    if (game.xpMultiplier > 1) return false;
-    game.xpMultiplier = card.value;
+    game.xpMultiplier *= card.value;
   } else if (card.effect === "extraClaim") {
-    if (game.extraCardClaims) return false;
-    game.extraCardClaims = card.value;
+    game.extraCardClaims += card.value;
   } else return false;
   return true;
+}
+
+export function activateAutomaticTreasures(game, equippedCards = [], inventory = {}, options = {}) {
+  if (!Array.isArray(game.usedCards)) game.usedCards = [];
+  const activated = [];
+  equippedCards.forEach((cardId) => {
+    const card = TREASURE_CARDS[cardId];
+    if (!card || !TREASURE_AUTO_EFFECTS.includes(card.effect) || !inventory[cardId] || game.usedCards.includes(cardId)) return;
+    if (!applyImmediateTreasure(game, card, options)) return;
+    game.usedCards.push(cardId);
+    activated.push(cardId);
+  });
+  return activated;
+}
+
+export function applyHintTreasure(game, card, index = game?.selected) {
+  if (!game || card?.effect !== "hint") return [];
+  const targets = [];
+  if (Number.isInteger(index) && !game.puzzle[index] && !game.values[index]) targets.push(index);
+  const otherEmptyCells = game.values
+    .map((value, cell) => !value && !game.puzzle[cell] && cell !== index ? cell : -1)
+    .filter((cell) => cell >= 0);
+  while (targets.length < card.value && otherEmptyCells.length) {
+    targets.push(otherEmptyCells.splice(Math.floor(Math.random() * otherEmptyCells.length), 1)[0]);
+  }
+  targets.forEach((target) => {
+    game.values[target] = game.solution[target];
+    game.notes[target] = [];
+  });
+  return targets;
+}
+
+export function treasureClaimsForFloor(floor, extraClaims = 0) {
+  const baseClaim = floor === 1 || floor % 3 === 0 ? 1 : 0;
+  return baseClaim + Math.max(0, Math.floor(extraClaims));
 }
 
 const cardIds = Object.keys(TREASURE_CARDS);
