@@ -77,30 +77,35 @@ export const TREASURE_EFFECTS = Object.freeze(["heal", "shield", "candidates", "
 export const TREASURE_AUTO_EFFECTS = Object.freeze(["xpBoost", "extraClaim"]);
 
 export function completedSudokuUnits(values = []) {
-  if (!Array.isArray(values) || values.length !== 81) return { rows: [], boxes: [] };
+  if (!Array.isArray(values) || values.length !== 81) return { rows: [], columns: [], boxes: [] };
   const rows = Array.from({ length: 9 }, (_, row) => row)
     .filter((row) => values.slice(row * 9, row * 9 + 9).every(Boolean));
+  const columns = Array.from({ length: 9 }, (_, column) => column)
+    .filter((column) => Array.from({ length: 9 }, (_, row) => values[row * 9 + column]).every(Boolean));
   const boxes = Array.from({ length: 9 }, (_, box) => box)
     .filter((box) => {
       const startRow = Math.floor(box / 3) * 3;
       const startCol = (box % 3) * 3;
       return Array.from({ length: 9 }, (_, offset) => values[(startRow + Math.floor(offset / 3)) * 9 + startCol + (offset % 3)]).every(Boolean);
     });
-  return { rows, boxes };
+  return { rows, columns, boxes };
 }
 
 export function newlyCompletedSudokuUnits(values, completedUnits = {}) {
   const completed = completedSudokuUnits(values);
   const knownRows = Array.isArray(completedUnits.rows) ? completedUnits.rows : [];
+  const knownColumns = Array.isArray(completedUnits.columns) ? completedUnits.columns : [];
   const knownBoxes = Array.isArray(completedUnits.boxes) ? completedUnits.boxes : [];
   return {
     rows: completed.rows.filter((row) => !knownRows.includes(row)),
+    columns: completed.columns.filter((column) => !knownColumns.includes(column)),
     boxes: completed.boxes.filter((box) => !knownBoxes.includes(box))
   };
 }
 
 export function sudokuUnitCells(type, unitIndex) {
   if (type === "row") return Array.from({ length: 9 }, (_, column) => unitIndex * 9 + column);
+  if (type === "column") return Array.from({ length: 9 }, (_, row) => row * 9 + unitIndex);
   if (type === "box") {
     const startRow = Math.floor(unitIndex / 3) * 3;
     const startCol = (unitIndex % 3) * 3;

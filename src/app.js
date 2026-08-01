@@ -9,7 +9,11 @@ let progress = loadProgress();
 const restoredSession = loadSession();
 let game = restoredSession?.game || createGame("easy");
 if (restoredSession && typeof game.started !== "boolean") game.started = true;
-if (restoredSession && !game.completedUnits) game.completedUnits = completedSudokuUnits(game.values);
+if (restoredSession) {
+  const restoredCompletedUnits = completedSudokuUnits(game.values);
+  if (!game.completedUnits) game.completedUnits = restoredCompletedUnits;
+  else if (!Array.isArray(game.completedUnits.columns)) game.completedUnits.columns = restoredCompletedUnits.columns;
+}
 let noteMode = false;
 let alinMode = restoredSession?.alinMode || false;
 let showBackpack = false;
@@ -40,6 +44,15 @@ const normalizePinInput = (value) => String(value)
 
 function mascot() {
   return `<div class="mascot" aria-hidden="true"><span class="ear left"></span><span class="ear right"></span><span class="face">•ᴗ•</span></div>`;
+}
+
+function animatedFriendsMarkup() {
+  const animal = (kind, face) => `<span class="animated-animal ${kind}">
+    <i class="animal-tail"></i><i class="animal-leg left"></i><i class="animal-leg right"></i><i class="animal-body"></i>
+    <i class="animal-arm left"></i><i class="animal-arm right"></i>
+    <i class="animal-head"><b class="animal-ear left"></b><b class="animal-ear right"></b><em>${face}</em></i>
+  </span>`;
+  return `<span class="animated-friends">${animal("cat", "•ᴗ•")}${animal("mouse", "•ﻌ•")}</span>`;
 }
 
 function showCelebration(icon, title, detail) {
@@ -76,13 +89,14 @@ function playNextGameEffect() {
   if (gameEffectActive || !gameEffectQueue.length) return;
   gameEffectActive = true;
   const { icon, title, detail, tone } = gameEffectQueue.shift();
+  const hasFriends = icon === "friends";
   const effect = document.createElement("section");
-  effect.className = `game-effect ${tone}`;
+  effect.className = `game-effect ${tone}${hasFriends ? " has-friends" : ""}`;
   effect.setAttribute("role", "status");
   effect.setAttribute("aria-live", "polite");
   effect.innerHTML = `
     <span class="effect-spark one">✦</span><span class="effect-spark two">●</span><span class="effect-spark three">✦</span>
-    <div class="effect-character" aria-hidden="true">${icon}</div>
+    <div class="effect-character" aria-hidden="true">${hasFriends ? animatedFriendsMarkup() : icon}</div>
     <div class="effect-bubble"><strong>${title}</strong><small>${detail}</small></div>
     <span class="effect-spark four">●</span><span class="effect-spark five">✦</span>`;
   document.body.append(effect);
@@ -115,7 +129,7 @@ function playNextCellWave() {
   });
   setTimeout(() => {
     cells.forEach((cell) => {
-      cell.classList.remove("wave-hop", "wave-row", "wave-box");
+      cell.classList.remove("wave-hop", "wave-row", "wave-column", "wave-box");
       cell.style.removeProperty("--wave-delay");
     });
     cellWaveActive = false;
@@ -134,7 +148,7 @@ function setupAdventure() {
     actions: 0,
     correctStreak: 0,
     healGoals: { streak: false, row: false, box: false },
-    completedUnits: { rows: [], boxes: [] },
+    completedUnits: { rows: [], columns: [], boxes: [] },
     hintsUsed: 0,
     frozenSeconds: 0,
     xpMultiplier: 1,
@@ -553,7 +567,7 @@ function enterNumber(number) {
       }
     }
     if (blockedByShield) showGameEffect("🛡️", "鏘！成功格擋", "護盾替你擋住這次錯誤", "shield");
-    else showGameEffect("🐱🐭", "猜錯了，雙雙昏倒！", alinMode ? "躺一下再繼續，阿霖模式不會失敗" : "貓咪和老鼠休息一下，再陪你試一次！", "mistake");
+    else showGameEffect("friends", "猜錯了，雙雙昏倒！", alinMode ? "躺一下再繼續，阿霖模式不會失敗" : "貓咪和老鼠休息一下，再陪你試一次！", "mistake");
     document.body.classList.add("shake");
     setTimeout(() => document.body.classList.remove("shake"), 320);
   } else {
@@ -595,13 +609,13 @@ function completeHealGoal(goal, label) {
   game.healGoals[goal] = true;
   const reward = healOrShield();
   showCelebration("🎉", `恭喜完成「${label}」！`, reward);
-  showGameEffect("🐱🐭", "扭腰擺臀慶祝！", `${label}・${reward}`, "success");
+  showGameEffect("friends", "扭腰擺臀慶祝！", `${label}・${reward}`, "success");
 }
 
 function celebrateCompletedUnit(type, unitIndex) {
-  const goal = type === "row" ? "row" : "box";
-  const label = type === "row" ? `第 ${unitIndex + 1} 行` : `第 ${unitIndex + 1} 宮`;
-  const firstReward = !game.healGoals[goal];
+  const goal = type === "row" ? "row" : type === "box" ? "box" : null;
+  const label = type === "row" ? `第 ${unitIndex + 1} 行` : type === "column" ? `第 ${unitIndex + 1} 直列` : `第 ${unitIndex + 1} 宮`;
+  const firstReward = goal && !game.healGoals[goal];
   let detail = `${label}完成，9 格一起跳波浪舞！`;
   if (firstReward) {
     game.healGoals[goal] = true;
@@ -610,16 +624,21 @@ function celebrateCompletedUnit(type, unitIndex) {
     showCelebration("🎉", `首次完成${type === "row" ? "一行" : "一宮"}！`, reward);
   }
   queueCellWave(type, unitIndex);
-  showGameEffect("🐱🐭", `${label}完成，扭起來！`, detail, "success");
+  showGameEffect("friends", `${label}完成，扭起來！`, detail, "success");
 }
 
 function checkHealGoals() {
   if (!game.healGoals.streak && game.correctStreak >= 8) completeHealGoal("streak", "連對 8 格");
-  if (!game.completedUnits) game.completedUnits = { rows: [], boxes: [] };
+  if (!game.completedUnits) game.completedUnits = { rows: [], columns: [], boxes: [] };
+  else if (!Array.isArray(game.completedUnits.columns)) game.completedUnits.columns = completedSudokuUnits(game.values).columns;
   const newlyCompleted = newlyCompletedSudokuUnits(game.values, game.completedUnits);
   newlyCompleted.rows.forEach((row) => {
     game.completedUnits.rows.push(row);
     celebrateCompletedUnit("row", row);
+  });
+  newlyCompleted.columns.forEach((column) => {
+    game.completedUnits.columns.push(column);
+    celebrateCompletedUnit("column", column);
   });
   newlyCompleted.boxes.forEach((box) => {
     game.completedUnits.boxes.push(box);
