@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { countSolutions, createGame, DIFFICULTIES, generatePuzzle, PUZZLES, relatedCells, solveSudoku } from "../src/game/sudoku.js";
 import { activateAutomaticTreasures, ADVENTURE_RULES, applyHintTreasure, applyImmediateTreasure, candidatesFor, completedSudokuUnits, drawTreasureCards, newlyCompletedSudokuUnits, strongestEquippedRevive, sudokuUnitCells, treasureClaimsForFloor, treasurePool, TREASURE_AUTO_EFFECTS, TREASURE_CARDS, TREASURE_EFFECTS } from "../src/game/adventure.js";
-import { validCloudPin } from "../src/state/cloud.js";
+import { normalizePlayerName, validCloudPin } from "../src/state/cloud.js";
 import { buildScore, leaderboardConfigured, normalizeLeaderboardTaunt } from "../src/state/leaderboard.js";
 import { exportSaveCode, importSaveCode } from "../src/state/store.js";
 
@@ -188,6 +188,7 @@ assert(imported.progress.level === 7 && imported.progress.floors.easy === 9, "�
 assert(imported.progress.playerName === "阿霖" && imported.progress.playerId === saveProgress.playerId, "存檔碼應還原玩家名稱與匿名 ID");
 assert(imported.session.game.floor === 9 && imported.session.equippedCards[0] === "dragonElixir", "存檔碼應還原目前關卡與裝備");
 assert(validCloudPin("0428") && !validCloudPin("123") && !validCloudPin("12a4"), "家庭 PIN 必須是 4 位數字");
+assert(normalizePlayerName("  新阿霖\n") === "新阿霖" && normalizePlayerName("島".repeat(20)).length === 16, "雲端玩家名稱應清理控制字元並限制為 16 字");
 assert(leaderboardConfigured(), "Supabase 專案設定後排行榜應啟用雲端模式");
 const score = buildScore(imported.progress, { difficulty: "easy", floor: 9, stars: 3, elapsed: 120, mistakes: 0 });
 assert(score.p_player_name === "阿霖" && score.p_floor === 9 && score.p_score > 90000, "排行榜成績應包含玩家、層數與計算分數");

@@ -178,3 +178,43 @@ $$;
 
 revoke all on function public.update_leaderboard_taunt(uuid, text, text) from public;
 grant execute on function public.update_leaderboard_taunt(uuid, text, text) to anon, authenticated;
+
+create or replace function public.rename_cloud_player(
+  p_player_id uuid,
+  p_pin text,
+  p_player_name text
+)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if char_length(p_pin) <> 4
+    or p_pin ~ '[^0-9]'
+    or char_length(trim(p_player_name)) not between 1 and 16
+    or p_player_name ~ '[[:cntrl:]]' then
+    raise exception 'Invalid player rename';
+  end if;
+
+  if not exists (
+    select 1
+    from public.cloud_saves
+    where player_id = p_player_id
+      and pin_hash = extensions.crypt(p_pin, pin_hash)
+  ) then
+    raise exception 'Invalid cloud PIN';
+  end if;
+
+  update public.cloud_saves
+  set player_name = trim(p_player_name), updated_at = now()
+  where player_id = p_player_id;
+
+  update public.leaderboard_scores
+  set player_name = trim(p_player_name)
+  where player_id = p_player_id;
+end;
+$$;
+
+revoke all on function public.rename_cloud_player(uuid, text, text) from public;
+grant execute on function public.rename_cloud_player(uuid, text, text) to anon, authenticated;

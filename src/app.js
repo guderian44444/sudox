@@ -1,6 +1,6 @@
 import { createGame, DIFFICULTIES, relatedCells } from "./game/sudoku.js";
 import { activateAutomaticTreasures, ADVENTURE_RULES, applyHintTreasure, applyImmediateTreasure, calculateStars, completedSudokuUnits, drawTreasureCards, newlyCompletedSudokuUnits, strongestEquippedRevive, sudokuUnitCells, treasureClaimsForFloor, TREASURE_AUTO_EFFECTS, TREASURE_CARDS } from "./game/adventure.js";
-import { cloudConfigured, loadCloudPin, loadCloudProgress, saveCloudPin, saveCloudProgress, validCloudPin } from "./state/cloud.js";
+import { cloudConfigured, loadCloudPin, loadCloudProgress, normalizePlayerName, renameCloudPlayer, saveCloudPin, saveCloudProgress, validCloudPin } from "./state/cloud.js";
 import { buildScore, fetchLeaderboard, flushPendingScores, leaderboardConfigured, normalizeLeaderboardTaunt, pendingScoreCount, queueLeaderboardScore, updateLeaderboardTaunt } from "./state/leaderboard.js";
 import { addCard, clearSession, consumeCard, exportSaveCode, importSaveCode, loadProgress, loadSession, rewardProgress, saveProgress, saveSession, spendCoins } from "./state/store.js";
 
@@ -38,6 +38,7 @@ let lastWaveVariants = { row: null, column: null, box: null };
 const SOUND_KEY = "sudox-sound-enabled-v1";
 let soundEnabled = localStorage.getItem(SOUND_KEY) !== "off";
 let audioContext = null;
+let lastFinaleMelody = -1;
 
 const formatTime = (seconds) => `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
 const LEADERBOARD_MODES = Object.freeze({
@@ -72,7 +73,9 @@ function playSound(name) {
     mistake: [[330, 0, .11], [247, .1, .18]],
     shield: [[740, 0, .06], [1110, .07, .16]],
     card: [[392, 0, .07], [523, .07, .07], [784, .14, .16]],
-    finale: [[523, 0, .12], [659, .12, .12], [784, .24, .12], [1047, .38, .28]]
+    "finale-0": [[523, 0, .11], [659, .11, .11], [784, .22, .12], [1047, .36, .3]],
+    "finale-1": [[659, 0, .1], [784, .1, .1], [988, .2, .14], [784, .35, .1], [1175, .47, .28]],
+    "finale-2": [[392, 0, .1], [523, .1, .1], [659, .2, .1], [784, .3, .1], [1047, .43, .32]]
   };
   const sequence = sounds[name] || sounds.success;
   const start = audioContext.currentTime;
@@ -88,6 +91,12 @@ function playSound(name) {
     oscillator.start(start + delay);
     oscillator.stop(start + delay + duration + .02);
   });
+}
+
+function playFinaleMelody() {
+  const choices = [0, 1, 2].filter((index) => index !== lastFinaleMelody);
+  lastFinaleMelody = choices[Math.floor(Math.random() * choices.length)];
+  playSound(`finale-${lastFinaleMelody}`);
 }
 
 function toggleSound() {
@@ -223,7 +232,7 @@ function showFinaleCelebration() {
       <small>阿霖的數獨島・完美過關</small>
     </div>`;
   document.body.append(finale);
-  playSound("finale");
+  playFinaleMelody();
   setTimeout(() => finale.classList.add("leaving"), 2850);
   setTimeout(() => finale.remove(), 3400);
 }
@@ -273,7 +282,7 @@ function render() {
   const related = relatedCells(game.selected);
   const inventoryTotal = Object.values(progress.inventory).reduce((total, count) => total + count, 0);
   app.innerHTML = `
-    <main class="shell">
+    <main class="shell ${game.started ? "game-active" : ""}">
       <header class="topbar">
         <div class="brand">${mascot()}<div><span>阿霖的數獨島</span><small>ALIN'S SUDOKU ISLAND</small></div></div>
         <div class="topbar-actions"><div class="wallet" aria-label="玩家資源"><span>⭐ ${progress.totalStars}</span><span>🪙 ${progress.coins}</span></div><button id="toggle-sound" class="save-button sound-button" aria-label="${soundEnabled ? "關閉音效" : "開啟音效"}" aria-pressed="${soundEnabled}">${soundEnabled ? "🔊" : "🔇"}</button><button id="open-leaderboard" class="save-button">🏆 <span>排行</span></button><button id="open-save-center" class="save-button">💾 <span>存檔</span></button></div>
@@ -289,7 +298,7 @@ function render() {
           <div class="section-title"><span>選擇旅程</span><small>難度</small></div>
           <div class="difficulty-list">
             ${Object.entries(DIFFICULTIES).map(([key, item]) => `
-              <button class="difficulty ${game.difficulty === key ? "active" : ""}" data-difficulty="${key}">
+              <button class="difficulty ${game.difficulty === key ? "active" : ""}" data-difficulty="${key}" ${game.started ? "disabled" : ""}>
                 <span class="difficulty-icon">${item.icon}</span>
                 <span><strong>${item.label}</strong><small>${ADVENTURE_RULES[key].maxHealth} 心・${item.xp} XP・${ADVENTURE_RULES[key].treasurePoolSize} 種寶物</small></span>
               </button>`).join("")}
@@ -430,6 +439,7 @@ function saveCenterModal() {
     <div class="celebrate">☁️</div><h2 id="save-title">雲端存檔</h2>
     <p>本機會隨時自動保存；連上網路後，玩家資料、裝備、XP、層數和目前盤面也會同步到家庭雲端。</p>
     <div class="cloud-card ${configured && pinReady ? "ready" : "waiting"}"><span>${configured && pinReady ? "✅" : "⚙️"}</span><div><strong>${configured ? (pinReady ? "雲端同步已就緒" : "需要設定家庭 PIN") : "等待設定 Supabase"}</strong><small>${escapeHtml(cloudSyncStatus || (configured ? `玩家：${progress.playerName}` : "設定完成前仍會安全保存在這台裝置"))}</small></div></div>
+    <div class="rename-player"><label for="rename-player-name">✏️ 修改玩家名稱</label><div><input id="rename-player-name" maxlength="16" value="${escapeHtml(progress.playerName || "")}" placeholder="新的玩家名稱"><button id="rename-cloud-player" ${configured && pinReady && progress.playerName ? "" : "disabled"}>改名</button></div><small>使用目前的家庭 PIN 驗證，排行榜名稱也會一起更新。</small></div>
     <div class="save-actions"><button id="sync-cloud-now" ${configured && pinReady ? "" : "disabled"}>☁️ 立即同步</button><button id="switch-cloud-player">👤 更換／載入玩家</button></div>
     <button id="close-save-center" class="primary-button">回到遊戲</button>
   </section></div>`;
@@ -467,7 +477,7 @@ function backpackModal() {
 function bindEvents() {
   document.querySelectorAll("[data-cell]").forEach((button) => button.addEventListener("click", () => { game.selected = Number(button.dataset.cell); render(); }));
   document.querySelectorAll("[data-number]").forEach((button) => button.addEventListener("click", () => enterNumber(Number(button.dataset.number))));
-  document.querySelectorAll("[data-difficulty]").forEach((button) => button.addEventListener("click", () => newGame(button.dataset.difficulty)));
+  document.querySelectorAll("[data-difficulty]").forEach((button) => button.addEventListener("click", () => { if (!game.started) newGame(button.dataset.difficulty); }));
   document.querySelectorAll("[data-prestart-difficulty]").forEach((button) => button.addEventListener("click", () => newGame(button.dataset.prestartDifficulty)));
   document.querySelectorAll("[data-use-card]").forEach((button) => button.addEventListener("click", () => useCard(button.dataset.useCard)));
   document.querySelectorAll("[data-equip-card]").forEach((button) => button.addEventListener("click", () => toggleEquipCard(button.dataset.equipCard)));
@@ -495,6 +505,7 @@ function bindEvents() {
   document.querySelector("#open-save-center")?.addEventListener("click", openSaveCenter);
   document.querySelector("#close-save-center")?.addEventListener("click", () => { showSaveCenter = false; render(); });
   document.querySelector("#sync-cloud-now")?.addEventListener("click", () => syncCloudNow(true));
+  document.querySelector("#rename-cloud-player")?.addEventListener("click", renamePlayer);
   document.querySelector("#switch-cloud-player")?.addEventListener("click", () => { showSaveCenter = false; showNameSetup = true; nameSetupStatus = ""; render(); });
   document.querySelector("#family-pin")?.addEventListener("input", (event) => {
     event.currentTarget.value = normalizePinInput(event.currentTarget.value);
@@ -511,11 +522,40 @@ function openSaveCenter() {
 }
 
 function playerSetupValues() {
-  const playerName = document.querySelector("#player-name")?.value.replace(/[\u0000-\u001f\u007f]/g, "").trim().slice(0, 16) || "";
+  const playerName = normalizePlayerName(document.querySelector("#player-name")?.value || "");
   const pin = normalizePinInput(document.querySelector("#family-pin")?.value || "");
   if (!playerName) throw new Error("請輸入玩家名稱");
   if (!validCloudPin(pin)) throw new Error("家庭 PIN 必須是 4 位數字");
   return { playerName, pin };
+}
+
+async function renamePlayer() {
+  const pin = loadCloudPin();
+  const playerName = normalizePlayerName(document.querySelector("#rename-player-name")?.value || "");
+  if (!playerName) {
+    cloudSyncStatus = "請輸入新的玩家名稱";
+    render();
+    return;
+  }
+  if (playerName === progress.playerName) {
+    cloudSyncStatus = "新名稱和目前名稱相同";
+    render();
+    return;
+  }
+  cloudSyncStatus = "正在更新雲端玩家名稱…";
+  render();
+  try {
+    await renameCloudPlayer({ playerId: progress.playerId, pin, playerName });
+    progress = { ...progress, playerName };
+    saveProgress(progress);
+    await saveCloudProgress({ playerId: progress.playerId, playerName, pin, saveCode: exportSaveCode(progress, sessionSnapshot()) });
+    cloudSyncStatus = `改名完成・現在是 ${playerName}`;
+    render();
+    showCelebration("✏️", "玩家名稱更新完成！", "雲端存檔與排行榜已同步");
+  } catch (error) {
+    cloudSyncStatus = error.message || "暫時無法修改名稱";
+    if (showSaveCenter) render();
+  }
 }
 
 async function createPlayer() {

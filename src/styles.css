@@ -310,6 +310,13 @@ button:focus-visible { outline: 3px solid #4f9dd9; outline-offset: 2px; }
 .cloud-card strong, .cloud-card small { display: block; }
 .cloud-card strong { color: var(--navy); font-size: 14px; }
 .cloud-card small { margin-top: 3px; color: #85776b; font-size: 11px; }
+.rename-player { margin: 0 0 13px; padding: 12px; display: grid; gap: 6px; border-radius: 15px; background: #f3f8f6; text-align: left; }
+.rename-player label { color: #477665; font-size: 12px; font-weight: 900; }
+.rename-player > div { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 7px; }
+.rename-player input { min-width: 0; padding: 10px 11px; border: 1px solid #bdd9cf; border-radius: 11px; color: var(--navy); font-size: 15px; font-weight: 800; }
+.rename-player button { padding: 0 14px; border: 0; border-radius: 11px; background: #55977f; color: white; font-weight: 900; cursor: pointer; }
+.rename-player button:disabled { opacity: .45; cursor: not-allowed; }
+.rename-player small { color: #71877f; font-size: 10px; font-weight: 700; }
 .leaderboard-modal { width: min(100%, 520px); }
 .leaderboard-tabs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 14px 0; }
 .leaderboard-tabs button { padding: 9px 5px; border: 1px solid #eadfd3; border-radius: 12px; background: #faf7f3; font-size: 12px; font-weight: 800; cursor: pointer; }
@@ -413,6 +420,8 @@ button:focus-visible { outline: 3px solid #4f9dd9; outline-offset: 2px; }
   .level-ring::before { width: 52px; }
   .level-ring span { font-size: 14px; }
   .game-layout { display: flex; flex-direction: column; gap: 13px; }
+  .game-active .hero-card, .game-active .difficulty-panel { display: none; }
+  .game-active .game-layout { margin-top: 8px; }
   .difficulty-panel { width: 100%; padding: 12px; }
   .difficulty-panel .section-title { margin: 0 0 9px; }
   .difficulty-list { grid-template-columns: repeat(3, 1fr); gap: 6px; }
@@ -434,8 +443,8 @@ button:focus-visible { outline: 3px solid #4f9dd9; outline-offset: 2px; }
   .cell { font-size: clamp(20px, 6vw, 27px); }
   .tools { margin: 11px 0 9px; }
   .tools button { min-width: 67px; padding: 5px 8px; }
-  .number-pad { gap: 4px; }
-  .number-pad button { border-radius: 8px; font-size: clamp(18px, 5.2vw, 22px); }
+  .number-pad { gap: 3px; }
+  .number-pad button { height: clamp(44px, 12vw, 52px); aspect-ratio: auto; border-radius: 9px; font-size: clamp(22px, 6.5vw, 28px); }
   .card-tray { flex-wrap: wrap; }
   .card-draw > div { grid-template-columns: 1fr; }
   .treasure-card { display: grid; grid-template-columns: 38px 1fr; grid-template-rows: auto auto; text-align: left; }

@@ -10,6 +10,10 @@ export function validCloudPin(pin) {
   return /^\d{4}$/.test(pin);
 }
 
+export function normalizePlayerName(value) {
+  return String(value ?? "").replace(/[\u0000-\u001f\u007f]/g, "").trim().slice(0, 16);
+}
+
 export function loadCloudPin() {
   return localStorage.getItem(CLOUD_PIN_KEY) || "";
 }
@@ -52,4 +56,15 @@ export async function loadCloudProgress(playerName, pin) {
   const saveCode = await callRpc("load_cloud_progress", { p_player_name: playerName, p_pin: pin });
   if (!saveCode) throw new Error("找不到這位玩家的雲端進度");
   return saveCode;
+}
+
+export async function renameCloudPlayer({ playerId, pin, playerName }) {
+  if (!navigator.onLine) throw new Error("目前離線，無法修改玩家名稱");
+  const cleanName = normalizePlayerName(playerName);
+  if (!cleanName) throw new Error("請輸入新的玩家名稱");
+  return callRpc("rename_cloud_player", {
+    p_player_id: playerId,
+    p_pin: pin,
+    p_player_name: cleanName
+  });
 }
