@@ -1,5 +1,14 @@
-const STORAGE_KEY = "sudox-progress-v2";
-const LEGACY_STORAGE_KEY = "sudox-progress-v1";
+const STORAGE_KEY = "sudox-progress-v3";
+const SESSION_KEY = "sudox-session-v3";
+const LEGACY_STORAGE_KEYS = ["sudox-progress-v2", "sudox-progress-v1"];
+
+function createPlayerId() {
+  if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (character) => {
+    const random = Math.floor(Math.random() * 16);
+    return (character === "x" ? random : (random & 3) | 8).toString(16);
+  });
+}
 
 const starterInventory = {
   heartPotion: 1,
@@ -13,6 +22,8 @@ const starterInventory = {
 };
 
 const defaultProgress = {
+  playerId: "",
+  playerName: "",
   level: 1,
   xp: 0,
   coins: 20,
@@ -23,27 +34,87 @@ const defaultProgress = {
   cardCollection: [],
   totalStars: 0,
   bestTimes: {},
-  rewardedRuns: []
+  rewardedRuns: [],
+  floors: { easy: 1, medium: 1, hard: 1 }
 };
+
+const safeNumber = (value, fallback = 0) => Number.isFinite(Number(value)) ? Math.max(0, Number(value)) : fallback;
+
+function normalizedInventory(inventory = {}) {
+  return Object.fromEntries(Object.entries({ ...starterInventory, ...inventory })
+    .filter(([cardId]) => /^[a-zA-Z][a-zA-Z0-9]{0,40}$/.test(cardId))
+    .map(([cardId, count]) => [cardId, Math.floor(safeNumber(count))]));
+}
+
+function normalizedProgress(saved = {}) {
+  const playerName = typeof saved.playerName === "string" ? saved.playerName.replace(/[\u0000-\u001f\u007f]/g, "").trim().slice(0, 16) : "";
+  const playerId = typeof saved.playerId === "string" && /^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(saved.playerId) ? saved.playerId : createPlayerId();
+  const progress = {
+    ...defaultProgress,
+    ...saved,
+    playerId,
+    playerName,
+    level: Math.max(1, Math.floor(safeNumber(saved.level, 1))),
+    xp: Math.floor(safeNumber(saved.xp)),
+    coins: Math.floor(safeNumber(saved.coins, 20)),
+    streak: Math.floor(safeNumber(saved.streak)),
+    completedGames: Math.floor(safeNumber(saved.completedGames)),
+    totalStars: Math.floor(safeNumber(saved.totalStars)),
+    unlockedDifficulty: ["easy", "medium", "hard"].includes(saved.unlockedDifficulty) ? saved.unlockedDifficulty : "easy",
+    inventory: normalizedInventory(saved.inventory),
+    cardCollection: Array.isArray(saved.cardCollection) ? saved.cardCollection.filter((cardId) => typeof cardId === "string" && /^[a-zA-Z][a-zA-Z0-9]{0,40}$/.test(cardId)).slice(0, 60) : [],
+    bestTimes: saved.bestTimes || {},
+    rewardedRuns: Array.isArray(saved.rewardedRuns) ? saved.rewardedRuns : [],
+    floors: Object.fromEntries(Object.keys(defaultProgress.floors).map((difficulty) => [difficulty, Math.max(1, Math.floor(safeNumber(saved.floors?.[difficulty], 1))) ]))
+  };
+  return progress;
+}
+
+function validSession(session) {
+  const game = session?.game;
+  const validGrid = (grid, allowZero) => Array.isArray(grid) && grid.length === 81 && grid.every((value) => Number.isInteger(value) && value >= (allowZero ? 0 : 1) && value <= 9);
+  return Boolean(game
+    && !game.completed
+    && !game.failed
+    && ["easy", "medium", "hard"].includes(game.difficulty)
+    && validGrid(game.puzzle, true)
+    && validGrid(game.solution, false)
+    && validGrid(game.values, true)
+    && Array.isArray(game.notes)
+    && game.notes.length === 81
+    && Number.isInteger(game.floor)
+    && game.floor >= 1);
+}
 
 export function loadProgress() {
   try {
-    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || localStorage.getItem(LEGACY_STORAGE_KEY) || "null") || {};
-    return {
-      ...defaultProgress,
-      ...saved,
-      inventory: { ...starterInventory, ...(saved.inventory || {}) },
-      cardCollection: Array.isArray(saved.cardCollection) ? saved.cardCollection : [],
-      bestTimes: saved.bestTimes || {},
-      rewardedRuns: Array.isArray(saved.rewardedRuns) ? saved.rewardedRuns : []
-    };
+    const legacy = LEGACY_STORAGE_KEYS.map((key) => localStorage.getItem(key)).find(Boolean);
+    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || legacy || "null") || {};
+    return normalizedProgress(saved);
   } catch {
-    return { ...defaultProgress, inventory: { ...starterInventory } };
+    return normalizedProgress();
   }
 }
 
 export function saveProgress(progress) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(progress));
+}
+
+export function saveSession(session) {
+  localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+}
+
+export function loadSession() {
+  try {
+    const session = JSON.parse(localStorage.getItem(SESSION_KEY) || "null");
+    return validSession(session) ? session : null;
+  } catch {
+    return null;
+  }
+}
+
+export function clearSession() {
+  localStorage.removeItem(SESSION_KEY);
 }
 
 export function addCard(progress, cardId) {
@@ -68,13 +139,14 @@ export function spendCoins(progress, amount) {
   return next;
 }
 
-export function rewardProgress(progress, xpReward, bonusCoins = 0, stars = 0) {
-  const next = { ...progress };
+export function rewardProgress(progress, xpReward, bonusCoins = 0, stars = 0, difficulty = "easy") {
+  const next = { ...progress, floors: { ...progress.floors } };
   next.xp += xpReward;
   next.coins += Math.ceil(xpReward / 5) + bonusCoins;
   next.completedGames += 1;
   next.streak += 1;
   next.totalStars = (next.totalStars || 0) + stars;
+  next.floors[difficulty] = (next.floors[difficulty] || 1) + 1;
   while (next.xp >= next.level * 100) {
     next.xp -= next.level * 100;
     next.level += 1;
@@ -84,4 +156,46 @@ export function rewardProgress(progress, xpReward, bonusCoins = 0, stars = 0) {
   if (next.completedGames >= 5) next.unlockedDifficulty = "hard";
   saveProgress(next);
   return next;
+}
+
+function checksum(text) {
+  let hash = 2166136261;
+  for (let index = 0; index < text.length; index += 1) {
+    hash ^= text.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(36);
+}
+
+function encodeText(text) {
+  const bytes = new TextEncoder().encode(text);
+  let binary = "";
+  bytes.forEach((byte) => { binary += String.fromCharCode(byte); });
+  return btoa(binary).replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "");
+}
+
+function decodeText(encoded) {
+  const normalized = encoded.replaceAll("-", "+").replaceAll("_", "/");
+  const binary = atob(normalized + "=".repeat((4 - normalized.length % 4) % 4));
+  return new TextDecoder().decode(Uint8Array.from(binary, (character) => character.charCodeAt(0)));
+}
+
+export function exportSaveCode(progress, session = null) {
+  const data = JSON.stringify({ version: 3, progress, session, exportedAt: new Date().toISOString() });
+  return `SUDOX3.${checksum(data)}.${encodeText(data)}`;
+}
+
+export function importSaveCode(code) {
+  const [prefix, expectedChecksum, encoded] = code.trim().split(".");
+  if (prefix !== "SUDOX3" || !expectedChecksum || !encoded || encoded.length > 300000) throw new Error("存檔碼格式不正確");
+  const data = decodeText(encoded);
+  if (checksum(data) !== expectedChecksum) throw new Error("存檔碼已損壞或不完整");
+  const payload = JSON.parse(data);
+  if (payload.version !== 3 || !payload.progress) throw new Error("不支援這個存檔版本");
+  const progress = normalizedProgress(payload.progress);
+  saveProgress(progress);
+  if (payload.session?.game && !validSession(payload.session)) throw new Error("存檔中的關卡資料不完整");
+  if (payload.session?.game) saveSession(payload.session);
+  else clearSession();
+  return { progress, session: loadSession() };
 }

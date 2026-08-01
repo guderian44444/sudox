@@ -1,23 +1,60 @@
 import { createGame, DIFFICULTIES, relatedCells } from "./game/sudoku.js";
 import { ADVENTURE_RULES, calculateStars, candidatesFor, drawTreasureCards, TREASURE_CARDS } from "./game/adventure.js";
-import { addCard, consumeCard, loadProgress, rewardProgress, saveProgress, spendCoins } from "./state/store.js";
+import { cloudConfigured, loadCloudPin, loadCloudProgress, saveCloudPin, saveCloudProgress, validCloudPin } from "./state/cloud.js";
+import { buildScore, fetchLeaderboard, flushPendingScores, leaderboardConfigured, pendingScoreCount, queueLeaderboardScore } from "./state/leaderboard.js";
+import { addCard, clearSession, consumeCard, exportSaveCode, importSaveCode, loadProgress, loadSession, rewardProgress, saveProgress, saveSession, spendCoins } from "./state/store.js";
 
 const app = document.querySelector("#app");
 let progress = loadProgress();
-let game = createGame("easy");
+const restoredSession = loadSession();
+let game = restoredSession?.game || createGame("easy");
 let noteMode = false;
-let alinMode = false;
+let alinMode = restoredSession?.alinMode || false;
 let showBackpack = false;
-let equippedCards = [];
+let showSaveCenter = false;
+let showNameSetup = !progress.playerName;
+let showLeaderboard = false;
+let leaderboardDifficulty = game.difficulty;
+let leaderboardRows = [];
+let leaderboardStatus = "";
+let nameSetupStatus = "";
+let cloudSyncStatus = "";
+let cloudSyncTimer;
+let equippedCards = restoredSession?.equippedCards || [];
 let timerId;
+let celebrationId = 0;
 
-const unlockOrder = ["easy", "medium", "hard"];
-const isUnlocked = (difficulty) => unlockOrder.indexOf(difficulty) <= unlockOrder.indexOf(progress.unlockedDifficulty);
 const formatTime = (seconds) => `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
 const currentHintCost = () => alinMode ? 0 : DIFFICULTIES[game.difficulty].hintCost;
+const escapeHtml = (value) => String(value).replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character]);
 
 function mascot() {
   return `<div class="mascot" aria-hidden="true"><span class="ear left"></span><span class="ear right"></span><span class="face">•ᴗ•</span></div>`;
+}
+
+function showCelebration(icon, title, detail) {
+  let stack = document.querySelector("#celebration-stack");
+  if (!stack) {
+    stack = document.createElement("div");
+    stack.id = "celebration-stack";
+    stack.className = "celebration-stack";
+    stack.setAttribute("aria-live", "polite");
+    stack.setAttribute("aria-atomic", "false");
+    document.body.append(stack);
+  }
+
+  const toast = document.createElement("section");
+  toast.className = "celebration-toast";
+  toast.dataset.celebrationId = String(++celebrationId);
+  toast.innerHTML = `<span class="celebration-icon" aria-hidden="true">${icon}</span><span><strong>${title}</strong><small>${detail}</small></span>`;
+  stack.append(toast);
+  setTimeout(() => {
+    toast.classList.add("leaving");
+    toast.addEventListener("animationend", () => {
+      toast.remove();
+      if (!stack.children.length) stack.remove();
+    }, { once: true });
+  }, 2600);
 }
 
 function setupAdventure() {
@@ -43,7 +80,20 @@ function setupAdventure() {
   });
 }
 
+function sessionSnapshot() {
+  if (game.completed || game.failed) return null;
+  return { game, equippedCards, alinMode };
+}
+
+function persistSession() {
+  const session = sessionSnapshot();
+  if (session) saveSession(session);
+  else clearSession();
+  scheduleCloudSync();
+}
+
 function render() {
+  persistSession();
   const levelTarget = progress.level * 100;
   const selectedValue = game.values[game.selected];
   const related = relatedCells(game.selected);
@@ -52,11 +102,11 @@ function render() {
     <main class="shell">
       <header class="topbar">
         <div class="brand">${mascot()}<div><span>阿霖的數獨島</span><small>ALIN'S SUDOKU ISLAND</small></div></div>
-        <div class="wallet" aria-label="玩家資源"><span>⭐ ${progress.totalStars}</span><span>🪙 ${progress.coins}</span></div>
+        <div class="topbar-actions"><div class="wallet" aria-label="玩家資源"><span>⭐ ${progress.totalStars}</span><span>🪙 ${progress.coins}</span></div><button id="open-leaderboard" class="save-button">🏆 <span>排行</span></button><button id="open-save-center" class="save-button">💾 <span>存檔</span></button></div>
       </header>
 
       <section class="hero-card">
-        <div><p class="eyebrow">LEVEL ${progress.level}</p><h1>今天也來解一題吧！</h1><p>每完成一局，就讓小島長大一點。</p></div>
+        <div><p class="eyebrow">${progress.playerName ? `${escapeHtml(progress.playerName)}・` : ""}LEVEL ${progress.level}</p><h1>今天也來解一題吧！</h1><p>每完成一局，就讓小島長大一點。</p></div>
         <div class="level-ring" style="--progress:${Math.round((progress.xp / levelTarget) * 360)}deg"><span>${progress.xp}<small>/${levelTarget} XP</small></span></div>
       </section>
 
@@ -65,11 +115,12 @@ function render() {
           <div class="section-title"><span>選擇旅程</span><small>難度</small></div>
           <div class="difficulty-list">
             ${Object.entries(DIFFICULTIES).map(([key, item]) => `
-              <button class="difficulty ${game.difficulty === key ? "active" : ""}" data-difficulty="${key}" ${isUnlocked(key) ? "" : "disabled"}>
-                <span class="difficulty-icon">${isUnlocked(key) ? item.icon : "🔒"}</span>
-                <span><strong>${item.label}</strong><small>${isUnlocked(key) ? `${ADVENTURE_RULES[key].maxHealth} 顆心・+${item.xp} XP` : key === "medium" ? "完成 2 局解鎖" : "完成 5 局解鎖"}</small></span>
+              <button class="difficulty ${game.difficulty === key ? "active" : ""}" data-difficulty="${key}">
+                <span class="difficulty-icon">${item.icon}</span>
+                <span><strong>${item.label}</strong><small>${ADVENTURE_RULES[key].maxHealth} 心・${item.xp} XP・${ADVENTURE_RULES[key].treasurePoolSize} 種寶物</small></span>
               </button>`).join("")}
           </div>
+          <div class="difficulty-summary">🌱 35 XP／10 種　🌼 60 XP／30 種　🏆 100 XP／60 種</div>
           <button class="alin-mode ${alinMode ? "active" : ""}" id="alin-mode" aria-pressed="${alinMode}">
             <span>🌈</span><span><strong>阿霖模式</strong><small>${alinMode ? "已開啟・不限失誤" : "開啟後不會失敗"}</small></span>
           </button>
@@ -78,12 +129,13 @@ function render() {
 
         <section class="board-card" aria-label="數獨遊戲">
           <div class="game-meta">
-            <span class="difficulty-pill">${DIFFICULTIES[game.difficulty].icon} ${DIFFICULTIES[game.difficulty].label}</span>
+            <span class="difficulty-pill">${DIFFICULTIES[game.difficulty].icon} ${DIFFICULTIES[game.difficulty].label}・第 ${game.floor} 層</span>
             <span class="timer-block" aria-label="經過時間，沒有時間限制"><span>⏱ <strong id="timer">${formatTime(game.elapsed)}</strong></span><small>不限時 · ${formatTime(DIFFICULTIES[game.difficulty].bonusTime)} 內 +${DIFFICULTIES[game.difficulty].bonusCoins} 🪙 <i id="freeze-time">${game.frozenSeconds ? `· 凍結 ${game.frozenSeconds}s` : ""}</i></small></span>
             <button class="icon-button" id="restart" aria-label="重新開始">↻</button>
           </div>
           <div class="adventure-status">
             <span class="health">${alinMode ? "🌈 不限失誤" : `${"❤️".repeat(game.health)}${"🤍".repeat(Math.max(0, game.maxHealth - game.health))}`}${game.shields ? ` 🛡️${game.shields}` : ""}</span>
+            ${game.floor > 1 ? `<span class="farm-badge">♻️ 探索層：55% XP・每 3 層寶物</span>` : ""}
             <div class="goal-chips" aria-label="回血目標">
               <span class="${game.healGoals.streak ? "done" : ""}">連對 8 格</span><span class="${game.healGoals.row ? "done" : ""}">完成一行</span><span class="${game.healGoals.box ? "done" : ""}">完成一宮</span>
             </div>
@@ -117,12 +169,12 @@ function render() {
         <aside class="side-panel reward-panel">
           <div class="section-title"><span>冒險獎勵</span><small>永久累積</small></div>
           <div class="quest"><span class="quest-icon">🎯</span><div><strong>完成一局</strong><small>${Math.min(progress.completedGames, 1)}/1</small><div class="mini-progress"><i style="width:${progress.completedGames ? 100 : 10}%"></i></div></div></div>
-          <div class="reward-preview"><span class="chest">🎁</span><strong>過關三選一</strong><small>高星級提高稀有卡機率</small></div>
+          <div class="reward-preview"><span class="chest">🎁</span><strong>${ADVENTURE_RULES[game.difficulty].treasurePoolSize} 種寶物池</strong><small>第 1 層必掉，之後每 3 層掉落</small></div>
           <button id="open-backpack-side" class="daily-button">🎒 寶物背包・${inventoryTotal} 張</button>
         </aside>
       </section>
     </main>
-    ${game.completed ? completionModal() : game.failed ? failureModal() : showBackpack ? backpackModal() : ""}
+    ${showNameSetup ? nameSetupModal() : showLeaderboard ? leaderboardModal() : showSaveCenter ? saveCenterModal() : game.completed ? completionModal() : game.failed ? failureModal() : showBackpack ? backpackModal() : ""}
   `;
   bindEvents();
 }
@@ -130,11 +182,13 @@ function render() {
 function completionModal() {
   const totalCoins = Math.ceil(game.xpReward / 5) + game.timeBonus;
   return `<div class="modal-backdrop"><section class="modal completion-modal" role="dialog" aria-modal="true" aria-labelledby="complete-title">
-    <div class="celebrate">🎉</div><p class="eyebrow">PUZZLE COMPLETE</p><h2 id="complete-title">太厲害了！</h2>
+    <div class="celebrate">🎉</div><p class="eyebrow">FLOOR ${game.floor} COMPLETE</p><h2 id="complete-title">第 ${game.floor} 層完成！</h2>
     <div class="stars-earned" aria-label="獲得 ${game.stars} 顆星">${"⭐".repeat(game.stars)}${"☆".repeat(3 - game.stars)}</div>
     <div class="reward-row"><span>⭐ +${game.xpReward} XP</span><span>🪙 +${totalCoins}</span></div>
+    <p class="cloud-result">${leaderboardConfigured() ? "🏆 成績已加入全球排行同步佇列" : "🏆 排行榜等待連接資料庫"}</p>
+    ${game.floor > 1 ? `<p class="farm-reward-note">探索層採 55% 經驗；下一局前往第 ${game.floor + 1} 層</p>` : ""}
     ${game.timeBonus ? `<p class="speed-bonus">⚡ 目標時間內完成，速度獎勵 +${game.timeBonus} 金幣</p>` : `<p class="speed-bonus calm">慢慢玩也很好，關卡沒有時間限制</p>`}
-    <div class="card-draw"><strong>${game.remainingClaims ? `選擇 ${game.remainingClaims} 張寶物卡帶走` : "寶物已放進背包"}</strong><div>
+    <div class="card-draw"><strong>${game.remainingClaims ? `選擇 ${game.remainingClaims} 張寶物卡帶走` : game.claimedCards.length ? "寶物已放進背包" : `本層沒有寶物・第 ${Math.ceil((game.floor + 1) / 3) * 3} 層再次掉落`}</strong><div>
       ${game.cardChoices.map((cardId) => {
         const card = TREASURE_CARDS[cardId];
         const claimed = game.claimedCards.includes(cardId);
@@ -145,11 +199,56 @@ function completionModal() {
   </section></div>`;
 }
 
+function nameSetupModal() {
+  return `<div class="modal-backdrop"><section class="modal name-modal" role="dialog" aria-modal="true" aria-labelledby="name-title">
+    <div class="celebrate">🏝️</div><p class="eyebrow">WELCOME</p><h2 id="name-title">冒險家叫什麼名字？</h2>
+    <p>名稱會顯示在家庭排行榜。4 位數家庭 PIN 用來在其他裝置找回雲端存檔。</p>
+    <label class="field-label" for="player-name">玩家名稱</label>
+    <input id="player-name" class="name-input" maxlength="16" autocomplete="nickname" value="${escapeHtml(progress.playerName || "")}" placeholder="例如：阿霖">
+    <label class="field-label" for="family-pin">家庭 PIN</label>
+    <input id="family-pin" class="name-input pin-input" maxlength="4" inputmode="numeric" autocomplete="off" placeholder="4 位數字">
+    <p class="name-status" role="status">${escapeHtml(nameSetupStatus || (cloudConfigured() ? "第一次玩請建立玩家；換裝置請載入雲端進度。" : "資料庫尚未設定，目前可先建立本機玩家。"))}</p>
+    <div class="save-actions"><button id="create-player">✨ 建立新玩家</button><button id="load-cloud-player" ${cloudConfigured() ? "" : "disabled"}>☁️ 載入雲端進度</button></div>
+  </section></div>`;
+}
+
+function leaderboardModal() {
+  const configured = leaderboardConfigured();
+  return `<div class="modal-backdrop"><section class="modal leaderboard-modal" role="dialog" aria-modal="true" aria-labelledby="leaderboard-title">
+    <div class="celebrate">🏆</div><h2 id="leaderboard-title">家庭全球排行</h2>
+    <div class="leaderboard-tabs">${Object.entries(DIFFICULTIES).map(([key, item]) => `<button data-rank-difficulty="${key}" class="${leaderboardDifficulty === key ? "active" : ""}">${item.icon} ${item.label}</button>`).join("")}</div>
+    ${!configured ? `<div class="empty-ranking"><strong>尚未連接資料庫</strong><small>設定 Supabase 後，家人的成績會出現在這裡。</small></div>` : leaderboardStatus ? `<div class="empty-ranking"><span class="loading-orbit">☁️</span><small>${escapeHtml(leaderboardStatus)}</small></div>` : leaderboardRows.length ? `<div class="leaderboard-list">${leaderboardRows.map((row, index) => `
+      <div class="leaderboard-row ${row.player_id === progress.playerId ? "mine" : ""}"><b>${index + 1}</b><span><strong>${escapeHtml(row.player_name)}</strong><small>${row.stars}⭐・${row.mistakes} 次失誤・${formatTime(row.elapsed_seconds)}</small></span><em>第 ${row.floor} 層</em></div>`).join("")}</div>` : `<div class="empty-ranking"><strong>還沒有成績</strong><small>完成第一層就能成為榜首！</small></div>`}
+    <p class="pending-scores">${pendingScoreCount() ? `尚有 ${pendingScoreCount()} 筆離線成績等待同步` : "每位玩家、每個難度只保留最佳成績"}</p>
+    <button id="close-leaderboard" class="primary-button">回到遊戲</button>
+  </section></div>`;
+}
+
+function saveCenterModal() {
+  const configured = cloudConfigured();
+  const pinReady = validCloudPin(loadCloudPin());
+  return `<div class="modal-backdrop"><section class="modal save-modal" role="dialog" aria-modal="true" aria-labelledby="save-title">
+    <div class="celebrate">☁️</div><h2 id="save-title">雲端存檔</h2>
+    <p>本機會隨時自動保存；連上網路後，玩家資料、裝備、XP、層數和目前盤面也會同步到家庭雲端。</p>
+    <div class="cloud-card ${configured && pinReady ? "ready" : "waiting"}"><span>${configured && pinReady ? "✅" : "⚙️"}</span><div><strong>${configured ? (pinReady ? "雲端同步已就緒" : "需要設定家庭 PIN") : "等待設定 Supabase"}</strong><small>${escapeHtml(cloudSyncStatus || (configured ? `玩家：${progress.playerName}` : "設定完成前仍會安全保存在這台裝置"))}</small></div></div>
+    <div class="save-actions"><button id="sync-cloud-now" ${configured && pinReady ? "" : "disabled"}>☁️ 立即同步</button><button id="switch-cloud-player">👤 更換／載入玩家</button></div>
+    <button id="close-save-center" class="primary-button">回到遊戲</button>
+  </section></div>`;
+}
+
+function availableReviveCard() {
+  return Object.keys(TREASURE_CARDS)
+    .filter((cardId) => TREASURE_CARDS[cardId].effect === "revive" && progress.inventory[cardId])
+    .sort((left, right) => TREASURE_CARDS[right].value - TREASURE_CARDS[left].value)[0];
+}
+
 function failureModal() {
+  const reviveCardId = availableReviveCard();
+  const reviveCard = reviveCardId ? TREASURE_CARDS[reviveCardId] : null;
   return `<div class="modal-backdrop"><section class="modal" role="dialog" aria-modal="true" aria-labelledby="failure-title">
     <div class="celebrate">🌧️</div><p class="eyebrow">TAKE A BREATH</p><h2 id="failure-title">暫時迷路了</h2><p>可以復活繼續，也可以重新挑戰這一題。</p>
     <div class="failure-actions">
-      <button id="revive-card" ${progress.inventory.revive ? "" : "disabled"}>🪶 復活羽毛 ×${progress.inventory.revive}</button>
+      <button id="revive-card" ${reviveCard ? "" : "disabled"}>${reviveCard ? `${reviveCard.icon} ${reviveCard.name} ×${progress.inventory[reviveCardId]}` : "🪶 沒有復活寶物"}</button>
       <button id="revive-coins" ${progress.coins >= 20 ? "" : "disabled"}>🪙 20 金幣復活</button>
     </div>
     <button id="retry-game" class="primary-button">重新挑戰</button>
@@ -186,7 +285,138 @@ function bindEvents() {
   document.querySelector("#revive-coins")?.addEventListener("click", reviveWithCoins);
   document.querySelector("#open-backpack")?.addEventListener("click", openBackpack);
   document.querySelector("#open-backpack-side")?.addEventListener("click", openBackpack);
+  document.querySelector("#open-leaderboard")?.addEventListener("click", openLeaderboardModal);
+  document.querySelector("#close-leaderboard")?.addEventListener("click", () => { showLeaderboard = false; render(); });
+  document.querySelectorAll("[data-rank-difficulty]").forEach((button) => button.addEventListener("click", () => changeLeaderboardDifficulty(button.dataset.rankDifficulty)));
+  document.querySelector("#open-save-center")?.addEventListener("click", openSaveCenter);
+  document.querySelector("#close-save-center")?.addEventListener("click", () => { showSaveCenter = false; render(); });
+  document.querySelector("#sync-cloud-now")?.addEventListener("click", () => syncCloudNow(true));
+  document.querySelector("#switch-cloud-player")?.addEventListener("click", () => { showSaveCenter = false; showNameSetup = true; nameSetupStatus = ""; render(); });
+  document.querySelector("#create-player")?.addEventListener("click", createPlayer);
+  document.querySelector("#load-cloud-player")?.addEventListener("click", loadExistingPlayer);
   document.querySelector("#close-backpack")?.addEventListener("click", () => { showBackpack = false; game.equippedCards = [...equippedCards]; render(); });
+}
+
+function openSaveCenter() {
+  cloudSyncStatus = cloudConfigured() ? "可手動立即同步，遊戲中也會定期自動同步。" : "請先完成 Supabase 設定。";
+  showSaveCenter = true;
+  render();
+}
+
+function playerSetupValues() {
+  const playerName = document.querySelector("#player-name")?.value.replace(/[\u0000-\u001f\u007f]/g, "").trim().slice(0, 16) || "";
+  const pin = document.querySelector("#family-pin")?.value.trim() || "";
+  if (!playerName) throw new Error("請輸入玩家名稱");
+  if (!validCloudPin(pin)) throw new Error("家庭 PIN 必須是 4 位數字");
+  return { playerName, pin };
+}
+
+async function createPlayer() {
+  try {
+    const { playerName, pin } = playerSetupValues();
+    const nextProgress = { ...progress, playerName };
+    if (cloudConfigured() && navigator.onLine) {
+      nameSetupStatus = "正在建立家庭雲端存檔…";
+      document.querySelector(".name-status").textContent = nameSetupStatus;
+      await saveCloudProgress({ playerId: nextProgress.playerId, playerName, pin, saveCode: exportSaveCode(nextProgress, sessionSnapshot()) });
+    }
+    progress = nextProgress;
+    saveProgress(progress);
+    saveCloudPin(pin);
+    showNameSetup = false;
+    nameSetupStatus = "";
+    render();
+    showCelebration("👋", `歡迎，${playerName}！`, cloudConfigured() ? "雲端存檔已建立" : "目前使用本機存檔");
+  } catch (error) {
+    nameSetupStatus = error.message || "無法建立玩家";
+    const status = document.querySelector(".name-status");
+    if (status) status.textContent = nameSetupStatus;
+  }
+}
+
+function applyImportedSave(imported) {
+  progress = imported.progress;
+  if (imported.session) {
+    game = imported.session.game;
+    equippedCards = imported.session.equippedCards || [];
+    alinMode = imported.session.alinMode || false;
+  } else {
+    game = createGame("easy");
+    setupAdventure();
+    game.floor = progress.floors.easy;
+  }
+}
+
+async function loadExistingPlayer() {
+  try {
+    const { playerName, pin } = playerSetupValues();
+    nameSetupStatus = "正在尋找雲端存檔…";
+    document.querySelector(".name-status").textContent = nameSetupStatus;
+    const saveCode = await loadCloudProgress(playerName, pin);
+    applyImportedSave(importSaveCode(saveCode));
+    saveCloudPin(pin);
+    showNameSetup = false;
+    nameSetupStatus = "";
+    startTimer();
+    render();
+    showCelebration("☁️", `歡迎回來，${progress.playerName}！`, `從第 ${game.floor} 層繼續冒險`);
+  } catch (error) {
+    nameSetupStatus = error.message || "無法載入雲端進度";
+    const status = document.querySelector(".name-status");
+    if (status) status.textContent = nameSetupStatus;
+  }
+}
+
+function scheduleCloudSync() {
+  if (!cloudConfigured() || !progress.playerName || !validCloudPin(loadCloudPin())) return;
+  clearTimeout(cloudSyncTimer);
+  cloudSyncTimer = setTimeout(() => syncCloudNow(false), 1800);
+}
+
+async function syncCloudNow(showFeedback = false) {
+  const pin = loadCloudPin();
+  if (!cloudConfigured() || !validCloudPin(pin) || !progress.playerName) return;
+  if (showFeedback) {
+    cloudSyncStatus = "正在同步完整冒險進度…";
+    render();
+  }
+  try {
+    await saveCloudProgress({ playerId: progress.playerId, playerName: progress.playerName, pin, saveCode: exportSaveCode(progress, sessionSnapshot()) });
+    cloudSyncStatus = `同步完成・${new Date().toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit" })}`;
+    if (showFeedback && showSaveCenter) render();
+  } catch (error) {
+    cloudSyncStatus = error.message || "同步失敗，本機進度不受影響";
+    if (showFeedback && showSaveCenter) render();
+  }
+}
+
+async function openLeaderboardModal() {
+  showLeaderboard = true;
+  leaderboardDifficulty = game.difficulty;
+  leaderboardRows = [];
+  leaderboardStatus = leaderboardConfigured() ? "正在讀取全球排行…" : "";
+  render();
+  await refreshLeaderboard();
+}
+
+async function refreshLeaderboard() {
+  if (!leaderboardConfigured()) return;
+  try {
+    leaderboardRows = await fetchLeaderboard(leaderboardDifficulty);
+    leaderboardStatus = "";
+  } catch (error) {
+    leaderboardRows = [];
+    leaderboardStatus = error.message || "排行榜暫時無法連線";
+  }
+  if (showLeaderboard) render();
+}
+
+function changeLeaderboardDifficulty(difficulty) {
+  leaderboardDifficulty = difficulty;
+  leaderboardRows = [];
+  leaderboardStatus = "正在讀取全球排行…";
+  render();
+  refreshLeaderboard();
 }
 
 function openBackpack() {
@@ -248,16 +478,25 @@ function clearCell() {
 }
 
 function healOrShield() {
-  if (alinMode) return;
-  if (game.health < game.maxHealth) game.health += 1;
-  else game.shields += 1;
+  if (alinMode) return "阿霖模式目標達成";
+  if (game.health < game.maxHealth) {
+    game.health += 1;
+    return "回復 1 顆心";
+  }
+  game.shields += 1;
+  return "獲得 1 層護盾";
+}
+
+function completeHealGoal(goal, label) {
+  game.healGoals[goal] = true;
+  showCelebration("🎉", `恭喜完成「${label}」！`, healOrShield());
 }
 
 function checkHealGoals() {
-  if (!game.healGoals.streak && game.correctStreak >= 8) { game.healGoals.streak = true; healOrShield(); }
+  if (!game.healGoals.streak && game.correctStreak >= 8) completeHealGoal("streak", "連對 8 格");
   if (!game.healGoals.row) {
     const hasRow = Array.from({ length: 9 }, (_, row) => game.values.slice(row * 9, row * 9 + 9).every(Boolean)).some(Boolean);
-    if (hasRow) { game.healGoals.row = true; healOrShield(); }
+    if (hasRow) completeHealGoal("row", "完成一行");
   }
   if (!game.healGoals.box) {
     const hasBox = Array.from({ length: 9 }, (_, box) => {
@@ -265,7 +504,7 @@ function checkHealGoals() {
       const startCol = (box % 3) * 3;
       return Array.from({ length: 9 }, (_, offset) => game.values[(startRow + Math.floor(offset / 3)) * 9 + startCol + (offset % 3)]).every(Boolean);
     }).some(Boolean);
-    if (hasBox) { game.healGoals.box = true; healOrShield(); }
+    if (hasBox) completeHealGoal("box", "完成一宮");
   }
 }
 
@@ -284,39 +523,48 @@ function useHint() {
 
 function useCard(cardId) {
   if (!game.equippedCards.includes(cardId) || !progress.inventory[cardId] || game.completed || game.failed) return;
+  const card = TREASURE_CARDS[cardId];
   const index = game.selected;
-  if (cardId === "heartPotion") {
+  if (card.effect === "heal") {
     if (alinMode || game.health >= game.maxHealth) return;
-    game.health += 1;
-  } else if (cardId === "shield") game.shields += 1;
-  else if (cardId === "candidateLens") {
+    game.health = Math.min(game.maxHealth, game.health + card.value);
+  } else if (card.effect === "shield") game.shields += card.value;
+  else if (card.effect === "candidates") {
     if (game.values[index]) return;
     game.notes[index] = candidatesFor(game.values, index);
-  } else if (cardId === "smartHint") {
-    if (game.puzzle[index] || game.values[index]) return;
+  } else if (card.effect === "hint") {
+    const targets = [];
+    if (!game.puzzle[index] && !game.values[index]) targets.push(index);
+    const otherEmptyCells = game.values.map((value, cell) => !value && !game.puzzle[cell] && cell !== index ? cell : -1).filter((cell) => cell >= 0);
+    while (targets.length < card.value && otherEmptyCells.length) targets.push(otherEmptyCells.splice(Math.floor(Math.random() * otherEmptyCells.length), 1)[0]);
+    if (!targets.length) return;
     game.actions += 1;
-    game.hintsUsed += 1;
-    game.values[index] = game.solution[index];
-    removeRelatedNotes(index, game.values[index]);
+    game.hintsUsed += targets.length;
+    targets.forEach((target) => {
+      game.values[target] = game.solution[target];
+      removeRelatedNotes(target, game.values[target]);
+    });
     checkHealGoals();
     checkCompletion();
-  } else if (cardId === "hourglass") game.frozenSeconds += 60;
-  else if (cardId === "luckyStar") {
+  } else if (card.effect === "freeze") game.frozenSeconds += card.value;
+  else if (card.effect === "xpBoost") {
     if (game.xpMultiplier > 1) return;
-    game.xpMultiplier = 2;
-  } else if (cardId === "treasureKey") {
+    game.xpMultiplier = card.value;
+  } else if (card.effect === "extraClaim") {
     if (game.extraCardClaims) return;
-    game.extraCardClaims = 1;
-  } else if (cardId === "revive") return;
+    game.extraCardClaims = card.value;
+  } else if (card.effect === "revive") return;
   progress = consumeCard(progress, cardId);
   game.usedCards.push(cardId);
   render();
 }
 
 function reviveWithCard() {
-  if (!progress.inventory.revive) return;
-  progress = consumeCard(progress, "revive");
-  resumeAfterRevive();
+  const cardId = availableReviveCard();
+  if (!cardId) return;
+  const health = TREASURE_CARDS[cardId].value;
+  progress = consumeCard(progress, cardId);
+  resumeAfterRevive(health);
 }
 
 function reviveWithCoins() {
@@ -325,9 +573,9 @@ function reviveWithCoins() {
   resumeAfterRevive();
 }
 
-function resumeAfterRevive() {
+function resumeAfterRevive(health = 2) {
   game.failed = false;
-  game.health = Math.min(2, game.maxHealth);
+  game.health = Math.min(health, game.maxHealth);
   startTimer();
   render();
 }
@@ -338,6 +586,8 @@ function claimCard(cardId) {
   game.claimedCards.push(cardId);
   game.remainingClaims -= 1;
   render();
+  const card = TREASURE_CARDS[cardId];
+  showCelebration(card.icon, `恭喜獲得「${card.name}」！`, "已放進寶物背包");
 }
 
 function checkCompletion() {
@@ -346,11 +596,16 @@ function checkCompletion() {
   clearInterval(timerId);
   const reward = DIFFICULTIES[game.difficulty];
   game.stars = calculateStars(game);
-  game.xpReward = reward.xp * game.xpMultiplier;
+  const farmMultiplier = game.floor > 1 ? 0.55 : 1;
+  game.xpReward = Math.max(10, Math.round(reward.xp * game.xpMultiplier * farmMultiplier));
   game.timeBonus = game.elapsed <= reward.bonusTime ? reward.bonusCoins : 0;
-  game.cardChoices = drawTreasureCards(game.stars);
-  game.remainingClaims = 1 + game.extraCardClaims;
-  progress = rewardProgress(progress, game.xpReward, game.timeBonus, game.stars);
+  const treasureDropped = game.floor === 1 || game.floor % 3 === 0;
+  game.remainingClaims = (treasureDropped ? 1 : 0) + game.extraCardClaims;
+  game.cardChoices = game.remainingClaims ? drawTreasureCards(game.difficulty, game.stars, Math.max(3, game.remainingClaims)) : [];
+  progress = rewardProgress(progress, game.xpReward, game.timeBonus, game.stars, game.difficulty);
+  clearSession();
+  queueLeaderboardScore(buildScore(progress, game)).catch(() => {});
+  syncCloudNow(false);
 }
 
 function startTimer() {
@@ -362,12 +617,14 @@ function startTimer() {
     const freeze = document.querySelector("#freeze-time");
     if (timer) timer.textContent = formatTime(game.elapsed);
     if (freeze) freeze.textContent = game.frozenSeconds ? `· 凍結 ${game.frozenSeconds}s` : "";
+    if (game.elapsed % 10 === 0) persistSession();
   }, 1000);
 }
 
 function newGame(difficulty) {
   clearInterval(timerId);
   game = createGame(difficulty);
+  game.floor = progress.floors[difficulty] || 1;
   noteMode = false;
   showBackpack = false;
   setupAdventure();
@@ -381,7 +638,16 @@ document.addEventListener("keydown", (event) => {
   if (event.key.toLowerCase() === "n") { noteMode = !noteMode; render(); }
 });
 
-newGame("easy");
+if (restoredSession) {
+  startTimer();
+  render();
+} else newGame("easy");
+
+window.addEventListener("online", () => {
+  flushPendingScores().catch(() => {});
+  syncCloudNow(false);
+});
+flushPendingScores().catch(() => {});
 
 if ("serviceWorker" in navigator && location.protocol !== "file:") {
   navigator.serviceWorker.register(new URL("sw.js", document.baseURI)).catch(() => {});

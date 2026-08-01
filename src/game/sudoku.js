@@ -19,6 +19,50 @@ export const PUZZLES = {
   ]
 };
 
+const CLUE_TARGETS = { easy: 45, medium: 34, hard: 28 };
+
+function shuffled(values) {
+  const result = [...values];
+  for (let index = result.length - 1; index > 0; index -= 1) {
+    const target = Math.floor(Math.random() * (index + 1));
+    [result[index], result[target]] = [result[target], result[index]];
+  }
+  return result;
+}
+
+function createSolvedGrid() {
+  const pattern = (row, col) => (row * 3 + Math.floor(row / 3) + col) % 9;
+  const rows = shuffled([0, 1, 2]).flatMap((band) => shuffled([0, 1, 2]).map((row) => band * 3 + row));
+  const cols = shuffled([0, 1, 2]).flatMap((stack) => shuffled([0, 1, 2]).map((col) => stack * 3 + col));
+  const numbers = shuffled([1, 2, 3, 4, 5, 6, 7, 8, 9]);
+  return rows.flatMap((row) => cols.map((col) => numbers[pattern(row, col)]));
+}
+
+export function generatePuzzle(difficulty = "easy") {
+  const solution = createSolvedGrid();
+  const puzzle = [...solution];
+  const targetClues = CLUE_TARGETS[difficulty] || CLUE_TARGETS.easy;
+  const rowBlanks = Array(9).fill(0);
+  const colBlanks = Array(9).fill(0);
+
+  for (const index of shuffled(Array.from({ length: 81 }, (_, cell) => cell))) {
+    if (puzzle.filter(Boolean).length <= targetClues) break;
+    const row = Math.floor(index / 9);
+    const col = index % 9;
+    if (difficulty === "easy" && (rowBlanks[row] >= 4 || colBlanks[col] >= 4)) continue;
+    const value = puzzle[index];
+    puzzle[index] = 0;
+    if (countSolutions(puzzle) !== 1) {
+      puzzle[index] = value;
+      continue;
+    }
+    rowBlanks[row] += 1;
+    colBlanks[col] += 1;
+  }
+
+  return { puzzle, solution };
+}
+
 export function solveSudoku(values) {
   const grid = [...values];
   const findEmpty = () => grid.findIndex((value) => value === 0);
@@ -89,12 +133,11 @@ export function countSolutions(values, limit = 2) {
 }
 
 export function createGame(difficulty = "easy") {
-  const choices = PUZZLES[difficulty];
-  const puzzle = choices[Math.floor(Math.random() * choices.length)].split("").map(Number);
+  const { puzzle, solution } = generatePuzzle(difficulty);
   return {
     difficulty,
     puzzle,
-    solution: solveSudoku(puzzle),
+    solution,
     values: [...puzzle],
     notes: Array.from({ length: 81 }, () => []),
     selected: puzzle.findIndex((value) => value === 0),
