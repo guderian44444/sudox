@@ -1,5 +1,5 @@
 import { countSolutions, createGame, DIFFICULTIES, generatePuzzle, PUZZLES, relatedCells, solveSudoku } from "../src/game/sudoku.js";
-import { activateAutomaticTreasures, ADVENTURE_RULES, applyHintTreasure, applyImmediateTreasure, candidatesFor, drawTreasureCards, strongestEquippedRevive, treasureClaimsForFloor, treasurePool, TREASURE_AUTO_EFFECTS, TREASURE_CARDS, TREASURE_EFFECTS } from "../src/game/adventure.js";
+import { activateAutomaticTreasures, ADVENTURE_RULES, applyHintTreasure, applyImmediateTreasure, candidatesFor, completedSudokuUnits, drawTreasureCards, newlyCompletedSudokuUnits, strongestEquippedRevive, sudokuUnitCells, treasureClaimsForFloor, treasurePool, TREASURE_AUTO_EFFECTS, TREASURE_CARDS, TREASURE_EFFECTS } from "../src/game/adventure.js";
 import { validCloudPin } from "../src/state/cloud.js";
 import { buildScore, leaderboardConfigured } from "../src/state/leaderboard.js";
 import { exportSaveCode, importSaveCode } from "../src/state/store.js";
@@ -92,6 +92,18 @@ assert(treasurePool("easy").length === 10, "輕鬆難度應使用前 10 種寶�
 assert(treasurePool("medium").length === 30, "動腦難度應使用前 30 種寶物");
 assert(treasurePool("hard").length === 60, "高手難度應使用完整 60 種寶物");
 assert(new Set(drawTreasureCards("hard", 3)).size === 3, "抽卡選項不可重複");
+const completedUnitGame = createGame("easy");
+assert(completedSudokuUnits(completedUnitGame.solution).rows.length === 9, "完成盤面應辨識 9 行");
+assert(completedSudokuUnits(completedUnitGame.solution).boxes.length === 9, "完成盤面應辨識 9 宮");
+const almostCompleteValues = [...completedUnitGame.solution];
+almostCompleteValues[0] = 0;
+assert(!completedSudokuUnits(almostCompleteValues).rows.includes(0), "缺一格的行不可觸發完成特效");
+assert(!completedSudokuUnits(almostCompleteValues).boxes.includes(0), "缺一格的宮不可觸發完成特效");
+const laterUnits = newlyCompletedSudokuUnits(completedUnitGame.solution, { rows: [0], boxes: [0] });
+assert(laterUnits.rows.length === 8 && !laterUnits.rows.includes(0), "已跳過波浪舞的行不可重複觸發");
+assert(laterUnits.boxes.length === 8 && !laterUnits.boxes.includes(0), "已跳過波浪舞的宮不可重複觸發");
+assert(sudokuUnitCells("row", 2).join(",") === "18,19,20,21,22,23,24,25,26", "行波浪應依左到右排列 9 格");
+assert(sudokuUnitCells("box", 4).join(",") === "30,31,32,39,40,41,48,49,50", "宮波浪應依宮內順序排列 9 格");
 assert(strongestEquippedRevive(["revive"], { revive: 1 }) === "revive", "已裝備的復活寶物應可在失敗時使用");
 assert(!strongestEquippedRevive([], { revive: 1 }), "未裝備的復活寶物不可在本關使用");
 assert(strongestEquippedRevive(["revive", "phoenixCrown"], { revive: 1, phoenixCrown: 1 }) === "phoenixCrown", "同時裝備復活寶物時應優先使用效果較強者");

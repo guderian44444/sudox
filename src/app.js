@@ -1,5 +1,5 @@
 import { createGame, DIFFICULTIES, relatedCells } from "./game/sudoku.js";
-import { activateAutomaticTreasures, ADVENTURE_RULES, applyHintTreasure, applyImmediateTreasure, calculateStars, drawTreasureCards, strongestEquippedRevive, treasureClaimsForFloor, TREASURE_AUTO_EFFECTS, TREASURE_CARDS } from "./game/adventure.js";
+import { activateAutomaticTreasures, ADVENTURE_RULES, applyHintTreasure, applyImmediateTreasure, calculateStars, completedSudokuUnits, drawTreasureCards, newlyCompletedSudokuUnits, strongestEquippedRevive, sudokuUnitCells, treasureClaimsForFloor, TREASURE_AUTO_EFFECTS, TREASURE_CARDS } from "./game/adventure.js";
 import { cloudConfigured, loadCloudPin, loadCloudProgress, saveCloudPin, saveCloudProgress, validCloudPin } from "./state/cloud.js";
 import { buildScore, fetchLeaderboard, flushPendingScores, leaderboardConfigured, pendingScoreCount, queueLeaderboardScore } from "./state/leaderboard.js";
 import { addCard, clearSession, consumeCard, exportSaveCode, importSaveCode, loadProgress, loadSession, rewardProgress, saveProgress, saveSession, spendCoins } from "./state/store.js";
@@ -9,6 +9,7 @@ let progress = loadProgress();
 const restoredSession = loadSession();
 let game = restoredSession?.game || createGame("easy");
 if (restoredSession && typeof game.started !== "boolean") game.started = true;
+if (restoredSession && !game.completedUnits) game.completedUnits = completedSudokuUnits(game.values);
 let noteMode = false;
 let alinMode = restoredSession?.alinMode || false;
 let showBackpack = false;
@@ -26,6 +27,8 @@ let timerId;
 let celebrationId = 0;
 let gameEffectQueue = [];
 let gameEffectActive = false;
+let cellWaveQueue = [];
+let cellWaveActive = false;
 
 const formatTime = (seconds) => `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
 const currentHintCost = () => alinMode ? 0 : DIFFICULTIES[game.difficulty].hintCost;
@@ -93,6 +96,33 @@ function playNextGameEffect() {
   }, 1750);
 }
 
+function queueCellWave(type, unitIndex) {
+  cellWaveQueue.push({ type, cells: sudokuUnitCells(type, unitIndex) });
+}
+
+function playNextCellWave() {
+  if (cellWaveActive || !cellWaveQueue.length) return;
+  const wave = cellWaveQueue.shift();
+  const cells = wave.cells.map((index) => document.querySelector(`[data-cell="${index}"]`)).filter(Boolean);
+  if (!cells.length) {
+    playNextCellWave();
+    return;
+  }
+  cellWaveActive = true;
+  cells.forEach((cell, order) => {
+    cell.style.setProperty("--wave-delay", `${order * 72}ms`);
+    cell.classList.add("wave-hop", `wave-${wave.type}`);
+  });
+  setTimeout(() => {
+    cells.forEach((cell) => {
+      cell.classList.remove("wave-hop", "wave-row", "wave-box");
+      cell.style.removeProperty("--wave-delay");
+    });
+    cellWaveActive = false;
+    playNextCellWave();
+  }, 1350);
+}
+
 function setupAdventure() {
   const rules = ADVENTURE_RULES[game.difficulty];
   equippedCards = equippedCards.filter((cardId) => progress.inventory[cardId] > 0).slice(0, 2);
@@ -104,6 +134,7 @@ function setupAdventure() {
     actions: 0,
     correctStreak: 0,
     healGoals: { streak: false, row: false, box: false },
+    completedUnits: { rows: [], boxes: [] },
     hintsUsed: 0,
     frozenSeconds: 0,
     xpMultiplier: 1,
@@ -219,6 +250,7 @@ function render() {
     ${showNameSetup ? nameSetupModal() : showLeaderboard ? leaderboardModal() : showSaveCenter ? saveCenterModal() : showBackpack ? backpackModal() : !game.started ? startModal() : game.completed ? completionModal() : game.failed ? failureModal() : ""}
   `;
   bindEvents();
+  playNextCellWave();
 }
 
 function startModal() {
@@ -521,7 +553,7 @@ function enterNumber(number) {
       }
     }
     if (blockedByShield) showGameEffect("🛡️", "鏘！成功格擋", "護盾替你擋住這次錯誤", "shield");
-    else showGameEffect(alinMode ? "🐭" : "😿", "哎呀，差一點點", alinMode ? "小老鼠陪你慢慢想，答錯也不會失敗" : "小貓說：別灰心，再試一次！", "mistake");
+    else showGameEffect("🐱🐭", "猜錯了，雙雙昏倒！", alinMode ? "躺一下再繼續，阿霖模式不會失敗" : "貓咪和老鼠休息一下，再陪你試一次！", "mistake");
     document.body.classList.add("shake");
     setTimeout(() => document.body.classList.remove("shake"), 320);
   } else {
@@ -562,26 +594,37 @@ function healOrShield() {
 function completeHealGoal(goal, label) {
   game.healGoals[goal] = true;
   const reward = healOrShield();
-  const friend = goal === "row" ? "🐱" : goal === "box" ? "🐭" : "✨";
-  const praise = goal === "row" ? "一整行完成啦！" : goal === "box" ? "九宮格完成啦！" : "連續答對，太厲害了！";
   showCelebration("🎉", `恭喜完成「${label}」！`, reward);
-  showGameEffect(friend, praise, `${label}・${reward}`, "success");
+  showGameEffect("🐱🐭", "扭腰擺臀慶祝！", `${label}・${reward}`, "success");
+}
+
+function celebrateCompletedUnit(type, unitIndex) {
+  const goal = type === "row" ? "row" : "box";
+  const label = type === "row" ? `第 ${unitIndex + 1} 行` : `第 ${unitIndex + 1} 宮`;
+  const firstReward = !game.healGoals[goal];
+  let detail = `${label}完成，9 格一起跳波浪舞！`;
+  if (firstReward) {
+    game.healGoals[goal] = true;
+    const reward = healOrShield();
+    detail = `${detail}・${reward}`;
+    showCelebration("🎉", `首次完成${type === "row" ? "一行" : "一宮"}！`, reward);
+  }
+  queueCellWave(type, unitIndex);
+  showGameEffect("🐱🐭", `${label}完成，扭起來！`, detail, "success");
 }
 
 function checkHealGoals() {
   if (!game.healGoals.streak && game.correctStreak >= 8) completeHealGoal("streak", "連對 8 格");
-  if (!game.healGoals.row) {
-    const hasRow = Array.from({ length: 9 }, (_, row) => game.values.slice(row * 9, row * 9 + 9).every(Boolean)).some(Boolean);
-    if (hasRow) completeHealGoal("row", "完成一行");
-  }
-  if (!game.healGoals.box) {
-    const hasBox = Array.from({ length: 9 }, (_, box) => {
-      const startRow = Math.floor(box / 3) * 3;
-      const startCol = (box % 3) * 3;
-      return Array.from({ length: 9 }, (_, offset) => game.values[(startRow + Math.floor(offset / 3)) * 9 + startCol + (offset % 3)]).every(Boolean);
-    }).some(Boolean);
-    if (hasBox) completeHealGoal("box", "完成一宮");
-  }
+  if (!game.completedUnits) game.completedUnits = { rows: [], boxes: [] };
+  const newlyCompleted = newlyCompletedSudokuUnits(game.values, game.completedUnits);
+  newlyCompleted.rows.forEach((row) => {
+    game.completedUnits.rows.push(row);
+    celebrateCompletedUnit("row", row);
+  });
+  newlyCompleted.boxes.forEach((box) => {
+    game.completedUnits.boxes.push(box);
+    celebrateCompletedUnit("box", box);
+  });
 }
 
 function useHint() {
@@ -704,6 +747,8 @@ function startGame() {
 
 function newGame(difficulty) {
   clearInterval(timerId);
+  cellWaveQueue = [];
+  cellWaveActive = false;
   game = createGame(difficulty);
   game.floor = progress.floors[difficulty] || 1;
   noteMode = false;
