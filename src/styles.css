@@ -174,6 +174,7 @@ button:focus-visible { outline: 3px solid #4f9dd9; outline-offset: 2px; }
 .animated-friends { position: relative; width: 104px; height: 78px; display: flex; align-items: flex-end; justify-content: center; gap: 7px; }
 .animated-animal { --fur: #f2a45f; --fur-dark: #ca7439; position: relative; width: 43px; height: 68px; display: block; transform-origin: 50% 88%; }
 .animated-animal.mouse { --fur: #aab5c0; --fur-dark: #7f8d9a; }
+.animated-animal.otter { --fur: #ad7650; --fur-dark: #70482f; }
 .animal-body { position: absolute; z-index: 2; left: 8px; bottom: 8px; width: 28px; height: 36px; border-radius: 48% 48% 42% 42%; background: var(--fur); box-shadow: inset 0 -5px 0 rgba(84, 58, 42, .1); }
 .animal-head { position: absolute; z-index: 5; top: 4px; left: 5px; width: 34px; height: 31px; display: grid; place-items: center; border-radius: 48% 48% 45% 45%; background: var(--fur); box-shadow: inset 0 -3px 0 rgba(84, 58, 42, .08); }
 .animal-head em { position: relative; z-index: 2; color: #4d4140; font: 900 10px/1 system-ui, sans-serif; letter-spacing: 1px; }
@@ -183,6 +184,12 @@ button:focus-visible { outline: 3px solid #4f9dd9; outline-offset: 2px; }
 .mouse .animal-ear { top: -7px; width: 16px; height: 16px; border: 3px solid var(--fur); border-radius: 50%; background: #f5b9bf; }
 .mouse .animal-ear.left { left: -4px; }
 .mouse .animal-ear.right { right: -4px; }
+.otter .animal-head { top: 5px; left: 4px; width: 36px; border-radius: 46% 46% 52% 52%; }
+.otter .animal-ear { top: -4px; width: 12px; height: 12px; border-radius: 50%; }
+.otter .animal-ear.left { left: -1px; }
+.otter .animal-ear.right { right: -1px; }
+.otter .animal-head::after { content: ""; position: absolute; z-index: 1; left: 9px; bottom: 3px; width: 18px; height: 11px; border-radius: 50%; background: #f2d4ae; }
+.otter .animal-head em { z-index: 2; }
 .animal-arm, .animal-leg { position: absolute; z-index: 4; width: 9px; border-radius: 999px; background: var(--fur-dark); transform-origin: 50% 12%; }
 .animal-arm { top: 31px; height: 25px; }
 .animal-arm.left { left: 3px; transform: rotate(18deg); }
@@ -192,27 +199,28 @@ button:focus-visible { outline: 3px solid #4f9dd9; outline-offset: 2px; }
 .animal-leg.right { right: 9px; }
 .animal-tail { position: absolute; z-index: 1; right: -8px; bottom: 17px; width: 22px; height: 28px; border: 5px solid var(--fur-dark); border-left: 0; border-bottom-color: transparent; border-radius: 0 80% 20% 0; transform-origin: 0 80%; }
 .mouse .animal-tail { right: -13px; bottom: 14px; width: 27px; height: 20px; border-width: 3px; }
-.game-effect.success.has-friends .cat { animation: animal-hip-dance .58s ease-in-out 3; }
-.game-effect.success.has-friends .mouse { animation: animal-hip-dance .58s .12s ease-in-out 3; }
+.otter .animal-tail { right: -8px; bottom: 8px; width: 15px; height: 36px; border: 0; border-radius: 70% 70% 90% 90%; background: var(--fur-dark); transform: rotate(28deg); }
+.game-effect.success.has-friends .animated-animal:first-child { animation: animal-hip-dance .58s ease-in-out 3; }
+.game-effect.success.has-friends .animated-animal:last-child { animation: animal-hip-dance .58s .12s ease-in-out 3; }
 .game-effect.success.has-friends .animal-arm.left { animation: arm-wave-left .42s ease-in-out infinite alternate; }
 .game-effect.success.has-friends .animal-arm.right { animation: arm-wave-right .42s ease-in-out infinite alternate; }
 .game-effect.success.has-friends .animal-leg.left { animation: foot-step-left .45s ease-in-out infinite alternate; }
 .game-effect.success.has-friends .animal-leg.right { animation: foot-step-right .45s ease-in-out infinite alternate; }
 .game-effect.success.has-friends .animal-tail { animation: tail-swish .35s ease-in-out infinite alternate; }
-.game-effect.success.has-friends.motion-row-0 .cat { animation: cat-side-step .48s ease-in-out 3; }
-.game-effect.success.has-friends.motion-row-0 .mouse { animation: mouse-clap-hop .42s .08s ease-in-out 4; }
-.game-effect.success.has-friends.motion-row-1 .cat { animation: cat-hip-twist .5s ease-in-out 3; }
-.game-effect.success.has-friends.motion-row-1 .mouse { animation: mouse-tiny-steps .32s ease-in-out 5; }
-.game-effect.success.has-friends.motion-column-0 .cat { animation: cat-high-jump .55s ease-in-out 3; }
-.game-effect.success.has-friends.motion-column-0 .mouse { animation: mouse-long-stretch .62s ease-in-out 3; }
-.game-effect.success.has-friends.motion-column-1 .cat { animation: cat-squat-pop .5s ease-in-out 3; }
-.game-effect.success.has-friends.motion-column-1 .mouse { animation: mouse-rocket-dance .48s .08s ease-in-out 3; }
-.game-effect.success.has-friends.motion-box-0 .cat { animation: cat-circle-dance .62s ease-in-out 3; }
-.game-effect.success.has-friends.motion-box-0 .mouse { animation: mouse-counter-circle .62s ease-in-out 3; }
-.game-effect.success.has-friends.motion-box-1 .cat { animation: cat-shoulder-shimmy .3s ease-in-out 5; }
-.game-effect.success.has-friends.motion-box-1 .mouse { animation: mouse-full-spin .58s ease-in-out 3; }
-.game-effect.mistake.has-friends .cat { animation: animal-faint-left .78s ease forwards; }
-.game-effect.mistake.has-friends .mouse { animation: animal-faint-right .88s .08s ease forwards; }
+.game-effect.success.has-friends.motion-row-0 .animated-animal:first-child { animation: cat-side-step .48s ease-in-out 3; }
+.game-effect.success.has-friends.motion-row-0 .animated-animal:last-child { animation: mouse-clap-hop .42s .08s ease-in-out 4; }
+.game-effect.success.has-friends.motion-row-1 .animated-animal:first-child { animation: cat-hip-twist .5s ease-in-out 3; }
+.game-effect.success.has-friends.motion-row-1 .animated-animal:last-child { animation: mouse-tiny-steps .32s ease-in-out 5; }
+.game-effect.success.has-friends.motion-column-0 .animated-animal:first-child { animation: cat-high-jump .55s ease-in-out 3; }
+.game-effect.success.has-friends.motion-column-0 .animated-animal:last-child { animation: mouse-long-stretch .62s ease-in-out 3; }
+.game-effect.success.has-friends.motion-column-1 .animated-animal:first-child { animation: cat-squat-pop .5s ease-in-out 3; }
+.game-effect.success.has-friends.motion-column-1 .animated-animal:last-child { animation: mouse-rocket-dance .48s .08s ease-in-out 3; }
+.game-effect.success.has-friends.motion-box-0 .animated-animal:first-child { animation: cat-circle-dance .62s ease-in-out 3; }
+.game-effect.success.has-friends.motion-box-0 .animated-animal:last-child { animation: mouse-counter-circle .62s ease-in-out 3; }
+.game-effect.success.has-friends.motion-box-1 .animated-animal:first-child { animation: cat-shoulder-shimmy .3s ease-in-out 5; }
+.game-effect.success.has-friends.motion-box-1 .animated-animal:last-child { animation: mouse-full-spin .58s ease-in-out 3; }
+.game-effect.mistake.has-friends .animated-animal:first-child { animation: animal-faint-left .78s ease forwards; }
+.game-effect.mistake.has-friends .animated-animal:last-child { animation: animal-faint-right .88s .08s ease forwards; }
 .game-effect.mistake.has-friends .animal-arm { animation: limp-arm .35s ease forwards; }
 .game-effect.shield .effect-character { background: #e5f6ff; box-shadow: 0 0 0 8px rgba(113, 194, 233, .25), 0 15px 35px rgba(54, 45, 40, .2); }
 .game-effect.card .effect-character { background: #f5eaff; box-shadow: 0 0 0 8px rgba(177, 132, 222, .2), 0 15px 35px rgba(54, 45, 40, .2); }
@@ -235,8 +243,8 @@ button:focus-visible { outline: 3px solid #4f9dd9; outline-offset: 2px; }
 .finale-stage > strong { color: #e36f50; font-size: clamp(21px, 6vw, 29px); text-align: center; text-shadow: 0 2px white; animation: finale-title-bounce .62s ease-in-out infinite alternate; }
 .finale-stage > small { color: #6f817a; font-size: 12px; font-weight: 900; letter-spacing: .08em; }
 .finale-friends { height: 68px; display: grid; place-items: end center; }
-.finale-friends .cat { animation: animal-hip-dance .5s ease-in-out infinite; }
-.finale-friends .mouse { animation: animal-hip-dance .5s .1s ease-in-out infinite; }
+.finale-friends .animated-animal:first-child { animation: animal-hip-dance .5s ease-in-out infinite; }
+.finale-friends .animated-animal:last-child { animation: animal-hip-dance .5s .1s ease-in-out infinite; }
 .finale-friends .animal-arm.left { animation: arm-wave-left .36s ease-in-out infinite alternate; }
 .finale-friends .animal-arm.right { animation: arm-wave-right .36s ease-in-out infinite alternate; }
 .finale-friends .animal-leg.left { animation: foot-step-left .38s ease-in-out infinite alternate; }
@@ -488,6 +496,6 @@ button:focus-visible { outline: 3px solid #4f9dd9; outline-offset: 2px; }
   .game-effect, .effect-character, .effect-spark, .animated-animal, .animated-animal *, .cell.wave-hop, .finale-overlay, .finale-overlay *, .finale-confetti i { animation: none !important; }
   .game-effect.mistake .effect-character { transform: rotate(90deg); }
   .game-effect.mistake.has-friends .effect-character { transform: none; }
-  .game-effect.mistake.has-friends .cat { transform: rotate(-82deg) translate(-8px, 14px) scale(.9); }
-  .game-effect.mistake.has-friends .mouse { transform: rotate(84deg) translate(7px, 13px) scale(.9); }
+  .game-effect.mistake.has-friends .animated-animal:first-child { transform: rotate(-82deg) translate(-8px, 14px) scale(.9); }
+  .game-effect.mistake.has-friends .animated-animal:last-child { transform: rotate(84deg) translate(7px, 13px) scale(.9); }
 }

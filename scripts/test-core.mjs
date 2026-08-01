@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { countSolutions, createGame, DIFFICULTIES, generatePuzzle, PUZZLES, relatedCells, solveSudoku } from "../src/game/sudoku.js";
 import { activateAutomaticTreasures, ADVENTURE_RULES, applyHintTreasure, applyImmediateTreasure, candidatesFor, completedSudokuUnits, drawTreasureCards, newlyCompletedSudokuUnits, strongestEquippedRevive, sudokuUnitCells, treasureClaimsForFloor, treasurePool, TREASURE_AUTO_EFFECTS, TREASURE_CARDS, TREASURE_EFFECTS } from "../src/game/adventure.js";
 import { ACHIEVEMENTS, achievementValue, recordAchievementGame } from "../src/game/achievements.js";
+import { chooseFriendPair, FRIEND_ROSTER, friendPairKey } from "../src/game/friends.js";
 import { normalizePlayerName, validCloudPin } from "../src/state/cloud.js";
 import { buildScore, leaderboardConfigured, normalizeLeaderboardTaunt } from "../src/state/leaderboard.js";
 import { exportSaveCode, importSaveCode } from "../src/state/store.js";
@@ -11,6 +12,12 @@ function assert(condition, message) {
 }
 
 const stylesheet = readFileSync(new URL("../src/styles.css", import.meta.url), "utf8");
+assert(FRIEND_ROSTER.length === 3 && FRIEND_ROSTER.some((friend) => friend.id === "otter"), "夥伴名單應包含水獺");
+const firstFriendPair = chooseFriendPair("", () => 0);
+const nextFriendPair = chooseFriendPair(firstFriendPair.key, () => 0);
+assert(firstFriendPair.friends.length === 2 && new Set(firstFriendPair.friends.map((friend) => friend.id)).size === 2, "慶祝應選出兩位不同夥伴");
+assert(nextFriendPair.key !== firstFriendPair.key, "同一組夥伴不應連續出現");
+assert(friendPairKey([...firstFriendPair.friends].reverse()) === firstFriendPair.key, "夥伴配對鍵不應受站位順序影響");
 assert(/grid-template-rows:\s*repeat\(9,\s*minmax\(0,\s*1fr\)\)/.test(stylesheet), "數獨盤面必須固定為 9 個可縮小橫列");
 assert(/-webkit-text-size-adjust:\s*100%/.test(stylesheet), "iOS 內建瀏覽器不可自動放大文字而裁掉最下列");
 

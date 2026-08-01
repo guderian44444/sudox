@@ -1,6 +1,7 @@
 import { createGame, DIFFICULTIES, relatedCells } from "./game/sudoku.js";
 import { activateAutomaticTreasures, ADVENTURE_RULES, applyHintTreasure, applyImmediateTreasure, calculateStars, completedSudokuUnits, drawTreasureCards, newlyCompletedSudokuUnits, strongestEquippedRevive, sudokuUnitCells, treasureClaimsForFloor, TREASURE_AUTO_EFFECTS, TREASURE_CARDS } from "./game/adventure.js";
 import { ACHIEVEMENTS, achievementValue, recordAchievementGame } from "./game/achievements.js";
+import { chooseFriendPair } from "./game/friends.js";
 import { cloudConfigured, loadCloudPin, loadCloudProgress, normalizePlayerName, renameCloudPlayer, saveCloudPin, saveCloudProgress, validCloudPin } from "./state/cloud.js";
 import { buildScore, fetchLeaderboard, flushPendingScores, leaderboardConfigured, normalizeLeaderboardTaunt, pendingScoreCount, queueLeaderboardScore, updateLeaderboardTaunt } from "./state/leaderboard.js";
 import { addCard, clearSession, consumeCard, exportSaveCode, importSaveCode, loadProgress, loadSession, rewardProgress, saveProgress, saveSession, spendCoins } from "./state/store.js";
@@ -45,6 +46,7 @@ const SOUND_KEY = "sudox-sound-enabled-v1";
 let soundEnabled = localStorage.getItem(SOUND_KEY) !== "off";
 let audioContext = null;
 let lastFinaleMelody = -1;
+let lastFriendPairKey = "";
 
 const formatTime = (seconds) => `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
 const LEADERBOARD_MODES = Object.freeze({
@@ -128,12 +130,14 @@ function mascot() {
 }
 
 function animatedFriendsMarkup() {
-  const animal = (kind, face) => `<span class="animated-animal ${kind}">
+  const selection = chooseFriendPair(lastFriendPairKey);
+  lastFriendPairKey = selection.key;
+  const animal = ({ id, name, face }) => `<span class="animated-animal ${id}" title="${name}">
     <i class="animal-tail"></i><i class="animal-leg left"></i><i class="animal-leg right"></i><i class="animal-body"></i>
     <i class="animal-arm left"></i><i class="animal-arm right"></i>
     <i class="animal-head"><b class="animal-ear left"></b><b class="animal-ear right"></b><em>${face}</em></i>
   </span>`;
-  return `<span class="animated-friends">${animal("cat", "•ᴗ•")}${animal("mouse", "•ﻌ•")}</span>`;
+  return `<span class="animated-friends">${selection.friends.map(animal).join("")}</span>`;
 }
 
 function showCelebration(icon, title, detail) {
@@ -769,7 +773,7 @@ function enterNumber(number) {
       }
     }
     if (blockedByShield) showGameEffect("🛡️", "鏘！成功格擋", "護盾替你擋住這次錯誤", "shield");
-    else showGameEffect("friends", game.failed ? "體力用完，雙雙昏倒！" : "猜錯了，雙雙昏倒！", alinMode ? "躺一下再繼續，阿霖模式不會失敗" : game.failed ? "休息一下，可以使用寶物或金幣復活" : "貓咪和老鼠休息一下，再陪你試一次！", "mistake", game.failed ? "failure" : "");
+    else showGameEffect("friends", game.failed ? "體力用完，雙雙昏倒！" : "猜錯了，雙雙昏倒！", alinMode ? "躺一下再繼續，阿霖模式不會失敗" : game.failed ? "休息一下，可以使用寶物或金幣復活" : "好朋友們休息一下，再陪你試一次！", "mistake", game.failed ? "failure" : "");
     document.body.classList.add("shake");
     setTimeout(() => document.body.classList.remove("shake"), 320);
   } else {
@@ -820,9 +824,9 @@ function celebrateCompletedUnit(type, unitIndex) {
   const label = type === "row" ? `第 ${unitIndex + 1} 行` : type === "column" ? `第 ${unitIndex + 1} 直列` : `第 ${unitIndex + 1} 宮`;
   const firstReward = goal && !game.healGoals[goal];
   const danceNames = {
-    row: ["貓咪側滑、老鼠拍手跳", "貓咪扭腰、老鼠小碎步"],
-    column: ["貓咪向上跳、老鼠伸懶腰", "貓咪蹲跳、老鼠衝天舞"],
-    box: ["貓鼠反方向繞圈", "貓咪抖肩、老鼠旋轉舞"]
+    row: ["好朋友側滑、拍手跳", "好朋友扭腰、小碎步"],
+    column: ["好朋友向上跳、伸懶腰", "好朋友蹲跳、衝天舞"],
+    box: ["好朋友反方向繞圈", "好朋友抖肩、旋轉舞"]
   };
   const variant = queueCellWave(type, unitIndex);
   let detail = `${label}完成・${danceNames[type][variant]}！`;
