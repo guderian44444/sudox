@@ -4,6 +4,8 @@ export const FRIEND_ROSTER = Object.freeze([
   Object.freeze({ id: "otter", name: "水獺", face: "ᵔᴥᵔ" })
 ]);
 
+export const GARDEN_EEL_VARIANTS = Object.freeze(["orange", "white"]);
+
 export function friendPairKey(friends) {
   return friends.map((friend) => friend.id).sort().join("+");
 }
@@ -22,4 +24,12 @@ export function chooseFriendPair(previousKey = "", random = Math.random, roster 
   const selected = [...pool[Math.floor(roll * pool.length)]];
   if ((Number(random()) || 0) >= 0.5) selected.reverse();
   return { friends: selected, key: friendPairKey(selected) };
+}
+
+export function chooseGardenEel(random = Math.random, cellCount = 81) {
+  const roll = () => Math.max(0, Math.min(0.999999, Number(random()) || 0));
+  return {
+    cell: Math.floor(roll() * cellCount),
+    variant: GARDEN_EEL_VARIANTS[Math.floor(roll() * GARDEN_EEL_VARIANTS.length)]
+  };
 }

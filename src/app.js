@@ -1,7 +1,7 @@
 import { createGame, DIFFICULTIES, relatedCells } from "./game/sudoku.js";
 import { activateAutomaticTreasures, ADVENTURE_RULES, applyHintTreasure, applyImmediateTreasure, calculateStars, completedSudokuUnits, drawTreasureCards, newlyCompletedSudokuUnits, strongestEquippedRevive, sudokuUnitCells, treasureClaimsForFloor, TREASURE_AUTO_EFFECTS, TREASURE_CARDS } from "./game/adventure.js";
 import { ACHIEVEMENTS, achievementValue, recordAchievementGame } from "./game/achievements.js";
-import { chooseFriendPair } from "./game/friends.js";
+import { chooseFriendPair, chooseGardenEel } from "./game/friends.js";
 import { cloudConfigured, loadCloudPin, loadCloudProgress, normalizePlayerName, renameCloudPlayer, saveCloudPin, saveCloudProgress, validCloudPin } from "./state/cloud.js";
 import { buildScore, fetchLeaderboard, flushPendingScores, leaderboardConfigured, normalizeLeaderboardTaunt, pendingScoreCount, queueLeaderboardScore, updateLeaderboardTaunt } from "./state/leaderboard.js";
 import { addCard, clearSession, consumeCard, exportSaveCode, importSaveCode, loadProgress, loadSession, rewardProgress, saveProgress, saveSession, spendCoins } from "./state/store.js";
@@ -138,6 +138,21 @@ function animatedFriendsMarkup() {
     <i class="animal-head"><b class="animal-ear left"></b><b class="animal-ear right"></b><em>${face}</em></i>
   </span>`;
   return `<span class="animated-friends">${selection.friends.map(animal).join("")}</span>`;
+}
+
+function showGardenEel() {
+  const board = document.querySelector(".sudoku-board");
+  if (!board || !game.started || game.completed || game.failed) return;
+  const { cell, variant } = chooseGardenEel();
+  const eel = document.createElement("span");
+  eel.className = `garden-eel-peek ${variant}`;
+  eel.style.setProperty("--eel-row", Math.floor(cell / 9));
+  eel.style.setProperty("--eel-column", cell % 9);
+  eel.setAttribute("title", variant === "orange" ? "橘色花園鰻偷看一下" : "白色花園鰻偷看一下");
+  eel.innerHTML = `<i class="garden-eel-stem"></i><i class="garden-eel-head"><b class="garden-eel-eye left"></b><b class="garden-eel-eye right"></b><em>•ᴗ•</em></i>`;
+  board.append(eel);
+  eel.addEventListener("animationend", () => eel.remove(), { once: true });
+  setTimeout(() => eel.remove(), 2600);
 }
 
 function showCelebration(icon, title, detail) {
@@ -333,7 +348,7 @@ function render() {
         </aside>
 
         <section class="board-card" aria-label="數獨遊戲">
-          <div class="board-buddies" aria-hidden="true"><span class="cat-buddy">🐱</span><span class="mouse-buddy">🐭</span></div>
+          <div class="board-buddies" aria-hidden="true"><span class="cat-buddy">🐱</span><span class="otter-buddy">🦦</span><span class="mouse-buddy">🐭</span></div>
           <div class="game-meta">
             <span class="difficulty-pill">${DIFFICULTIES[game.difficulty].icon} ${DIFFICULTIES[game.difficulty].label}・第 ${game.floor} 層</span>
             <span class="timer-block" aria-label="經過時間，沒有時間限制"><span>⏱ <strong id="timer">${formatTime(game.elapsed)}</strong></span><small>不限時 · ${formatTime(DIFFICULTIES[game.difficulty].bonusTime)} 內 +${DIFFICULTIES[game.difficulty].bonusCoins} 🪙 <i id="freeze-time">${game.frozenSeconds ? `· 凍結 ${game.frozenSeconds}s` : ""}</i></small></span>
@@ -783,8 +798,11 @@ function enterNumber(number) {
     game.notes[index] = [];
     removeRelatedNotes(index, number);
     playSound("correct");
-    checkHealGoals();
+    const newlyCompleted = checkHealGoals();
     checkCompletion();
+    render();
+    if (!game.completed && !newlyCompleted.rows.length && !newlyCompleted.columns.length && !newlyCompleted.boxes.length) showGardenEel();
+    return;
   }
   render();
 }
@@ -857,6 +875,7 @@ function checkHealGoals() {
     celebrateCompletedUnit("box", box);
   });
   checkRunMilestones();
+  return newlyCompleted;
 }
 
 function checkRunMilestones() {
