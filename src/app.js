@@ -1,5 +1,5 @@
 import { createGame, DIFFICULTIES, relatedCells } from "./game/sudoku.js";
-import { ADVENTURE_RULES, calculateStars, candidatesFor, drawTreasureCards, TREASURE_CARDS } from "./game/adventure.js";
+import { ADVENTURE_RULES, applyImmediateTreasure, calculateStars, drawTreasureCards, strongestEquippedRevive, TREASURE_CARDS } from "./game/adventure.js";
 import { cloudConfigured, loadCloudPin, loadCloudProgress, saveCloudPin, saveCloudProgress, validCloudPin } from "./state/cloud.js";
 import { buildScore, fetchLeaderboard, flushPendingScores, leaderboardConfigured, pendingScoreCount, queueLeaderboardScore } from "./state/leaderboard.js";
 import { addCard, clearSession, consumeCard, exportSaveCode, importSaveCode, loadProgress, loadSession, rewardProgress, saveProgress, saveSession, spendCoins } from "./state/store.js";
@@ -8,6 +8,7 @@ const app = document.querySelector("#app");
 let progress = loadProgress();
 const restoredSession = loadSession();
 let game = restoredSession?.game || createGame("easy");
+if (restoredSession && typeof game.started !== "boolean") game.started = true;
 let noteMode = false;
 let alinMode = restoredSession?.alinMode || false;
 let showBackpack = false;
@@ -80,7 +81,8 @@ function setupAdventure() {
     usedCards: [],
     cardChoices: [],
     claimedCards: [],
-    remainingClaims: 0
+    remainingClaims: 0,
+    started: false
   });
 }
 
@@ -144,13 +146,13 @@ function render() {
               <span class="${game.healGoals.streak ? "done" : ""}">連對 8 格</span><span class="${game.healGoals.row ? "done" : ""}">完成一行</span><span class="${game.healGoals.box ? "done" : ""}">完成一宮</span>
             </div>
           </div>
-          <div class="sudoku-board" role="grid">
+          <div class="sudoku-board ${game.started ? "" : "waiting"}" role="grid" aria-label="${game.started ? "數獨盤面" : "按下開始後顯示題目"}">
             ${game.values.map((value, index) => {
               const fixed = game.puzzle[index] !== 0;
               const selected = index === game.selected;
               const same = selectedValue && value === selectedValue;
-              return `<button class="cell ${fixed ? "fixed" : ""} ${selected ? "selected" : ""} ${related.has(index) ? "related" : ""} ${same ? "same" : ""}" data-cell="${index}" role="gridcell" aria-label="第 ${Math.floor(index / 9) + 1} 列第 ${(index % 9) + 1} 欄${value ? `，數字 ${value}` : "，空白"}">
-                ${value || (game.notes[index].length ? `<span class="notes">${Array.from({ length: 9 }, (_, n) => `<i>${game.notes[index].includes(n + 1) ? n + 1 : ""}</i>`).join("")}</span>` : "")}
+              return `<button class="cell ${fixed ? "fixed" : ""} ${selected ? "selected" : ""} ${related.has(index) ? "related" : ""} ${same ? "same" : ""}" data-cell="${index}" role="gridcell" ${game.started ? "" : "disabled"} aria-label="${game.started ? `第 ${Math.floor(index / 9) + 1} 列第 ${(index % 9) + 1} 欄${value ? `，數字 ${value}` : "，空白"}` : "題目尚未開始"}">
+                ${game.started ? (value || (game.notes[index].length ? `<span class="notes">${Array.from({ length: 9 }, (_, n) => `<i>${game.notes[index].includes(n + 1) ? n + 1 : ""}</i>`).join("")}</span>` : "")) : ""}
               </button>`;
             }).join("")}
           </div>
@@ -165,7 +167,8 @@ function render() {
             <button id="open-backpack" class="backpack-button">🎒 背包 ${inventoryTotal}</button>
             ${game.equippedCards.length ? game.equippedCards.map((cardId) => {
               const card = TREASURE_CARDS[cardId];
-              return `<button data-use-card="${cardId}" ${progress.inventory[cardId] ? "" : "disabled"}><span>${card.icon}</span><small>${card.name} ×${progress.inventory[cardId]}</small></button>`;
+              const reviveOnly = card.effect === "revive";
+              return `<button data-use-card="${cardId}" ${progress.inventory[cardId] && !reviveOnly ? "" : "disabled"}><span>${card.icon}</span><small>${card.name}${reviveOnly ? "・倒下時使用" : ` ×${progress.inventory[cardId]}`}</small></button>`;
             }).join("") : `<small class="empty-loadout">開局前可從背包裝備兩張卡</small>`}
           </div>
         </section>
@@ -178,9 +181,25 @@ function render() {
         </aside>
       </section>
     </main>
-    ${showNameSetup ? nameSetupModal() : showLeaderboard ? leaderboardModal() : showSaveCenter ? saveCenterModal() : game.completed ? completionModal() : game.failed ? failureModal() : showBackpack ? backpackModal() : ""}
+    ${showNameSetup ? nameSetupModal() : showLeaderboard ? leaderboardModal() : showSaveCenter ? saveCenterModal() : showBackpack ? backpackModal() : !game.started ? startModal() : game.completed ? completionModal() : game.failed ? failureModal() : ""}
   `;
   bindEvents();
+}
+
+function startModal() {
+  const selectedCards = equippedCards.map((cardId) => TREASURE_CARDS[cardId]).filter(Boolean);
+  return `<div class="modal-backdrop"><section class="modal start-modal" role="dialog" aria-modal="true" aria-labelledby="start-title">
+    <div class="celebrate">🏝️</div><p class="eyebrow">FLOOR ${game.floor}</p><h2 id="start-title">出發前選寶物</h2>
+    <p>先確認難度與本關寶物，按下開始後才會顯示題目並開始計時。</p>
+    <div class="prestart-difficulties" aria-label="選擇難度">${Object.entries(DIFFICULTIES).map(([key, item]) => `<button data-prestart-difficulty="${key}" class="${game.difficulty === key ? "active" : ""}">${item.icon} ${item.label}</button>`).join("")}</div>
+    <button id="prestart-alin-mode" class="prestart-alin ${alinMode ? "active" : ""}" aria-pressed="${alinMode}">♾️ 阿霖模式：${alinMode ? "開啟" : "關閉"}</button>
+    <div class="prestart-loadout">
+      <strong>本關寶物 ${selectedCards.length}/2</strong>
+      <span>${selectedCards.length ? selectedCards.map((card) => `${card.icon} ${card.name}`).join("　") : "尚未選擇（也可空手出發）"}</span>
+    </div>
+    <button id="choose-start-cards" class="secondary-button">🎒 選擇／更換寶物</button>
+    <button id="start-game" class="primary-button">▶ 開始第 ${game.floor} 層</button>
+  </section></div>`;
 }
 
 function completionModal() {
@@ -241,9 +260,7 @@ function saveCenterModal() {
 }
 
 function availableReviveCard() {
-  return Object.keys(TREASURE_CARDS)
-    .filter((cardId) => TREASURE_CARDS[cardId].effect === "revive" && progress.inventory[cardId])
-    .sort((left, right) => TREASURE_CARDS[right].value - TREASURE_CARDS[left].value)[0];
+  return strongestEquippedRevive(game.equippedCards, progress.inventory);
 }
 
 function failureModal() {
@@ -252,7 +269,7 @@ function failureModal() {
   return `<div class="modal-backdrop"><section class="modal" role="dialog" aria-modal="true" aria-labelledby="failure-title">
     <div class="celebrate">🌧️</div><p class="eyebrow">TAKE A BREATH</p><h2 id="failure-title">暫時迷路了</h2><p>可以復活繼續，也可以重新挑戰這一題。</p>
     <div class="failure-actions">
-      <button id="revive-card" ${reviveCard ? "" : "disabled"}>${reviveCard ? `${reviveCard.icon} ${reviveCard.name} ×${progress.inventory[reviveCardId]}` : "🪶 沒有復活寶物"}</button>
+      <button id="revive-card" ${reviveCard ? "" : "disabled"}>${reviveCard ? `${reviveCard.icon} ${reviveCard.name} ×${progress.inventory[reviveCardId]}` : "🪶 本關未裝備復活寶物"}</button>
       <button id="revive-coins" ${progress.coins >= 20 ? "" : "disabled"}>🪙 20 金幣復活</button>
     </div>
     <button id="retry-game" class="primary-button">重新挑戰</button>
@@ -260,13 +277,13 @@ function failureModal() {
 }
 
 function backpackModal() {
-  const locked = game.actions > 0;
+  const locked = game.started;
   return `<div class="modal-backdrop"><section class="modal backpack-modal" role="dialog" aria-modal="true" aria-labelledby="backpack-title">
     <div class="celebrate">🎒</div><h2 id="backpack-title">寶物背包</h2><p>${locked ? "本局已開始，下局開始前可重新裝備。" : "選擇最多兩種卡片帶進本局。"}</p>
-    <div class="inventory-grid">${Object.entries(TREASURE_CARDS).map(([cardId, card]) => `
+    <div class="inventory-grid">${Object.entries(TREASURE_CARDS).filter(([cardId]) => progress.inventory[cardId] > 0).map(([cardId, card]) => `
       <button data-equip-card="${cardId}" class="inventory-card ${card.rarity} ${equippedCards.includes(cardId) ? "equipped" : ""}" ${locked || !progress.inventory[cardId] ? "disabled" : ""}>
         <span>${card.icon}</span><strong>${card.name} ×${progress.inventory[cardId]}</strong><small>${card.description}</small>
-      </button>`).join("")}</div>
+      </button>`).join("") || `<p class="empty-inventory">背包目前是空的，過關抽卡後就會收藏在這裡。</p>`}</div>
     <button id="close-backpack" class="primary-button">完成</button>
   </section></div>`;
 }
@@ -275,11 +292,13 @@ function bindEvents() {
   document.querySelectorAll("[data-cell]").forEach((button) => button.addEventListener("click", () => { game.selected = Number(button.dataset.cell); render(); }));
   document.querySelectorAll("[data-number]").forEach((button) => button.addEventListener("click", () => enterNumber(Number(button.dataset.number))));
   document.querySelectorAll("[data-difficulty]").forEach((button) => button.addEventListener("click", () => newGame(button.dataset.difficulty)));
+  document.querySelectorAll("[data-prestart-difficulty]").forEach((button) => button.addEventListener("click", () => newGame(button.dataset.prestartDifficulty)));
   document.querySelectorAll("[data-use-card]").forEach((button) => button.addEventListener("click", () => useCard(button.dataset.useCard)));
   document.querySelectorAll("[data-equip-card]").forEach((button) => button.addEventListener("click", () => toggleEquipCard(button.dataset.equipCard)));
   document.querySelectorAll("[data-claim-card]").forEach((button) => button.addEventListener("click", () => claimCard(button.dataset.claimCard)));
   document.querySelector("#notes")?.addEventListener("click", () => { noteMode = !noteMode; render(); });
   document.querySelector("#alin-mode")?.addEventListener("click", () => { alinMode = !alinMode; render(); });
+  document.querySelector("#prestart-alin-mode")?.addEventListener("click", () => { alinMode = !alinMode; render(); });
   document.querySelector("#undo")?.addEventListener("click", clearCell);
   document.querySelector("#hint")?.addEventListener("click", useHint);
   document.querySelector("#restart")?.addEventListener("click", () => newGame(game.difficulty));
@@ -289,6 +308,8 @@ function bindEvents() {
   document.querySelector("#revive-coins")?.addEventListener("click", reviveWithCoins);
   document.querySelector("#open-backpack")?.addEventListener("click", openBackpack);
   document.querySelector("#open-backpack-side")?.addEventListener("click", openBackpack);
+  document.querySelector("#choose-start-cards")?.addEventListener("click", openBackpack);
+  document.querySelector("#start-game")?.addEventListener("click", startGame);
   document.querySelector("#open-leaderboard")?.addEventListener("click", openLeaderboardModal);
   document.querySelector("#close-leaderboard")?.addEventListener("click", () => { showLeaderboard = false; render(); });
   document.querySelectorAll("[data-rank-difficulty]").forEach((button) => button.addEventListener("click", () => changeLeaderboardDifficulty(button.dataset.rankDifficulty)));
@@ -432,7 +453,7 @@ function openBackpack() {
 }
 
 function toggleEquipCard(cardId) {
-  if (game.actions > 0 || !progress.inventory[cardId]) return;
+  if (game.started || !progress.inventory[cardId]) return;
   if (equippedCards.includes(cardId)) equippedCards = equippedCards.filter((id) => id !== cardId);
   else if (equippedCards.length < 2) equippedCards.push(cardId);
   game.equippedCards = [...equippedCards];
@@ -441,7 +462,7 @@ function toggleEquipCard(cardId) {
 
 function enterNumber(number) {
   const index = game.selected;
-  if (game.completed || game.failed || game.puzzle[index]) return;
+  if (!game.started || game.completed || game.failed || game.puzzle[index]) return;
   if (noteMode) {
     const notes = new Set(game.notes[index]);
     notes.has(number) ? notes.delete(number) : notes.add(number);
@@ -477,6 +498,7 @@ function removeRelatedNotes(index, number) {
 }
 
 function clearCell() {
+  if (!game.started || game.completed || game.failed) return;
   if (!game.puzzle[game.selected]) {
     game.values[game.selected] = 0;
     game.notes[game.selected] = [];
@@ -517,7 +539,7 @@ function checkHealGoals() {
 
 function useHint() {
   const cost = currentHintCost();
-  if (game.failed || progress.coins < cost || game.puzzle[game.selected] || game.values[game.selected]) return;
+  if (!game.started || game.failed || progress.coins < cost || game.puzzle[game.selected] || game.values[game.selected]) return;
   if (cost) progress = spendCoins(progress, cost);
   game.actions += 1;
   game.hintsUsed += 1;
@@ -529,17 +551,10 @@ function useHint() {
 }
 
 function useCard(cardId) {
-  if (!game.equippedCards.includes(cardId) || !progress.inventory[cardId] || game.completed || game.failed) return;
+  if (!game.started || !game.equippedCards.includes(cardId) || !progress.inventory[cardId] || game.completed || game.failed) return;
   const card = TREASURE_CARDS[cardId];
   const index = game.selected;
-  if (card.effect === "heal") {
-    if (alinMode || game.health >= game.maxHealth) return;
-    game.health = Math.min(game.maxHealth, game.health + card.value);
-  } else if (card.effect === "shield") game.shields += card.value;
-  else if (card.effect === "candidates") {
-    if (game.values[index]) return;
-    game.notes[index] = candidatesFor(game.values, index);
-  } else if (card.effect === "hint") {
+  if (card.effect === "hint") {
     const targets = [];
     if (!game.puzzle[index] && !game.values[index]) targets.push(index);
     const otherEmptyCells = game.values.map((value, cell) => !value && !game.puzzle[cell] && cell !== index ? cell : -1).filter((cell) => cell >= 0);
@@ -553,14 +568,8 @@ function useCard(cardId) {
     });
     checkHealGoals();
     checkCompletion();
-  } else if (card.effect === "freeze") game.frozenSeconds += card.value;
-  else if (card.effect === "xpBoost") {
-    if (game.xpMultiplier > 1) return;
-    game.xpMultiplier = card.value;
-  } else if (card.effect === "extraClaim") {
-    if (game.extraCardClaims) return;
-    game.extraCardClaims = card.value;
   } else if (card.effect === "revive") return;
+  else if (!applyImmediateTreasure(game, card, { alinMode, index })) return;
   progress = consumeCard(progress, cardId);
   game.usedCards.push(cardId);
   render();
@@ -617,6 +626,7 @@ function checkCompletion() {
 
 function startTimer() {
   clearInterval(timerId);
+  if (!game.started || game.completed || game.failed) return;
   timerId = setInterval(() => {
     if (game.frozenSeconds > 0) game.frozenSeconds -= 1;
     else game.elapsed += 1;
@@ -628,6 +638,15 @@ function startTimer() {
   }, 1000);
 }
 
+function startGame() {
+  if (game.started || game.completed || game.failed) return;
+  game.started = true;
+  game.startedAt = Date.now();
+  game.equippedCards = [...equippedCards];
+  startTimer();
+  render();
+}
+
 function newGame(difficulty) {
   clearInterval(timerId);
   game = createGame(difficulty);
@@ -635,7 +654,6 @@ function newGame(difficulty) {
   noteMode = false;
   showBackpack = false;
   setupAdventure();
-  startTimer();
   render();
 }
 

@@ -89,6 +89,8 @@ button:focus-visible { outline: 3px solid #4f9dd9; outline-offset: 2px; }
 .goal-chips span.done { background: #e4f6ed; color: #338064; text-decoration: line-through; }
 .icon-button { width: 32px; height: 32px; border: 0; border-radius: 10px; background: #f8f3ec; cursor: pointer; }
 .sudoku-board { display: grid; grid-template-columns: repeat(9, 1fr); aspect-ratio: 1; overflow: hidden; border: 2px solid var(--navy); border-radius: 12px; background: white; }
+.sudoku-board.waiting { background: repeating-linear-gradient(135deg, #fff, #fff 12px, #faf6f1 12px, #faf6f1 24px); }
+.sudoku-board.waiting .cell { cursor: default; background: transparent; }
 .cell { position: relative; min-width: 0; padding: 0; border: 0; border-right: 1px solid #d9dce0; border-bottom: 1px solid #d9dce0; background: white; color: #3b9074; font-size: clamp(19px, 3.2vw, 28px); font-weight: 800; cursor: pointer; }
 .cell:nth-child(9n) { border-right: 0; }
 .cell:nth-child(n+73) { border-bottom: 0; }
@@ -152,6 +154,18 @@ button:focus-visible { outline: 3px solid #4f9dd9; outline-offset: 2px; }
 .cloud-result { margin: -8px 0 12px !important; color: #688c82 !important; font-size: 11px; font-weight: 800; }
 .primary-button { width: 100%; padding: 13px; border: 0; border-radius: 15px; background: var(--coral); color: white; font-weight: 900; box-shadow: 0 8px 18px rgba(233, 116, 81, .24); cursor: pointer; }
 .primary-button:disabled { opacity: .45; cursor: not-allowed; }
+.secondary-button { width: 100%; margin: 8px 0 10px; padding: 12px; border: 1px solid #ddccec; border-radius: 15px; background: #f7f1fc; color: #70598b; font-weight: 900; cursor: pointer; }
+.start-modal { width: min(100%, 460px); }
+.start-modal > p { margin: 6px 0 14px; }
+.prestart-difficulties { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; margin-bottom: 9px; }
+.prestart-difficulties button, .prestart-alin { padding: 10px 6px; border: 1px solid #eadfd3; border-radius: 13px; background: #faf7f3; color: #6f6256; font-weight: 900; cursor: pointer; }
+.prestart-difficulties button.active { border-color: #93d4bd; background: var(--mint-light); color: #2f7b63; }
+.prestart-alin { width: 100%; }
+.prestart-alin.active { border-color: #d4b8f1; background: #f5edfc; color: #70598b; }
+.prestart-loadout { margin-top: 12px; padding: 12px; display: grid; gap: 5px; border-radius: 14px; background: #fff8ec; color: #75644f; }
+.prestart-loadout strong { color: var(--navy); }
+.prestart-loadout span { font-size: 12px; font-weight: 800; }
+.empty-inventory { grid-column: 1 / -1; margin: 0 !important; padding: 18px; border-radius: 14px; background: #faf7f3; font-size: 12px; }
 .stars-earned { margin: 8px 0; font-size: 25px; letter-spacing: 4px; }
 .card-draw { margin: 15px 0; }
 .card-draw > strong { display: block; margin-bottom: 9px; color: var(--navy); font-size: 14px; }

@@ -1,5 +1,5 @@
 import { countSolutions, createGame, DIFFICULTIES, generatePuzzle, PUZZLES, relatedCells, solveSudoku } from "../src/game/sudoku.js";
-import { ADVENTURE_RULES, candidatesFor, drawTreasureCards, treasurePool, TREASURE_CARDS } from "../src/game/adventure.js";
+import { ADVENTURE_RULES, applyImmediateTreasure, candidatesFor, drawTreasureCards, strongestEquippedRevive, treasurePool, TREASURE_CARDS, TREASURE_EFFECTS } from "../src/game/adventure.js";
 import { validCloudPin } from "../src/state/cloud.js";
 import { buildScore, leaderboardConfigured } from "../src/state/leaderboard.js";
 import { exportSaveCode, importSaveCode } from "../src/state/store.js";
@@ -85,10 +85,27 @@ assert(relatedCells(40).size === 21, "中央格應包含 21 個同行、同列�
 assert(ADVENTURE_RULES.easy.maxHealth > ADVENTURE_RULES.medium.maxHealth, "輕鬆難度血量應高於動腦");
 assert(ADVENTURE_RULES.medium.maxHealth > ADVENTURE_RULES.hard.maxHealth, "動腦難度血量應高於高手");
 assert(Object.keys(TREASURE_CARDS).length === 60, "寶物圖鑑應提供 60 種寶物");
+assert(Object.values(TREASURE_CARDS).every((card) => TREASURE_EFFECTS.includes(card.effect)), "每張寶物都必須使用遊戲支援的效果");
+assert(Object.values(TREASURE_CARDS).every((card) => Number.isFinite(card.value) && card.value > 0), "每張寶物的效果數值都必須有效");
 assert(treasurePool("easy").length === 10, "輕鬆難度應使用前 10 種寶物");
 assert(treasurePool("medium").length === 30, "動腦難度應使用前 30 種寶物");
 assert(treasurePool("hard").length === 60, "高手難度應使用完整 60 種寶物");
 assert(new Set(drawTreasureCards("hard", 3)).size === 3, "抽卡選項不可重複");
+assert(strongestEquippedRevive(["revive"], { revive: 1 }) === "revive", "已裝備的復活寶物應可在失敗時使用");
+assert(!strongestEquippedRevive([], { revive: 1 }), "未裝備的復活寶物不可在本關使用");
+assert(strongestEquippedRevive(["revive", "phoenixCrown"], { revive: 1, phoenixCrown: 1 }) === "phoenixCrown", "同時裝備復活寶物時應優先使用效果較強者");
+
+const effectGame = {
+  health: 2, maxHealth: 5, shields: 0, values: Array(81).fill(0), notes: Array.from({ length: 81 }, () => []),
+  selected: 40, frozenSeconds: 0, xpMultiplier: 1, extraCardClaims: 0
+};
+assert(applyImmediateTreasure(effectGame, TREASURE_CARDS.twinHeart) && effectGame.health === 4, "回血寶物應依數值回復且不超過上限");
+assert(applyImmediateTreasure(effectGame, TREASURE_CARDS.ironWall) && effectGame.shields === 2, "護盾寶物應增加正確層數");
+assert(applyImmediateTreasure(effectGame, TREASURE_CARDS.candidateLens) && effectGame.notes[40].length === 9, "候選寶物應為空格標出合法候選數字");
+assert(applyImmediateTreasure(effectGame, TREASURE_CARDS.hourglass) && effectGame.frozenSeconds === 60, "計時寶物應增加凍結秒數");
+assert(applyImmediateTreasure(effectGame, TREASURE_CARDS.luckyStar) && effectGame.xpMultiplier === 2, "經驗寶物應套用正確倍率");
+assert(applyImmediateTreasure(effectGame, TREASURE_CARDS.goldKey) && effectGame.extraCardClaims === 2, "鑰匙寶物應增加正確抽卡數");
+assert(!applyImmediateTreasure(effectGame, TREASURE_CARDS.cometBadge), "同一局不可重複疊加經驗倍率");
 
 const memory = new Map();
 globalThis.localStorage = {

@@ -73,6 +73,34 @@ export const TREASURE_CARDS = Object.fromEntries(definitions.map(([id, name, ico
   name, icon, tier, rarity, effect, value, description
 }]));
 
+export const TREASURE_EFFECTS = Object.freeze(["heal", "shield", "candidates", "hint", "freeze", "revive", "xpBoost", "extraClaim"]);
+
+export function strongestEquippedRevive(equippedCards = [], inventory = {}) {
+  return equippedCards
+    .filter((cardId) => TREASURE_CARDS[cardId]?.effect === "revive" && inventory[cardId] > 0)
+    .sort((left, right) => TREASURE_CARDS[right].value - TREASURE_CARDS[left].value)[0];
+}
+
+export function applyImmediateTreasure(game, card, { alinMode = false, index = game?.selected } = {}) {
+  if (!game || !card) return false;
+  if (card.effect === "heal") {
+    if (alinMode || game.health >= game.maxHealth) return false;
+    game.health = Math.min(game.maxHealth, game.health + card.value);
+  } else if (card.effect === "shield") game.shields += card.value;
+  else if (card.effect === "candidates") {
+    if (!Number.isInteger(index) || game.values[index]) return false;
+    game.notes[index] = candidatesFor(game.values, index);
+  } else if (card.effect === "freeze") game.frozenSeconds += card.value;
+  else if (card.effect === "xpBoost") {
+    if (game.xpMultiplier > 1) return false;
+    game.xpMultiplier = card.value;
+  } else if (card.effect === "extraClaim") {
+    if (game.extraCardClaims) return false;
+    game.extraCardClaims = card.value;
+  } else return false;
+  return true;
+}
+
 const cardIds = Object.keys(TREASURE_CARDS);
 
 function randomItem(items) {
