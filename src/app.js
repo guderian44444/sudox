@@ -71,6 +71,8 @@ function playSound(name) {
     "box-0": [[523, 0, .07], [659, .08, .07], [784, .16, .07], [1047, .24, .14]],
     "box-1": [[784, 0, .07], [988, .08, .07], [659, .16, .07], [880, .24, .14]],
     mistake: [[330, 0, .11], [247, .1, .18]],
+    failure: [[392, 0, .1], [294, .11, .12], [196, .24, .24]],
+    revive: [[330, 0, .08], [494, .09, .08], [659, .18, .1], [988, .3, .2]],
     shield: [[740, 0, .06], [1110, .07, .16]],
     card: [[392, 0, .07], [523, .07, .07], [784, .14, .16]],
     "finale-0": [[523, 0, .11], [659, .11, .11], [784, .22, .12], [1047, .36, .3]],
@@ -725,7 +727,7 @@ function enterNumber(number) {
       }
     }
     if (blockedByShield) showGameEffect("🛡️", "鏘！成功格擋", "護盾替你擋住這次錯誤", "shield");
-    else showGameEffect("friends", "猜錯了，雙雙昏倒！", alinMode ? "躺一下再繼續，阿霖模式不會失敗" : "貓咪和老鼠休息一下，再陪你試一次！", "mistake");
+    else showGameEffect("friends", game.failed ? "體力用完，雙雙昏倒！" : "猜錯了，雙雙昏倒！", alinMode ? "躺一下再繼續，阿霖模式不會失敗" : game.failed ? "休息一下，可以使用寶物或金幣復活" : "貓咪和老鼠休息一下，再陪你試一次！", "mistake", game.failed ? "failure" : "");
     document.body.classList.add("shake");
     setTimeout(() => document.body.classList.remove("shake"), 320);
   } else {
@@ -867,7 +869,7 @@ function resumeAfterRevive(health = 2, source = null) {
   game.health = Math.min(health, game.maxHealth);
   startTimer();
   render();
-  if (source) showGameEffect(source.icon, `${source.name}發動！`, source.description, "card");
+  if (source) showGameEffect(source.icon, `${source.name}發動，重新站起來！`, source.description, "card", "revive");
 }
 
 function claimCard(cardId) {

@@ -1,4 +1,4 @@
-const CACHE_NAME = "sudox-shell-v13";
+const CACHE_NAME = "sudox-shell-v14";
 const BASE_PATH = new URL("./", self.location.href).pathname;
 const APP_SHELL = [
   BASE_PATH,
