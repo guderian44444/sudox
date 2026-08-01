@@ -27,6 +27,10 @@ let celebrationId = 0;
 const formatTime = (seconds) => `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
 const currentHintCost = () => alinMode ? 0 : DIFFICULTIES[game.difficulty].hintCost;
 const escapeHtml = (value) => String(value).replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character]);
+const normalizePinInput = (value) => String(value)
+  .replace(/[０-９]/g, (digit) => String(digit.charCodeAt(0) - 0xFF10))
+  .replace(/\D/g, "")
+  .slice(0, 4);
 
 function mascot() {
   return `<div class="mascot" aria-hidden="true"><span class="ear left"></span><span class="ear right"></span><span class="face">•ᴗ•</span></div>`;
@@ -206,7 +210,7 @@ function nameSetupModal() {
     <label class="field-label" for="player-name">玩家名稱</label>
     <input id="player-name" class="name-input" maxlength="16" autocomplete="nickname" value="${escapeHtml(progress.playerName || "")}" placeholder="例如：阿霖">
     <label class="field-label" for="family-pin">家庭 PIN</label>
-    <input id="family-pin" class="name-input pin-input" maxlength="4" inputmode="numeric" autocomplete="off" placeholder="4 位數字">
+    <input id="family-pin" class="name-input pin-input" type="text" maxlength="4" inputmode="numeric" pattern="[0-9]*" enterkeyhint="done" autocomplete="off" placeholder="4 位數字">
     <p class="name-status" role="status">${escapeHtml(nameSetupStatus || (cloudConfigured() ? "第一次玩請建立玩家；換裝置請載入雲端進度。" : "資料庫尚未設定，目前可先建立本機玩家。"))}</p>
     <div class="save-actions"><button id="create-player">✨ 建立新玩家</button><button id="load-cloud-player" ${cloudConfigured() ? "" : "disabled"}>☁️ 載入雲端進度</button></div>
   </section></div>`;
@@ -292,6 +296,9 @@ function bindEvents() {
   document.querySelector("#close-save-center")?.addEventListener("click", () => { showSaveCenter = false; render(); });
   document.querySelector("#sync-cloud-now")?.addEventListener("click", () => syncCloudNow(true));
   document.querySelector("#switch-cloud-player")?.addEventListener("click", () => { showSaveCenter = false; showNameSetup = true; nameSetupStatus = ""; render(); });
+  document.querySelector("#family-pin")?.addEventListener("input", (event) => {
+    event.currentTarget.value = normalizePinInput(event.currentTarget.value);
+  });
   document.querySelector("#create-player")?.addEventListener("click", createPlayer);
   document.querySelector("#load-cloud-player")?.addEventListener("click", loadExistingPlayer);
   document.querySelector("#close-backpack")?.addEventListener("click", () => { showBackpack = false; game.equippedCards = [...equippedCards]; render(); });
@@ -305,7 +312,7 @@ function openSaveCenter() {
 
 function playerSetupValues() {
   const playerName = document.querySelector("#player-name")?.value.replace(/[\u0000-\u001f\u007f]/g, "").trim().slice(0, 16) || "";
-  const pin = document.querySelector("#family-pin")?.value.trim() || "";
+  const pin = normalizePinInput(document.querySelector("#family-pin")?.value || "");
   if (!playerName) throw new Error("請輸入玩家名稱");
   if (!validCloudPin(pin)) throw new Error("家庭 PIN 必須是 4 位數字");
   return { playerName, pin };
@@ -633,6 +640,10 @@ function newGame(difficulty) {
 }
 
 document.addEventListener("keydown", (event) => {
+  const target = event.target;
+  const isFormControl = target instanceof HTMLElement
+    && (target.matches("input, textarea, select, button") || target.isContentEditable);
+  if (isFormControl || showNameSetup || showSaveCenter || showLeaderboard || showBackpack) return;
   if (/^[1-9]$/.test(event.key)) enterNumber(Number(event.key));
   if (["Backspace", "Delete", "0"].includes(event.key)) clearCell();
   if (event.key.toLowerCase() === "n") { noteMode = !noteMode; render(); }
