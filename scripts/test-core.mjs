@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { countSolutions, createGame, DIFFICULTIES, generatePuzzle, PUZZLES, relatedCells, solveSudoku } from "../src/game/sudoku.js";
 import { activateAutomaticTreasures, ADVENTURE_RULES, applyHintTreasure, applyImmediateTreasure, candidatesFor, completedSudokuUnits, drawTreasureCards, newlyCompletedSudokuUnits, strongestEquippedRevive, sudokuUnitCells, treasureClaimsForFloor, treasurePool, TREASURE_AUTO_EFFECTS, TREASURE_CARDS, TREASURE_EFFECTS } from "../src/game/adventure.js";
 import { validCloudPin } from "../src/state/cloud.js";
-import { buildScore, leaderboardConfigured } from "../src/state/leaderboard.js";
+import { buildScore, leaderboardConfigured, normalizeLeaderboardTaunt } from "../src/state/leaderboard.js";
 import { exportSaveCode, importSaveCode } from "../src/state/store.js";
 
 function assert(condition, message) {
@@ -113,6 +113,9 @@ assert(laterUnits.boxes.length === 8 && !laterUnits.boxes.includes(0), "已跳�
 assert(sudokuUnitCells("row", 2).join(",") === "18,19,20,21,22,23,24,25,26", "行波浪應依左到右排列 9 格");
 assert(sudokuUnitCells("column", 2).join(",") === "2,11,20,29,38,47,56,65,74", "直列波浪應依上到下排列 9 格");
 assert(sudokuUnitCells("box", 4).join(",") === "30,31,32,39,40,41,48,49,50", "宮波浪應依宮內順序排列 9 格");
+assert(sudokuUnitCells("row", 2, 1).join(",") === "26,25,24,23,22,21,20,19,18", "行動畫第二型應由右到左排列 9 格");
+assert(sudokuUnitCells("column", 2, 1).join(",") === "74,65,56,47,38,29,20,11,2", "直列動畫第二型應由下到上排列 9 格");
+assert(sudokuUnitCells("box", 4, 1).join(",") === "30,31,32,41,50,49,48,39,40", "宮動畫第二型應沿外圈螺旋進入中心");
 assert(strongestEquippedRevive(["revive"], { revive: 1 }) === "revive", "已裝備的復活寶物應可在失敗時使用");
 assert(!strongestEquippedRevive([], { revive: 1 }), "未裝備的復活寶物不可在本關使用");
 assert(strongestEquippedRevive(["revive", "phoenixCrown"], { revive: 1, phoenixCrown: 1 }) === "phoenixCrown", "同時裝備復活寶物時應優先使用效果較強者");
@@ -188,4 +191,7 @@ assert(validCloudPin("0428") && !validCloudPin("123") && !validCloudPin("12a4"),
 assert(leaderboardConfigured(), "Supabase 專案設定後排行榜應啟用雲端模式");
 const score = buildScore(imported.progress, { difficulty: "easy", floor: 9, stars: 3, elapsed: 120, mistakes: 0 });
 assert(score.p_player_name === "阿霖" && score.p_floor === 9 && score.p_score > 90000, "排行榜成績應包含玩家、層數與計算分數");
+assert(buildScore(imported.progress, { difficulty: "hard", floor: 3, stars: 2, elapsed: 300, mistakes: 4 }, true).p_difficulty === "alin", "阿霖模式成績應送往獨立排行榜");
+assert(normalizeLeaderboardTaunt("  榜首是我的！\n  ") === "榜首是我的！", "排行榜嗆聲應移除控制字元與前後空白");
+assert(normalizeLeaderboardTaunt("哈".repeat(60)).length === 48, "排行榜嗆聲應限制為 48 字");
 console.log("核心規則測試通過");

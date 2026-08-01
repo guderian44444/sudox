@@ -1,7 +1,7 @@
 import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "../config.js";
 
 const QUEUE_KEY = "sudox-score-queue-v1";
-const difficulties = new Set(["easy", "medium", "hard"]);
+const difficulties = new Set(["easy", "medium", "hard", "alin"]);
 
 export function leaderboardConfigured() {
   return /^https:\/\/[a-z0-9-]+\.supabase\.co$/i.test(SUPABASE_URL) && SUPABASE_PUBLISHABLE_KEY.startsWith("sb_publishable_");
@@ -28,12 +28,16 @@ export function pendingScoreCount() {
   return loadQueue().length;
 }
 
-export function buildScore(progress, game) {
+export function normalizeLeaderboardTaunt(value) {
+  return String(value ?? "").replace(/[\u0000-\u001f\u007f]/g, "").trim().slice(0, 48);
+}
+
+export function buildScore(progress, game, alinMode = false) {
   const score = game.floor * 10000 + game.stars * 1000 + Math.max(0, 2000 - game.elapsed) - game.mistakes * 100;
   return {
     p_player_id: progress.playerId,
     p_player_name: progress.playerName,
-    p_difficulty: game.difficulty,
+    p_difficulty: alinMode ? "alin" : game.difficulty,
     p_floor: game.floor,
     p_score: Math.max(0, Math.round(score)),
     p_elapsed_seconds: Math.max(0, Math.round(game.elapsed)),
@@ -82,7 +86,7 @@ export async function fetchLeaderboard(difficulty = "easy") {
   if (!leaderboardConfigured()) throw new Error("排行榜尚未連接資料庫");
   if (!difficulties.has(difficulty)) throw new Error("排行榜難度不正確");
   const query = new URLSearchParams({
-    select: "player_id,player_name,difficulty,floor,score,elapsed_seconds,mistakes,stars,updated_at",
+    select: "player_id,player_name,difficulty,floor,score,elapsed_seconds,mistakes,stars,taunt,updated_at",
     difficulty: `eq.${difficulty}`,
     order: "floor.desc,score.desc",
     limit: "50"
@@ -90,4 +94,16 @@ export async function fetchLeaderboard(difficulty = "easy") {
   const response = await fetch(`${SUPABASE_URL}/rest/v1/leaderboard_scores?${query}`, { headers: headers() });
   if (!response.ok) throw new Error(`無法讀取排行榜 (${response.status})`);
   return response.json();
+}
+
+export async function updateLeaderboardTaunt({ playerId, pin, taunt }) {
+  if (!leaderboardConfigured()) throw new Error("排行榜尚未連接資料庫");
+  const cleanTaunt = normalizeLeaderboardTaunt(taunt);
+  const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/update_leaderboard_taunt`, {
+    method: "POST",
+    headers: headers(),
+    body: JSON.stringify({ p_player_id: playerId, p_pin: pin, p_taunt: cleanTaunt })
+  });
+  if (!response.ok) throw new Error(response.status === 400 ? "家庭 PIN 驗證失敗" : `嗆聲更新失敗 (${response.status})`);
+  return cleanTaunt;
 }

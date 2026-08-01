@@ -1,7 +1,7 @@
 import { createGame, DIFFICULTIES, relatedCells } from "./game/sudoku.js";
 import { activateAutomaticTreasures, ADVENTURE_RULES, applyHintTreasure, applyImmediateTreasure, calculateStars, completedSudokuUnits, drawTreasureCards, newlyCompletedSudokuUnits, strongestEquippedRevive, sudokuUnitCells, treasureClaimsForFloor, TREASURE_AUTO_EFFECTS, TREASURE_CARDS } from "./game/adventure.js";
 import { cloudConfigured, loadCloudPin, loadCloudProgress, saveCloudPin, saveCloudProgress, validCloudPin } from "./state/cloud.js";
-import { buildScore, fetchLeaderboard, flushPendingScores, leaderboardConfigured, pendingScoreCount, queueLeaderboardScore } from "./state/leaderboard.js";
+import { buildScore, fetchLeaderboard, flushPendingScores, leaderboardConfigured, normalizeLeaderboardTaunt, pendingScoreCount, queueLeaderboardScore, updateLeaderboardTaunt } from "./state/leaderboard.js";
 import { addCard, clearSession, consumeCard, exportSaveCode, importSaveCode, loadProgress, loadSession, rewardProgress, saveProgress, saveSession, spendCoins } from "./state/store.js";
 
 const app = document.querySelector("#app");
@@ -23,6 +23,7 @@ let showLeaderboard = false;
 let leaderboardDifficulty = game.difficulty;
 let leaderboardRows = [];
 let leaderboardStatus = "";
+let leaderboardTauntStatus = "";
 let nameSetupStatus = "";
 let cloudSyncStatus = "";
 let cloudSyncTimer;
@@ -33,8 +34,15 @@ let gameEffectQueue = [];
 let gameEffectActive = false;
 let cellWaveQueue = [];
 let cellWaveActive = false;
+let lastWaveVariants = { row: null, column: null, box: null };
 
 const formatTime = (seconds) => `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
+const LEADERBOARD_MODES = Object.freeze({
+  easy: { icon: DIFFICULTIES.easy.icon, label: DIFFICULTIES.easy.label },
+  medium: { icon: DIFFICULTIES.medium.icon, label: DIFFICULTIES.medium.label },
+  hard: { icon: DIFFICULTIES.hard.icon, label: DIFFICULTIES.hard.label },
+  alin: { icon: "🌈", label: "阿霖" }
+});
 const currentHintCost = () => alinMode ? 0 : DIFFICULTIES[game.difficulty].hintCost;
 const escapeHtml = (value) => String(value).replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character]);
 const normalizePinInput = (value) => String(value)
@@ -111,7 +119,10 @@ function playNextGameEffect() {
 }
 
 function queueCellWave(type, unitIndex) {
-  cellWaveQueue.push({ type, cells: sudokuUnitCells(type, unitIndex) });
+  const previous = lastWaveVariants[type];
+  const variant = previous === null ? (Math.random() < 0.5 ? 0 : 1) : 1 - previous;
+  lastWaveVariants[type] = variant;
+  cellWaveQueue.push({ type, variant, cells: sudokuUnitCells(type, unitIndex, variant) });
 }
 
 function playNextCellWave() {
@@ -125,16 +136,46 @@ function playNextCellWave() {
   cellWaveActive = true;
   cells.forEach((cell, order) => {
     cell.style.setProperty("--wave-delay", `${order * 72}ms`);
-    cell.classList.add("wave-hop", `wave-${wave.type}`);
+    cell.classList.add("wave-hop", `wave-${wave.type}`, `wave-variant-${wave.variant}`);
   });
   setTimeout(() => {
     cells.forEach((cell) => {
-      cell.classList.remove("wave-hop", "wave-row", "wave-column", "wave-box");
+      cell.classList.remove("wave-hop", "wave-row", "wave-column", "wave-box", "wave-variant-0", "wave-variant-1");
       cell.style.removeProperty("--wave-delay");
     });
     cellWaveActive = false;
     playNextCellWave();
   }, 1350);
+}
+
+function showFinaleCelebration() {
+  document.querySelector(".finale-overlay")?.remove();
+  cellWaveQueue = [];
+  const finale = document.createElement("section");
+  finale.className = "finale-overlay";
+  finale.setAttribute("role", "status");
+  finale.setAttribute("aria-live", "assertive");
+  const colors = ["#f47f62", "#ffd15c", "#56c9a5", "#69aee8", "#b78ade", "#ff9cc2"];
+  const confetti = Array.from({ length: 48 }, (_, index) => {
+    const left = (index * 37) % 100;
+    const delay = (index % 12) * 0.07;
+    const duration = 1.55 + (index % 7) * 0.13;
+    const color = colors[index % colors.length];
+    return `<i style="--confetti-left:${left}%;--confetti-delay:${delay}s;--confetti-duration:${duration}s;--confetti-color:${color};--confetti-rotation:${(index * 47) % 180}deg"></i>`;
+  }).join("");
+  const numbers = game.values.map((value, index) => `<span style="--finale-direction:${index % 2 ? 1 : -1}">${value}</span>`).join("");
+  finale.innerHTML = `
+    <div class="finale-glow"></div>
+    <div class="finale-confetti" aria-hidden="true">${confetti}</div>
+    <div class="finale-stage">
+      <div class="finale-friends" aria-hidden="true">${animatedFriendsMarkup()}</div>
+      <strong>全盤完成！一起跳舞吧！</strong>
+      <div class="finale-board" aria-hidden="true">${numbers}</div>
+      <small>阿霖的數獨島・完美過關</small>
+    </div>`;
+  document.body.append(finale);
+  setTimeout(() => finale.classList.add("leaving"), 2850);
+  setTimeout(() => finale.remove(), 3400);
 }
 
 function setupAdventure() {
@@ -160,6 +201,7 @@ function setupAdventure() {
     remainingClaims: 0,
     started: false
   });
+  lastWaveVariants = { row: null, column: null, box: null };
 }
 
 function sessionSnapshot() {
@@ -203,8 +245,8 @@ function render() {
               </button>`).join("")}
           </div>
           <div class="difficulty-summary">🌱 35 XP／10 種　🌼 60 XP／30 種　🏆 100 XP／60 種</div>
-          <button class="alin-mode ${alinMode ? "active" : ""}" id="alin-mode" aria-pressed="${alinMode}">
-            <span>🌈</span><span><strong>阿霖模式</strong><small>${alinMode ? "已開啟・不限失誤" : "開啟後不會失敗"}</small></span>
+          <button class="alin-mode ${alinMode ? "active" : ""}" id="alin-mode" aria-pressed="${alinMode}" ${game.started ? "disabled" : ""}>
+            <span>🌈</span><span><strong>阿霖模式</strong><small>${game.started ? (alinMode ? "本局已鎖定・不限失誤" : "本局已鎖定・下局可開啟") : (alinMode ? "已開啟・不限失誤" : "開啟後不會失敗")}</small></span>
           </button>
           <div class="island-card"><span>🏝️</span><div><strong>我的小島</strong><small>${progress.totalStars} 顆星・完成 ${progress.completedGames} 局</small></div></div>
         </aside>
@@ -319,11 +361,13 @@ function nameSetupModal() {
 
 function leaderboardModal() {
   const configured = leaderboardConfigured();
+  const myRow = leaderboardRows.find((row) => row.player_id === progress.playerId);
   return `<div class="modal-backdrop"><section class="modal leaderboard-modal" role="dialog" aria-modal="true" aria-labelledby="leaderboard-title">
     <div class="celebrate">🏆</div><h2 id="leaderboard-title">家庭全球排行</h2>
-    <div class="leaderboard-tabs">${Object.entries(DIFFICULTIES).map(([key, item]) => `<button data-rank-difficulty="${key}" class="${leaderboardDifficulty === key ? "active" : ""}">${item.icon} ${item.label}</button>`).join("")}</div>
+    <div class="leaderboard-tabs">${Object.entries(LEADERBOARD_MODES).map(([key, item]) => `<button data-rank-difficulty="${key}" class="${leaderboardDifficulty === key ? "active" : ""}">${item.icon} ${item.label}</button>`).join("")}</div>
     ${!configured ? `<div class="empty-ranking"><strong>尚未連接資料庫</strong><small>設定 Supabase 後，家人的成績會出現在這裡。</small></div>` : leaderboardStatus ? `<div class="empty-ranking"><span class="loading-orbit">☁️</span><small>${escapeHtml(leaderboardStatus)}</small></div>` : leaderboardRows.length ? `<div class="leaderboard-list">${leaderboardRows.map((row, index) => `
-      <div class="leaderboard-row ${row.player_id === progress.playerId ? "mine" : ""}"><b>${index + 1}</b><span><strong>${escapeHtml(row.player_name)}</strong><small>${row.stars}⭐・${row.mistakes} 次失誤・${formatTime(row.elapsed_seconds)}</small></span><em>第 ${row.floor} 層</em></div>`).join("")}</div>` : `<div class="empty-ranking"><strong>還沒有成績</strong><small>完成第一層就能成為榜首！</small></div>`}
+      <div class="leaderboard-row ${row.player_id === progress.playerId ? "mine" : ""}"><b>${index + 1}</b><span class="leaderboard-player"><strong>${escapeHtml(row.player_name)}</strong><small>${row.stars}⭐・${row.mistakes} 次失誤・${formatTime(row.elapsed_seconds)}</small>${row.taunt ? `<q>${escapeHtml(row.taunt)}</q>` : `<q class="quiet">還沒有留下嗆聲</q>`}</span><em>第 ${row.floor} 層</em></div>`).join("")}</div>` : `<div class="empty-ranking"><strong>還沒有成績</strong><small>完成第一層就能成為榜首！</small></div>`}
+    ${configured ? `<div class="taunt-editor"><label for="leaderboard-taunt">📣 我的島主宣言</label><div><input id="leaderboard-taunt" maxlength="48" value="${escapeHtml(myRow?.taunt || "")}" placeholder="例如：榜首先借我坐一下！"><button id="save-leaderboard-taunt" ${myRow ? "" : "disabled"}>送出</button></div><small>${escapeHtml(leaderboardTauntStatus || (myRow ? "最多 48 字，所有玩家都看得到" : "完成一局上榜後就能留言"))}</small></div>` : ""}
     <p class="pending-scores">${pendingScoreCount() ? `尚有 ${pendingScoreCount()} 筆離線成績等待同步` : "每位玩家、每個難度只保留最佳成績"}</p>
     <button id="close-leaderboard" class="primary-button">回到遊戲</button>
   </section></div>`;
@@ -379,8 +423,8 @@ function bindEvents() {
   document.querySelectorAll("[data-equip-card]").forEach((button) => button.addEventListener("click", () => toggleEquipCard(button.dataset.equipCard)));
   document.querySelectorAll("[data-claim-card]").forEach((button) => button.addEventListener("click", () => claimCard(button.dataset.claimCard)));
   document.querySelector("#notes")?.addEventListener("click", () => { noteMode = !noteMode; render(); });
-  document.querySelector("#alin-mode")?.addEventListener("click", () => { alinMode = !alinMode; render(); });
-  document.querySelector("#prestart-alin-mode")?.addEventListener("click", () => { alinMode = !alinMode; render(); });
+  document.querySelector("#alin-mode")?.addEventListener("click", () => { if (!game.started) { alinMode = !alinMode; render(); } });
+  document.querySelector("#prestart-alin-mode")?.addEventListener("click", () => { if (!game.started) { alinMode = !alinMode; render(); } });
   document.querySelector("#undo")?.addEventListener("click", clearCell);
   document.querySelector("#hint")?.addEventListener("click", useHint);
   document.querySelector("#restart")?.addEventListener("click", () => newGame(game.difficulty));
@@ -396,6 +440,7 @@ function bindEvents() {
   document.querySelector("#open-start-leaderboard")?.addEventListener("click", openLeaderboardModal);
   document.querySelector("#close-leaderboard")?.addEventListener("click", () => { showLeaderboard = false; render(); });
   document.querySelectorAll("[data-rank-difficulty]").forEach((button) => button.addEventListener("click", () => changeLeaderboardDifficulty(button.dataset.rankDifficulty)));
+  document.querySelector("#save-leaderboard-taunt")?.addEventListener("click", saveLeaderboardTaunt);
   document.querySelector("#open-save-center")?.addEventListener("click", openSaveCenter);
   document.querySelector("#close-save-center")?.addEventListener("click", () => { showSaveCenter = false; render(); });
   document.querySelector("#sync-cloud-now")?.addEventListener("click", () => syncCloudNow(true));
@@ -503,9 +548,10 @@ async function syncCloudNow(showFeedback = false) {
 
 async function openLeaderboardModal() {
   showLeaderboard = true;
-  leaderboardDifficulty = game.difficulty;
+  leaderboardDifficulty = alinMode ? "alin" : game.difficulty;
   leaderboardRows = [];
   leaderboardStatus = leaderboardConfigured() ? "正在讀取全球排行…" : "";
+  leaderboardTauntStatus = "";
   render();
   await refreshLeaderboard();
 }
@@ -526,8 +572,29 @@ function changeLeaderboardDifficulty(difficulty) {
   leaderboardDifficulty = difficulty;
   leaderboardRows = [];
   leaderboardStatus = "正在讀取全球排行…";
+  leaderboardTauntStatus = "";
   render();
   refreshLeaderboard();
+}
+
+async function saveLeaderboardTaunt() {
+  const pin = loadCloudPin();
+  if (!validCloudPin(pin)) {
+    leaderboardTauntStatus = "請先到存檔中心設定 4 位家庭 PIN";
+    render();
+    return;
+  }
+  const taunt = normalizeLeaderboardTaunt(document.querySelector("#leaderboard-taunt")?.value || "");
+  leaderboardTauntStatus = "正在送出嗆聲…";
+  render();
+  try {
+    await updateLeaderboardTaunt({ playerId: progress.playerId, pin, taunt });
+    leaderboardTauntStatus = taunt ? "嗆聲已送上排行榜！" : "已清除嗆聲";
+    await refreshLeaderboard();
+  } catch (error) {
+    leaderboardTauntStatus = error.message || "嗆聲暫時無法送出";
+    if (showLeaderboard) render();
+  }
 }
 
 function openBackpack() {
@@ -720,6 +787,7 @@ function checkCompletion() {
   if (game.completed || !game.values.every((value, index) => value === game.solution[index])) return;
   game.completed = true;
   clearInterval(timerId);
+  showFinaleCelebration();
   const reward = DIFFICULTIES[game.difficulty];
   game.stars = calculateStars(game);
   const farmMultiplier = game.floor > 1 ? 0.55 : 1;
@@ -729,7 +797,7 @@ function checkCompletion() {
   game.cardChoices = game.remainingClaims ? drawTreasureCards(game.difficulty, game.stars, Math.max(3, game.remainingClaims)) : [];
   progress = rewardProgress(progress, game.xpReward, game.timeBonus, game.stars, game.difficulty);
   clearSession();
-  queueLeaderboardScore(buildScore(progress, game)).catch(() => {});
+  queueLeaderboardScore(buildScore(progress, game, alinMode)).catch(() => {});
   syncCloudNow(false);
 }
 

@@ -103,13 +103,21 @@ export function newlyCompletedSudokuUnits(values, completedUnits = {}) {
   };
 }
 
-export function sudokuUnitCells(type, unitIndex) {
-  if (type === "row") return Array.from({ length: 9 }, (_, column) => unitIndex * 9 + column);
-  if (type === "column") return Array.from({ length: 9 }, (_, row) => row * 9 + unitIndex);
+export function sudokuUnitCells(type, unitIndex, variant = 0) {
+  const reverse = variant === 1;
+  if (type === "row") {
+    const cells = Array.from({ length: 9 }, (_, column) => unitIndex * 9 + column);
+    return reverse ? cells.reverse() : cells;
+  }
+  if (type === "column") {
+    const cells = Array.from({ length: 9 }, (_, row) => row * 9 + unitIndex);
+    return reverse ? cells.reverse() : cells;
+  }
   if (type === "box") {
     const startRow = Math.floor(unitIndex / 3) * 3;
     const startCol = (unitIndex % 3) * 3;
-    return Array.from({ length: 9 }, (_, offset) => (startRow + Math.floor(offset / 3)) * 9 + startCol + (offset % 3));
+    const offsets = reverse ? [0, 1, 2, 5, 8, 7, 6, 3, 4] : [0, 1, 2, 3, 4, 5, 6, 7, 8];
+    return offsets.map((offset) => (startRow + Math.floor(offset / 3)) * 9 + startCol + (offset % 3));
   }
   return [];
 }

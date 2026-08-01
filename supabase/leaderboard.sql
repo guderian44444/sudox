@@ -1,7 +1,7 @@
 create table if not exists public.leaderboard_scores (
   player_id uuid not null,
   player_name varchar(16) not null,
-  difficulty text not null check (difficulty in ('easy', 'medium', 'hard')),
+  difficulty text not null check (difficulty in ('easy', 'medium', 'hard', 'alin')),
   floor integer not null check (floor between 1 and 1000000),
   score integer not null check (score >= 0),
   elapsed_seconds integer not null check (elapsed_seconds >= 0),
@@ -10,6 +10,14 @@ create table if not exists public.leaderboard_scores (
   updated_at timestamptz not null default now(),
   primary key (player_id, difficulty)
 );
+
+alter table public.leaderboard_scores
+  add column if not exists taunt varchar(48) not null default '';
+
+alter table public.leaderboard_scores
+  drop constraint if exists leaderboard_scores_difficulty_check;
+alter table public.leaderboard_scores
+  add constraint leaderboard_scores_difficulty_check check (difficulty in ('easy', 'medium', 'hard', 'alin'));
 
 alter table public.leaderboard_scores enable row level security;
 revoke all on public.leaderboard_scores from anon, authenticated;
@@ -38,7 +46,7 @@ set search_path = ''
 as $$
 begin
   if char_length(trim(p_player_name)) not between 1 and 16
-    or p_difficulty not in ('easy', 'medium', 'hard')
+    or p_difficulty not in ('easy', 'medium', 'hard', 'alin')
     or p_floor not between 1 and 1000000
     or p_score < 0
     or p_elapsed_seconds < 0
@@ -134,3 +142,39 @@ revoke all on function public.save_cloud_progress(uuid, text, text, text) from p
 revoke all on function public.load_cloud_progress(text, text) from public;
 grant execute on function public.save_cloud_progress(uuid, text, text, text) to anon, authenticated;
 grant execute on function public.load_cloud_progress(text, text) to anon, authenticated;
+
+create or replace function public.update_leaderboard_taunt(
+  p_player_id uuid,
+  p_pin text,
+  p_taunt text
+)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if char_length(p_pin) <> 4
+    or p_pin ~ '[^0-9]'
+    or char_length(trim(p_taunt)) > 48
+    or p_taunt ~ '[[:cntrl:]]' then
+    raise exception 'Invalid leaderboard taunt';
+  end if;
+
+  if not exists (
+    select 1
+    from public.cloud_saves
+    where player_id = p_player_id
+      and pin_hash = extensions.crypt(p_pin, pin_hash)
+  ) then
+    raise exception 'Invalid cloud PIN';
+  end if;
+
+  update public.leaderboard_scores
+  set taunt = trim(p_taunt)
+  where player_id = p_player_id;
+end;
+$$;
+
+revoke all on function public.update_leaderboard_taunt(uuid, text, text) from public;
+grant execute on function public.update_leaderboard_taunt(uuid, text, text) to anon, authenticated;
