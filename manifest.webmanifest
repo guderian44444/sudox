@@ -1,6 +1,6 @@
 {
-  "name": "數獨島 SUDOX",
-  "short_name": "SUDOX",
+  "name": "阿霖的數獨島",
+  "short_name": "阿霖數獨島",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

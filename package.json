@@ -5,6 +5,6 @@
   "type": "module",
   "scripts": {
     "dev": "node scripts/dev-server.mjs",
-    "check": "node --check src/app.js && node --check src/game/sudoku.js && node --check src/state/store.js && node --check scripts/dev-server.mjs && node scripts/test-core.mjs"
+    "check": "node --check src/app.js && node --check src/game/sudoku.js && node --check src/game/adventure.js && node --check src/state/store.js && node --check scripts/dev-server.mjs && node scripts/test-core.mjs"
   }
 }
