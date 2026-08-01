@@ -146,10 +146,10 @@ function showGardenEel() {
   const { cell, variant } = chooseGardenEel();
   const eel = document.createElement("span");
   eel.className = `garden-eel-peek ${variant}`;
-  eel.style.setProperty("--eel-row", Math.floor(cell / 9));
-  eel.style.setProperty("--eel-column", cell % 9);
+  eel.style.left = `${((cell % 9) / 9) * 100}%`;
+  eel.style.top = `${(Math.floor(cell / 9) / 9) * 100}%`;
   eel.setAttribute("title", variant === "orange" ? "橘色花園鰻偷看一下" : "白色花園鰻偷看一下");
-  eel.innerHTML = `<i class="garden-eel-stem"></i><i class="garden-eel-head"><b class="garden-eel-eye left"></b><b class="garden-eel-eye right"></b><em>•ᴗ•</em></i>`;
+  eel.innerHTML = `<i class="garden-eel-creature"><i class="garden-eel-stem"></i><i class="garden-eel-head"><b class="garden-eel-eye left"></b><b class="garden-eel-eye right"></b><em>·</em></i></i>`;
   board.append(eel);
   eel.addEventListener("animationend", () => eel.remove(), { once: true });
   setTimeout(() => eel.remove(), 2600);
