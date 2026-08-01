@@ -1,11 +1,15 @@
 import { createGame, DIFFICULTIES, relatedCells } from "./game/sudoku.js";
 import { activateAutomaticTreasures, ADVENTURE_RULES, applyHintTreasure, applyImmediateTreasure, calculateStars, completedSudokuUnits, drawTreasureCards, newlyCompletedSudokuUnits, strongestEquippedRevive, sudokuUnitCells, treasureClaimsForFloor, TREASURE_AUTO_EFFECTS, TREASURE_CARDS } from "./game/adventure.js";
+import { ACHIEVEMENTS, achievementValue, recordAchievementGame } from "./game/achievements.js";
 import { cloudConfigured, loadCloudPin, loadCloudProgress, normalizePlayerName, renameCloudPlayer, saveCloudPin, saveCloudProgress, validCloudPin } from "./state/cloud.js";
 import { buildScore, fetchLeaderboard, flushPendingScores, leaderboardConfigured, normalizeLeaderboardTaunt, pendingScoreCount, queueLeaderboardScore, updateLeaderboardTaunt } from "./state/leaderboard.js";
 import { addCard, clearSession, consumeCard, exportSaveCode, importSaveCode, loadProgress, loadSession, rewardProgress, saveProgress, saveSession, spendCoins } from "./state/store.js";
 
 const app = document.querySelector("#app");
 let progress = loadProgress();
+const migratedAchievements = recordAchievementGame(progress);
+progress = migratedAchievements.progress;
+if (migratedAchievements.unlocked.length) saveProgress(progress);
 const restoredSession = loadSession();
 let game = restoredSession?.game || createGame("easy");
 if (restoredSession && typeof game.started !== "boolean") game.started = true;
@@ -13,6 +17,7 @@ if (restoredSession) {
   const restoredCompletedUnits = completedSudokuUnits(game.values);
   if (!game.completedUnits) game.completedUnits = restoredCompletedUnits;
   else if (!Array.isArray(game.completedUnits.columns)) game.completedUnits.columns = restoredCompletedUnits.columns;
+  if (!Array.isArray(game.milestones)) game.milestones = [];
 }
 let noteMode = false;
 let alinMode = restoredSession?.alinMode || false;
@@ -20,6 +25,7 @@ let showBackpack = false;
 let showSaveCenter = false;
 let showNameSetup = !progress.playerName;
 let showLeaderboard = false;
+let showAchievements = false;
 let leaderboardDifficulty = game.difficulty;
 let leaderboardRows = [];
 let leaderboardStatus = "";
@@ -47,6 +53,15 @@ const LEADERBOARD_MODES = Object.freeze({
   hard: { icon: DIFFICULTIES.hard.icon, label: DIFFICULTIES.hard.label },
   alin: { icon: "🌈", label: "阿霖" }
 });
+const RUN_MILESTONES = Object.freeze([
+  { id: "streak15", icon: "🔥", name: "靈感連線", detail: "連續答對 15 格", test: (current) => current.correctStreak >= 15 },
+  { id: "filled60", icon: "🧩", name: "拼圖成形", detail: "本局盤面填滿 60 格", test: (current) => current.values.filter(Boolean).length >= 60 },
+  { id: "rows3", icon: "↔️", name: "橫行小隊", detail: "完成 3 條橫行", test: (current) => current.completedUnits.rows.length >= 3 },
+  { id: "columns3", icon: "↕️", name: "直列登山隊", detail: "完成 3 條縱列", test: (current) => current.completedUnits.columns.length >= 3 },
+  { id: "boxes3", icon: "🏘️", name: "九宮守護者", detail: "完成 3 個九宮格", test: (current) => current.completedUnits.boxes.length >= 3 },
+  { id: "units8", icon: "🏝️", name: "半島點燈", detail: "累計完成 8 個行、列或宮", test: (current) => current.completedUnits.rows.length + current.completedUnits.columns.length + current.completedUnits.boxes.length >= 8 },
+  { id: "lastNine", icon: "🚩", name: "最後衝刺", detail: "盤面只剩最後 9 格", test: (current) => current.values.filter(Boolean).length >= 72 }
+]);
 const currentHintCost = () => alinMode ? 0 : DIFFICULTIES[game.difficulty].hintCost;
 const escapeHtml = (value) => String(value).replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character]);
 const normalizePinInput = (value) => String(value)
@@ -251,6 +266,7 @@ function setupAdventure() {
     correctStreak: 0,
     healGoals: { streak: false, row: false, box: false },
     completedUnits: { rows: [], columns: [], boxes: [] },
+    milestones: [],
     hintsUsed: 0,
     frozenSeconds: 0,
     xpMultiplier: 1,
@@ -309,7 +325,7 @@ function render() {
           <button class="alin-mode ${alinMode ? "active" : ""}" id="alin-mode" aria-pressed="${alinMode}" ${game.started ? "disabled" : ""}>
             <span>🌈</span><span><strong>阿霖模式</strong><small>${game.started ? (alinMode ? "本局已鎖定・不限失誤" : "本局已鎖定・下局可開啟") : (alinMode ? "已開啟・不限失誤" : "開啟後不會失敗")}</small></span>
           </button>
-          <div class="island-card"><span>🏝️</span><div><strong>我的小島</strong><small>${progress.totalStars} 顆星・完成 ${progress.completedGames} 局</small></div></div>
+          <button class="island-card" id="open-achievements-side"><span>🏝️</span><div><strong>我的小島與成就</strong><small>${progress.achievements?.length || 0}/${ACHIEVEMENTS.length} 個・${progress.totalStars} 顆星</small></div></button>
         </aside>
 
         <section class="board-card" aria-label="數獨遊戲">
@@ -325,6 +341,7 @@ function render() {
             <div class="goal-chips" aria-label="回血目標">
               <span class="${game.healGoals.streak ? "done" : ""}">連對 8 格</span><span class="${game.healGoals.row ? "done" : ""}">完成一行</span><span class="${game.healGoals.box ? "done" : ""}">完成一宮</span>
             </div>
+            <span class="run-milestone-badge">🏅 本局 ${game.milestones?.length || 0}/${RUN_MILESTONES.length}</span>
           </div>
           <div class="sudoku-board ${game.started ? "" : "waiting"}" role="grid" aria-label="${game.started ? "數獨盤面" : "按下開始後顯示題目"}">
             ${game.values.map((value, index) => {
@@ -364,7 +381,7 @@ function render() {
         </aside>
       </section>
     </main>
-    ${showNameSetup ? nameSetupModal() : showLeaderboard ? leaderboardModal() : showSaveCenter ? saveCenterModal() : showBackpack ? backpackModal() : !game.started ? startModal() : game.completed ? completionModal() : game.failed ? failureModal() : ""}
+    ${showNameSetup ? nameSetupModal() : showLeaderboard ? leaderboardModal() : showAchievements ? achievementModal() : showSaveCenter ? saveCenterModal() : showBackpack ? backpackModal() : !game.started ? startModal() : game.completed ? completionModal() : game.failed ? failureModal() : ""}
   `;
   bindEvents();
   playNextCellWave();
@@ -382,6 +399,7 @@ function startModal() {
       <span>${selectedCards.length ? selectedCards.map((card) => `${card.icon} ${card.name}`).join("　") : "尚未選擇（也可空手出發）"}</span>
     </div>
     <button id="choose-start-cards" class="secondary-button">🎒 選擇／更換寶物</button>
+    <button id="open-start-achievements" class="secondary-button achievement-button">🏅 查看成就圖鑑</button>
     <button id="open-start-leaderboard" class="secondary-button leaderboard-button">🏆 查看排行榜</button>
     <button id="start-game" class="primary-button">▶ 開始第 ${game.floor} 層</button>
   </section></div>`;
@@ -404,6 +422,22 @@ function completionModal() {
       }).join("")}
     </div></div>
     <button id="next-game" class="primary-button" ${game.remainingClaims ? "disabled" : ""}>再玩一局</button>
+  </section></div>`;
+}
+
+function achievementModal() {
+  const unlocked = new Set(progress.achievements || []);
+  const stats = progress.achievementStats || {};
+  return `<div class="modal-backdrop"><section class="modal achievement-modal" role="dialog" aria-modal="true" aria-labelledby="achievement-title">
+    <div class="celebrate">🏅</div><h2 id="achievement-title">小島成就圖鑑</h2>
+    <p>永久成就只需解鎖一次，獎勵會直接加入金幣。</p>
+    <div class="achievement-summary"><span>🎮 ${progress.completedGames} 局</span><span>💎 ${stats.perfectGames || 0} 完美</span><span>⚡ ${stats.speedGames || 0} 速解</span><span>🌈 ${stats.alinGames || 0} 阿霖</span></div>
+    <div class="achievement-grid">${ACHIEVEMENTS.map((achievement) => {
+      const done = unlocked.has(achievement.id);
+      const value = achievementValue(progress, achievement);
+      return `<article class="achievement-card ${done ? "unlocked" : "locked"}"><span>${done ? achievement.icon : "🔒"}</span><div><strong>${achievement.name}</strong><small>${achievement.description}</small><i><b style="width:${Math.round(value / achievement.target * 100)}%"></b></i><em>${value}/${achievement.target}・🪙 ${achievement.coins}</em></div></article>`;
+    }).join("")}</div>
+    <button id="close-achievements" class="primary-button">回到遊戲</button>
   </section></div>`;
 }
 
@@ -501,6 +535,9 @@ function bindEvents() {
   document.querySelector("#open-leaderboard")?.addEventListener("click", openLeaderboardModal);
   document.querySelector("#toggle-sound")?.addEventListener("click", toggleSound);
   document.querySelector("#open-start-leaderboard")?.addEventListener("click", openLeaderboardModal);
+  document.querySelector("#open-start-achievements")?.addEventListener("click", openAchievements);
+  document.querySelector("#open-achievements-side")?.addEventListener("click", openAchievements);
+  document.querySelector("#close-achievements")?.addEventListener("click", () => { showAchievements = false; render(); });
   document.querySelector("#close-leaderboard")?.addEventListener("click", () => { showLeaderboard = false; render(); });
   document.querySelectorAll("[data-rank-difficulty]").forEach((button) => button.addEventListener("click", () => changeLeaderboardDifficulty(button.dataset.rankDifficulty)));
   document.querySelector("#save-leaderboard-taunt")?.addEventListener("click", saveLeaderboardTaunt);
@@ -520,6 +557,11 @@ function bindEvents() {
 function openSaveCenter() {
   cloudSyncStatus = cloudConfigured() ? "可手動立即同步，遊戲中也會定期自動同步。" : "請先完成 Supabase 設定。";
   showSaveCenter = true;
+  render();
+}
+
+function openAchievements() {
+  showAchievements = true;
   render();
 }
 
@@ -810,6 +852,19 @@ function checkHealGoals() {
     game.completedUnits.boxes.push(box);
     celebrateCompletedUnit("box", box);
   });
+  checkRunMilestones();
+}
+
+function checkRunMilestones() {
+  game.milestones ||= [];
+  RUN_MILESTONES.forEach((milestone) => {
+    if (game.milestones.includes(milestone.id) || !milestone.test(game)) return;
+    game.milestones.push(milestone.id);
+    progress = { ...progress, coins: progress.coins + 2 };
+    saveProgress(progress);
+    showCelebration(milestone.icon, `本局里程碑・${milestone.name}`, `${milestone.detail}・🪙 +2`);
+    showGameEffect("friends", `${milestone.name}達成！`, `${milestone.detail}，獲得 2 金幣`, "success");
+  });
 }
 
 function useHint() {
@@ -895,6 +950,16 @@ function checkCompletion() {
   game.remainingClaims = treasureClaimsForFloor(game.floor, game.extraCardClaims);
   game.cardChoices = game.remainingClaims ? drawTreasureCards(game.difficulty, game.stars, Math.max(3, game.remainingClaims)) : [];
   progress = rewardProgress(progress, game.xpReward, game.timeBonus, game.stars, game.difficulty);
+  const achievementResult = recordAchievementGame(progress, {
+    perfect: game.mistakes === 0 && game.hintsUsed === 0,
+    speed: game.timeBonus > 0,
+    alin: alinMode
+  });
+  progress = achievementResult.progress;
+  saveProgress(progress);
+  achievementResult.unlocked.forEach((achievement, index) => {
+    setTimeout(() => showCelebration(achievement.icon, `永久成就・${achievement.name}`, `${achievement.description}・🪙 +${achievement.coins}`), 3500 + index * 450);
+  });
   clearSession();
   queueLeaderboardScore(buildScore(progress, game, alinMode)).catch(() => {});
   syncCloudNow(false);

@@ -72,7 +72,7 @@ button:focus-visible { outline: 3px solid #4f9dd9; outline-offset: 2px; }
 .alin-mode small { margin-top: 2px; color: #8d7853; font-size: 12px; }
 .alin-mode.active { border-style: solid; border-color: #d4b8f1; background: linear-gradient(135deg, #fff1e4, #f0eaff); box-shadow: 0 7px 16px rgba(130, 94, 166, .1); }
 .alin-mode:disabled { cursor: not-allowed; opacity: .72; }
-.island-card { display: flex; align-items: center; gap: 10px; margin-top: 18px; padding: 14px; border-radius: 18px; background: #fdf3d9; }
+.island-card { width: 100%; display: flex; align-items: center; gap: 10px; margin-top: 18px; padding: 14px; border: 0; border-radius: 18px; background: #fdf3d9; text-align: left; cursor: pointer; }
 .island-card > span { font-size: 26px; }
 .island-card strong, .island-card small { display: block; }
 .island-card strong { color: #6d5c3d; font-size: 15px; }
@@ -95,6 +95,7 @@ button:focus-visible { outline: 3px solid #4f9dd9; outline-offset: 2px; }
 .goal-chips { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 4px; }
 .goal-chips span { padding: 4px 7px; border-radius: 999px; background: #f4eee7; color: #87796a; font-size: 10px; font-weight: 800; }
 .goal-chips span.done { background: #e4f6ed; color: #338064; text-decoration: line-through; }
+.run-milestone-badge { padding: 4px 7px; flex: 0 0 auto; border-radius: 999px; background: #fff1cf; color: #8a6831; font-size: 10px; font-weight: 900; white-space: nowrap; }
 .icon-button { width: 32px; height: 32px; border: 0; border-radius: 10px; background: #f8f3ec; cursor: pointer; }
 .sudoku-board { display: grid; grid-template-columns: repeat(9, minmax(0, 1fr)); grid-template-rows: repeat(9, minmax(0, 1fr)); aspect-ratio: 1; overflow: hidden; border: 2px solid var(--navy); border-radius: 12px; background: white; }
 .sudoku-board.waiting { background: repeating-linear-gradient(135deg, #fff, #fff 12px, #faf6f1 12px, #faf6f1 24px); }
@@ -318,6 +319,20 @@ button:focus-visible { outline: 3px solid #4f9dd9; outline-offset: 2px; }
 .rename-player button:disabled { opacity: .45; cursor: not-allowed; }
 .rename-player small { color: #71877f; font-size: 10px; font-weight: 700; }
 .leaderboard-modal { width: min(100%, 520px); }
+.achievement-modal { width: min(100%, 590px); }
+.achievement-summary { margin: 12px 0; display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.achievement-summary span { padding: 7px 4px; border-radius: 10px; background: #fff5df; color: #806a43; font-size: 10px; font-weight: 900; }
+.achievement-grid { max-height: 410px; overflow-y: auto; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 12px 0 16px; text-align: left; }
+.achievement-card { min-width: 0; padding: 10px; display: grid; grid-template-columns: 36px minmax(0, 1fr); gap: 8px; border: 1px solid #eadfd3; border-radius: 14px; background: #faf7f3; }
+.achievement-card > span { font-size: 25px; text-align: center; }
+.achievement-card strong, .achievement-card small, .achievement-card em { display: block; }
+.achievement-card strong { color: var(--navy); font-size: 12px; }
+.achievement-card small { margin-top: 2px; color: #8a7c70; font-size: 9px; line-height: 1.3; }
+.achievement-card i { height: 5px; margin-top: 7px; display: block; overflow: hidden; border-radius: 9px; background: #e6ded6; }
+.achievement-card i b { height: 100%; display: block; border-radius: inherit; background: #d8a94e; }
+.achievement-card em { margin-top: 4px; color: #8a7141; font-size: 9px; font-style: normal; font-weight: 900; }
+.achievement-card.unlocked { border-color: #e5c56f; background: #fff8df; box-shadow: inset 0 0 0 1px rgba(229, 197, 111, .25); }
+.achievement-card.locked { filter: saturate(.55); }
 .leaderboard-tabs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 14px 0; }
 .leaderboard-tabs button { padding: 9px 5px; border: 1px solid #eadfd3; border-radius: 12px; background: #faf7f3; font-size: 12px; font-weight: 800; cursor: pointer; }
 .leaderboard-tabs button.active { border-color: #f1aa8e; background: #fff0e6; color: #d96f4b; }

@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { countSolutions, createGame, DIFFICULTIES, generatePuzzle, PUZZLES, relatedCells, solveSudoku } from "../src/game/sudoku.js";
 import { activateAutomaticTreasures, ADVENTURE_RULES, applyHintTreasure, applyImmediateTreasure, candidatesFor, completedSudokuUnits, drawTreasureCards, newlyCompletedSudokuUnits, strongestEquippedRevive, sudokuUnitCells, treasureClaimsForFloor, treasurePool, TREASURE_AUTO_EFFECTS, TREASURE_CARDS, TREASURE_EFFECTS } from "../src/game/adventure.js";
+import { ACHIEVEMENTS, achievementValue, recordAchievementGame } from "../src/game/achievements.js";
 import { normalizePlayerName, validCloudPin } from "../src/state/cloud.js";
 import { buildScore, leaderboardConfigured, normalizeLeaderboardTaunt } from "../src/state/leaderboard.js";
 import { exportSaveCode, importSaveCode } from "../src/state/store.js";
@@ -195,4 +196,9 @@ assert(score.p_player_name === "阿霖" && score.p_floor === 9 && score.p_score 
 assert(buildScore(imported.progress, { difficulty: "hard", floor: 3, stars: 2, elapsed: 300, mistakes: 4 }, true).p_difficulty === "alin", "阿霖模式成績應送往獨立排行榜");
 assert(normalizeLeaderboardTaunt("  榜首是我的！\n  ") === "榜首是我的！", "排行榜嗆聲應移除控制字元與前後空白");
 assert(normalizeLeaderboardTaunt("哈".repeat(60)).length === 48, "排行榜嗆聲應限制為 48 字");
+const achievementRun = recordAchievementGame({ ...imported.progress, completedGames: 5, totalStars: 20, coins: 0, achievements: [], achievementStats: {} }, { perfect: true, speed: true, alin: true });
+assert(achievementRun.unlocked.some((item) => item.id === "fiveClears") && achievementRun.unlocked.some((item) => item.id === "starCollector"), "累計局數與星星應解鎖永久成就");
+assert(achievementRun.progress.achievementStats.perfectGames === 1 && achievementRun.progress.coins > 0, "完賽統計與成就金幣應永久累積");
+assert(recordAchievementGame(achievementRun.progress).unlocked.length === 0, "已解鎖成就不可重複領取");
+assert(achievementValue(achievementRun.progress, ACHIEVEMENTS.find((item) => item.id === "firstPerfect")) === 1, "成就圖鑑應顯示正確進度");
 console.log("核心規則測試通過");

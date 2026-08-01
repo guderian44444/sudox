@@ -35,6 +35,8 @@ const defaultProgress = {
   totalStars: 0,
   bestTimes: {},
   rewardedRuns: [],
+  achievements: [],
+  achievementStats: { perfectGames: 0, speedGames: 0, alinGames: 0 },
   floors: { easy: 1, medium: 1, hard: 1 }
 };
 
@@ -65,6 +67,12 @@ function normalizedProgress(saved = {}) {
     cardCollection: Array.isArray(saved.cardCollection) ? saved.cardCollection.filter((cardId) => typeof cardId === "string" && /^[a-zA-Z][a-zA-Z0-9]{0,40}$/.test(cardId)).slice(0, 60) : [],
     bestTimes: saved.bestTimes || {},
     rewardedRuns: Array.isArray(saved.rewardedRuns) ? saved.rewardedRuns : [],
+    achievements: Array.isArray(saved.achievements) ? [...new Set(saved.achievements.filter((id) => typeof id === "string" && /^[a-zA-Z][a-zA-Z0-9]{0,40}$/.test(id)))].slice(0, 50) : [],
+    achievementStats: {
+      perfectGames: Math.floor(safeNumber(saved.achievementStats?.perfectGames)),
+      speedGames: Math.floor(safeNumber(saved.achievementStats?.speedGames)),
+      alinGames: Math.floor(safeNumber(saved.achievementStats?.alinGames))
+    },
     floors: Object.fromEntries(Object.keys(defaultProgress.floors).map((difficulty) => [difficulty, Math.max(1, Math.floor(safeNumber(saved.floors?.[difficulty], 1))) ]))
   };
   return progress;
