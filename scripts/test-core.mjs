@@ -12,6 +12,7 @@ function assert(condition, message) {
 }
 
 const stylesheet = readFileSync(new URL("../src/styles.css", import.meta.url), "utf8");
+const appSource = readFileSync(new URL("../src/app.js", import.meta.url), "utf8");
 assert(FRIEND_ROSTER.length === 3 && FRIEND_ROSTER.some((friend) => friend.id === "otter"), "夥伴名單應包含水獺");
 const firstFriendPair = chooseFriendPair("", () => 0);
 const nextFriendPair = chooseFriendPair(firstFriendPair.key, () => 0);
@@ -25,6 +26,7 @@ assert(whiteEel.cell === 80 && whiteEel.variant === "white", "白色花園鰻應
 assert(/grid-template-rows:\s*repeat\(9,\s*minmax\(0,\s*1fr\)\)/.test(stylesheet), "數獨盤面必須固定為 9 個可縮小橫列");
 assert(/-webkit-text-size-adjust:\s*100%/.test(stylesheet), "iOS 內建瀏覽器不可自動放大文字而裁掉最下列");
 assert(/garden-eel-peek/.test(stylesheet) && /@keyframes garden-eel-peek/.test(stylesheet), "花園鰻應有偷看動畫");
+assert(/garden-eel-svg/.test(appSource) && /garden-eel-shape/.test(stylesheet), "花園鰻應使用連續向量身體輪廓");
 
 function validSolution(solution) {
   const target = "123456789";
