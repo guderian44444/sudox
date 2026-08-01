@@ -35,6 +35,9 @@ let gameEffectActive = false;
 let cellWaveQueue = [];
 let cellWaveActive = false;
 let lastWaveVariants = { row: null, column: null, box: null };
+const SOUND_KEY = "sudox-sound-enabled-v1";
+let soundEnabled = localStorage.getItem(SOUND_KEY) !== "off";
+let audioContext = null;
 
 const formatTime = (seconds) => `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
 const LEADERBOARD_MODES = Object.freeze({
@@ -49,6 +52,50 @@ const normalizePinInput = (value) => String(value)
   .replace(/[０-９]/g, (digit) => String(digit.charCodeAt(0) - 0xFF10))
   .replace(/\D/g, "")
   .slice(0, 4);
+
+function playSound(name) {
+  if (!soundEnabled) return;
+  const AudioContext = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContext) return;
+  audioContext ||= new AudioContext();
+  if (audioContext.state === "suspended") audioContext.resume().catch(() => {});
+  const sounds = {
+    toggle: [[660, 0, .08], [880, .08, .1]],
+    correct: [[620, 0, .055]],
+    success: [[523, 0, .1], [659, .09, .1], [784, .18, .13]],
+    "row-0": [[523, 0, .08], [659, .1, .08], [784, .2, .12]],
+    "row-1": [[784, 0, .08], [659, .1, .08], [880, .2, .12]],
+    "column-0": [[440, 0, .08], [587, .09, .08], [880, .18, .14]],
+    "column-1": [[880, 0, .08], [587, .1, .08], [698, .2, .13]],
+    "box-0": [[523, 0, .07], [659, .08, .07], [784, .16, .07], [1047, .24, .14]],
+    "box-1": [[784, 0, .07], [988, .08, .07], [659, .16, .07], [880, .24, .14]],
+    mistake: [[330, 0, .11], [247, .1, .18]],
+    shield: [[740, 0, .06], [1110, .07, .16]],
+    card: [[392, 0, .07], [523, .07, .07], [784, .14, .16]],
+    finale: [[523, 0, .12], [659, .12, .12], [784, .24, .12], [1047, .38, .28]]
+  };
+  const sequence = sounds[name] || sounds.success;
+  const start = audioContext.currentTime;
+  sequence.forEach(([frequency, delay, duration], index) => {
+    const oscillator = audioContext.createOscillator();
+    const gain = audioContext.createGain();
+    oscillator.type = index % 2 ? "triangle" : "sine";
+    oscillator.frequency.setValueAtTime(frequency, start + delay);
+    gain.gain.setValueAtTime(.0001, start + delay);
+    gain.gain.exponentialRampToValueAtTime(.055, start + delay + .018);
+    gain.gain.exponentialRampToValueAtTime(.0001, start + delay + duration);
+    oscillator.connect(gain).connect(audioContext.destination);
+    oscillator.start(start + delay);
+    oscillator.stop(start + delay + duration + .02);
+  });
+}
+
+function toggleSound() {
+  soundEnabled = !soundEnabled;
+  localStorage.setItem(SOUND_KEY, soundEnabled ? "on" : "off");
+  render();
+  if (soundEnabled) playSound("toggle");
+}
 
 function mascot() {
   return `<div class="mascot" aria-hidden="true"><span class="ear left"></span><span class="ear right"></span><span class="face">•ᴗ•</span></div>`;
@@ -88,18 +135,18 @@ function showCelebration(icon, title, detail) {
   }, 2600);
 }
 
-function showGameEffect(icon, title, detail, tone = "success") {
-  gameEffectQueue.push({ icon, title, detail, tone });
+function showGameEffect(icon, title, detail, tone = "success", motion = "") {
+  gameEffectQueue.push({ icon, title, detail, tone, motion });
   playNextGameEffect();
 }
 
 function playNextGameEffect() {
   if (gameEffectActive || !gameEffectQueue.length) return;
   gameEffectActive = true;
-  const { icon, title, detail, tone } = gameEffectQueue.shift();
+  const { icon, title, detail, tone, motion } = gameEffectQueue.shift();
   const hasFriends = icon === "friends";
   const effect = document.createElement("section");
-  effect.className = `game-effect ${tone}${hasFriends ? " has-friends" : ""}`;
+  effect.className = `game-effect ${tone}${hasFriends ? " has-friends" : ""}${motion ? ` motion-${motion}` : ""}`;
   effect.setAttribute("role", "status");
   effect.setAttribute("aria-live", "polite");
   effect.innerHTML = `
@@ -108,6 +155,7 @@ function playNextGameEffect() {
     <div class="effect-bubble"><strong>${title}</strong><small>${detail}</small></div>
     <span class="effect-spark four">●</span><span class="effect-spark five">✦</span>`;
   document.body.append(effect);
+  playSound(motion || tone);
   document.body.classList.remove("flash-success", "flash-mistake", "flash-shield", "flash-card");
   document.body.classList.add(`flash-${tone}`);
   setTimeout(() => document.body.classList.remove(`flash-${tone}`), 780);
@@ -123,6 +171,7 @@ function queueCellWave(type, unitIndex) {
   const variant = previous === null ? (Math.random() < 0.5 ? 0 : 1) : 1 - previous;
   lastWaveVariants[type] = variant;
   cellWaveQueue.push({ type, variant, cells: sudokuUnitCells(type, unitIndex, variant) });
+  return variant;
 }
 
 function playNextCellWave() {
@@ -174,6 +223,7 @@ function showFinaleCelebration() {
       <small>阿霖的數獨島・完美過關</small>
     </div>`;
   document.body.append(finale);
+  playSound("finale");
   setTimeout(() => finale.classList.add("leaving"), 2850);
   setTimeout(() => finale.remove(), 3400);
 }
@@ -226,7 +276,7 @@ function render() {
     <main class="shell">
       <header class="topbar">
         <div class="brand">${mascot()}<div><span>阿霖的數獨島</span><small>ALIN'S SUDOKU ISLAND</small></div></div>
-        <div class="topbar-actions"><div class="wallet" aria-label="玩家資源"><span>⭐ ${progress.totalStars}</span><span>🪙 ${progress.coins}</span></div><button id="open-leaderboard" class="save-button">🏆 <span>排行</span></button><button id="open-save-center" class="save-button">💾 <span>存檔</span></button></div>
+        <div class="topbar-actions"><div class="wallet" aria-label="玩家資源"><span>⭐ ${progress.totalStars}</span><span>🪙 ${progress.coins}</span></div><button id="toggle-sound" class="save-button sound-button" aria-label="${soundEnabled ? "關閉音效" : "開啟音效"}" aria-pressed="${soundEnabled}">${soundEnabled ? "🔊" : "🔇"}</button><button id="open-leaderboard" class="save-button">🏆 <span>排行</span></button><button id="open-save-center" class="save-button">💾 <span>存檔</span></button></div>
       </header>
 
       <section class="hero-card">
@@ -437,6 +487,7 @@ function bindEvents() {
   document.querySelector("#choose-start-cards")?.addEventListener("click", openBackpack);
   document.querySelector("#start-game")?.addEventListener("click", startGame);
   document.querySelector("#open-leaderboard")?.addEventListener("click", openLeaderboardModal);
+  document.querySelector("#toggle-sound")?.addEventListener("click", toggleSound);
   document.querySelector("#open-start-leaderboard")?.addEventListener("click", openLeaderboardModal);
   document.querySelector("#close-leaderboard")?.addEventListener("click", () => { showLeaderboard = false; render(); });
   document.querySelectorAll("[data-rank-difficulty]").forEach((button) => button.addEventListener("click", () => changeLeaderboardDifficulty(button.dataset.rankDifficulty)));
@@ -643,6 +694,7 @@ function enterNumber(number) {
     game.values[index] = number;
     game.notes[index] = [];
     removeRelatedNotes(index, number);
+    playSound("correct");
     checkHealGoals();
     checkCompletion();
   }
@@ -683,15 +735,20 @@ function celebrateCompletedUnit(type, unitIndex) {
   const goal = type === "row" ? "row" : type === "box" ? "box" : null;
   const label = type === "row" ? `第 ${unitIndex + 1} 行` : type === "column" ? `第 ${unitIndex + 1} 直列` : `第 ${unitIndex + 1} 宮`;
   const firstReward = goal && !game.healGoals[goal];
-  let detail = `${label}完成，9 格一起跳波浪舞！`;
+  const danceNames = {
+    row: ["貓咪側滑、老鼠拍手跳", "貓咪扭腰、老鼠小碎步"],
+    column: ["貓咪向上跳、老鼠伸懶腰", "貓咪蹲跳、老鼠衝天舞"],
+    box: ["貓鼠反方向繞圈", "貓咪抖肩、老鼠旋轉舞"]
+  };
+  const variant = queueCellWave(type, unitIndex);
+  let detail = `${label}完成・${danceNames[type][variant]}！`;
   if (firstReward) {
     game.healGoals[goal] = true;
     const reward = healOrShield();
     detail = `${detail}・${reward}`;
     showCelebration("🎉", `首次完成${type === "row" ? "一行" : "一宮"}！`, reward);
   }
-  queueCellWave(type, unitIndex);
-  showGameEffect("friends", `${label}完成，扭起來！`, detail, "success");
+  showGameEffect("friends", `${label}完成，換舞步！`, detail, "success", `${type}-${variant}`);
 }
 
 function checkHealGoals() {

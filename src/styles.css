@@ -25,6 +25,7 @@ button:focus-visible { outline: 3px solid #4f9dd9; outline-offset: 2px; }
 .topbar { height: 58px; display: flex; justify-content: space-between; align-items: center; }
 .topbar-actions { display: flex; align-items: center; gap: 9px; }
 .save-button { padding: 9px 12px; border: 1px solid #e6dbce; border-radius: 13px; background: white; color: #6f665d; font-weight: 800; cursor: pointer; }
+.sound-button { width: 42px; padding-inline: 0; }
 .brand { display: flex; align-items: center; gap: 11px; font-weight: 900; font-size: 22px; color: var(--navy); }
 .brand > div:last-child { display: flex; flex-direction: column; }
 .brand small { margin-top: 1px; color: #a68f79; font-size: 10px; letter-spacing: .12em; }
@@ -112,11 +113,11 @@ button:focus-visible { outline: 3px solid #4f9dd9; outline-offset: 2px; }
 .cell.wave-column { background: #e2f3ff; color: #347fad; }
 .cell.wave-box { background: #fff0c8; color: #b06f22; }
 .cell.wave-row.wave-variant-0 { animation-name: cell-wave-hop; }
-.cell.wave-row.wave-variant-1 { animation-name: row-wave-twist; }
+.cell.wave-row.wave-variant-1 { animation-name: cell-wave-hop; }
 .cell.wave-column.wave-variant-0 { animation-name: column-wave-rise; }
-.cell.wave-column.wave-variant-1 { animation-name: column-wave-stretch; }
+.cell.wave-column.wave-variant-1 { animation-name: column-wave-rise; }
 .cell.wave-box.wave-variant-0 { animation-name: box-wave-pop; }
-.cell.wave-box.wave-variant-1 { animation-name: box-wave-spin; }
+.cell.wave-box.wave-variant-1 { animation-name: box-wave-pop; }
 .notes { position: absolute; inset: 2px; display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr); }
 .notes i { display: grid; place-items: center; font-size: clamp(6px, 1vw, 9px); font-style: normal; font-weight: 700; color: #629a88; }
 .tools { display: flex; justify-content: center; gap: 12px; margin: 16px 0 12px; }
@@ -197,6 +198,18 @@ button:focus-visible { outline: 3px solid #4f9dd9; outline-offset: 2px; }
 .game-effect.success.has-friends .animal-leg.left { animation: foot-step-left .45s ease-in-out infinite alternate; }
 .game-effect.success.has-friends .animal-leg.right { animation: foot-step-right .45s ease-in-out infinite alternate; }
 .game-effect.success.has-friends .animal-tail { animation: tail-swish .35s ease-in-out infinite alternate; }
+.game-effect.success.has-friends.motion-row-0 .cat { animation: cat-side-step .48s ease-in-out 3; }
+.game-effect.success.has-friends.motion-row-0 .mouse { animation: mouse-clap-hop .42s .08s ease-in-out 4; }
+.game-effect.success.has-friends.motion-row-1 .cat { animation: cat-hip-twist .5s ease-in-out 3; }
+.game-effect.success.has-friends.motion-row-1 .mouse { animation: mouse-tiny-steps .32s ease-in-out 5; }
+.game-effect.success.has-friends.motion-column-0 .cat { animation: cat-high-jump .55s ease-in-out 3; }
+.game-effect.success.has-friends.motion-column-0 .mouse { animation: mouse-long-stretch .62s ease-in-out 3; }
+.game-effect.success.has-friends.motion-column-1 .cat { animation: cat-squat-pop .5s ease-in-out 3; }
+.game-effect.success.has-friends.motion-column-1 .mouse { animation: mouse-rocket-dance .48s .08s ease-in-out 3; }
+.game-effect.success.has-friends.motion-box-0 .cat { animation: cat-circle-dance .62s ease-in-out 3; }
+.game-effect.success.has-friends.motion-box-0 .mouse { animation: mouse-counter-circle .62s ease-in-out 3; }
+.game-effect.success.has-friends.motion-box-1 .cat { animation: cat-shoulder-shimmy .3s ease-in-out 5; }
+.game-effect.success.has-friends.motion-box-1 .mouse { animation: mouse-full-spin .58s ease-in-out 3; }
 .game-effect.mistake.has-friends .cat { animation: animal-faint-left .78s ease forwards; }
 .game-effect.mistake.has-friends .mouse { animation: animal-faint-right .88s .08s ease forwards; }
 .game-effect.mistake.has-friends .animal-arm { animation: limp-arm .35s ease forwards; }
@@ -340,11 +353,20 @@ button:focus-visible { outline: 3px solid #4f9dd9; outline-offset: 2px; }
 @keyframes board-flash-shield { 35% { box-shadow: 0 0 0 10px rgba(98, 191, 235, .28), 0 18px 52px rgba(58, 156, 204, .3); } }
 @keyframes board-flash-card { 35% { box-shadow: 0 0 0 9px rgba(173, 127, 218, .22), 0 18px 50px rgba(138, 91, 185, .27); } }
 @keyframes cell-wave-hop { 0%, 100% { transform: translateY(0) scale(1); } 45% { transform: translateY(-8px) scale(1.32) rotate(-4deg); box-shadow: 0 8px 15px rgba(68, 138, 112, .24); } 70% { transform: translateY(2px) scale(.96) rotate(3deg); } }
-@keyframes row-wave-twist { 0%, 100% { transform: translateX(0) scale(1) rotate(0); } 38% { transform: translateX(-4px) scale(1.2, .92) rotate(-12deg); } 68% { transform: translateX(3px) scale(.95, 1.22) rotate(9deg); box-shadow: 0 6px 15px rgba(68, 138, 112, .22); } }
 @keyframes column-wave-rise { 0%, 100% { transform: translateY(0) scale(1); } 35% { transform: translateY(-11px) scale(.94, 1.28); } 65% { transform: translateY(3px) scale(1.18, .9); box-shadow: 0 9px 16px rgba(57, 128, 174, .24); } }
-@keyframes column-wave-stretch { 0%, 100% { transform: scale(1); } 32% { transform: scale(.82, 1.35); } 58% { transform: scale(1.28, .86); box-shadow: 0 0 0 4px rgba(105, 174, 232, .2); } 78% { transform: scale(.96, 1.08); } }
 @keyframes box-wave-pop { 0%, 100% { transform: scale(1) rotate(0); } 42% { transform: scale(1.38) rotate(-7deg); box-shadow: 0 0 0 5px rgba(255, 198, 83, .25); } 70% { transform: scale(.9) rotate(5deg); } }
-@keyframes box-wave-spin { 0%, 100% { transform: rotate(0) scale(1); } 35% { transform: rotate(-18deg) scale(.88); } 67% { transform: rotate(360deg) scale(1.28); box-shadow: 0 7px 16px rgba(190, 126, 34, .22); } }
+@keyframes cat-side-step { 0%, 100% { transform: translateX(-2px) rotate(-5deg); } 50% { transform: translateX(10px) rotate(7deg) scaleY(.96); } }
+@keyframes mouse-clap-hop { 0%, 100% { transform: translateY(0) scaleX(1); } 50% { transform: translateY(-9px) scaleX(.86) rotate(5deg); } }
+@keyframes cat-hip-twist { 0%, 100% { transform: rotate(-13deg) skewX(-4deg); } 50% { transform: rotate(13deg) skewX(4deg) translateY(-4px); } }
+@keyframes mouse-tiny-steps { 0%, 100% { transform: translate(-4px, 0) rotate(-4deg); } 50% { transform: translate(5px, -3px) rotate(6deg) scale(.96, 1.04); } }
+@keyframes cat-high-jump { 0%, 100% { transform: translateY(0) scale(1); } 45% { transform: translateY(-17px) scale(.92, 1.12) rotate(-4deg); } 70% { transform: translateY(2px) scale(1.12, .88); } }
+@keyframes mouse-long-stretch { 0%, 100% { transform: scale(1); } 45% { transform: scale(.82, 1.24) translateY(-7px); } 70% { transform: scale(1.13, .9) translateY(1px); } }
+@keyframes cat-squat-pop { 0%, 100% { transform: translateY(0) scale(1); } 35% { transform: translateY(7px) scale(1.12, .75); } 62% { transform: translateY(-11px) scale(.9, 1.18); } }
+@keyframes mouse-rocket-dance { 0%, 100% { transform: translateY(4px) rotate(0); } 45% { transform: translateY(-18px) rotate(8deg) scale(.88, 1.14); } }
+@keyframes cat-circle-dance { 0%, 100% { transform: translate(-5px, 0) rotate(-8deg); } 35% { transform: translate(3px, -8px) rotate(5deg); } 70% { transform: translate(8px, 2px) rotate(10deg); } }
+@keyframes mouse-counter-circle { 0%, 100% { transform: translate(6px, 1px) rotate(9deg); } 35% { transform: translate(-3px, -8px) rotate(-5deg); } 70% { transform: translate(-8px, 2px) rotate(-10deg); } }
+@keyframes cat-shoulder-shimmy { 0%, 100% { transform: rotate(-7deg) translateX(-2px); } 50% { transform: rotate(7deg) translateX(2px) scale(1.04, .96); } }
+@keyframes mouse-full-spin { 0% { transform: rotate(0) scale(1); } 50% { transform: rotate(180deg) scale(.88); } 100% { transform: rotate(360deg) scale(1); } }
 @keyframes finale-arrive { from { opacity: 0; transform: scale(.92); } }
 @keyframes finale-leave { to { opacity: 0; transform: scale(1.08); } }
 @keyframes finale-glow-spin { to { transform: rotate(360deg); } }
