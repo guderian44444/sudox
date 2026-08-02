@@ -38,7 +38,9 @@ assert(/update_leaderboard_avatar/.test(leaderboardSource) && /update_leaderboar
 assert(/a-z_/.test(storeSource) && /Math\.min\(7/.test(storeSource), "avatar persistence should support avatar IDs and all eight colors");
 assert(/hasLeaderboardRow \? row\.player_avatar : progress\.playerAvatar/.test(appSource), "leaderboard rows should use each player's own avatar");
 assert(/leaderboard-placeholder/.test(appSource) && /avatar-placeholder-mark/.test(appSource), "leaderboard rows without avatars should keep a question-mark placeholder");
+assert(/game-avatar-anchor/.test(appSource) && /board-stage/.test(appSource), "game avatar should be anchored above the board area");
 assert(/grid-template-columns:\s*28px 34px minmax\(0, 1fr\) auto/.test(stylesheet), "leaderboard avatar column should keep a compact proportion");
+assert(/max-width:\s*calc\(100% - 8px\)/.test(stylesheet), "avatar bubbles should stay within the board width");
 assert(/if \(!progress\.playerAvatar\) \{\s*showAvatarPicker = true/.test(appSource), "a new game should require an avatar selection");
 
 function validSolution(solution) {

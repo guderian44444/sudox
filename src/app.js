@@ -214,16 +214,17 @@ function avatarMarkup(rank, row) {
   const hasLeaderboardRow = Boolean(row);
   const avatar = hasLeaderboardRow ? row.player_avatar : progress.playerAvatar;
   const color = hasLeaderboardRow ? (row.avatar_color != null ? row.avatar_color : 0) : (progress.avatarColor || 0);
+  const wrapGameAvatar = (markup) => hasLeaderboardRow ? markup : `<div class="game-avatar-anchor">${markup}</div>`;
   if (!avatar) {
     const crown = rank === 0 ? "👑" : rank === 1 ? "🥈" : rank === 2 ? "🥉" : "";
-    return `<div class="player-avatar leaderboard-placeholder" aria-label="尚未選擇頭像"><span>${crown ? `<b>${crown}</b>` : ""}<small class="avatar-placeholder-mark">❔</small></span></div>`;
+    return wrapGameAvatar(`<div class="player-avatar leaderboard-placeholder" aria-label="尚未選擇頭像"><span>${crown ? `<b>${crown}</b>` : ""}<small class="avatar-placeholder-mark">❔</small></span></div>`);
   }
   const animal = AVATAR_ANIMALS.find(a => a.id === avatar);
   const emoji = animal ? animal.emoji : "❓";
   const colorDef = AVATAR_COLORS[color] || AVATAR_COLORS[0];
   const face = getAvatarFace();
   const crown = rank === 0 ? "👑" : rank === 1 ? "🥈" : rank === 2 ? "🥉" : "";
-  return `<div class="player-avatar" style="--avatar-hue:${colorDef.hue}" data-animal="${avatar}"><span>${crown}${emoji}</span><em class="avatar-bubble">${face}</em></div>`;
+  return wrapGameAvatar(`<div class="player-avatar" style="--avatar-hue:${colorDef.hue}" data-animal="${avatar}"><span>${crown}${emoji}</span><em class="avatar-bubble">${face}</em></div>`);
 }
 
 function animatedFriendsMarkup() {
@@ -447,7 +448,6 @@ function render() {
 
         <section class="board-card" aria-label="數獨遊戲">
           <div class="board-buddies" aria-hidden="true"><span class="cat-buddy">🐱</span><span class="otter-buddy">🦦</span><span class="mouse-buddy">🐭</span></div>
-          ${avatarMarkup()}
           <div class="game-meta">
             <span class="difficulty-pill">${DIFFICULTIES[game.difficulty].icon} ${DIFFICULTIES[game.difficulty].label}・第 ${game.floor} 層</span>
             <span class="timer-block" aria-label="經過時間，沒有時間限制"><span>⏱ <strong id="timer">${formatTime(game.elapsed)}</strong></span><small>不限時 · ${formatTime(DIFFICULTIES[game.difficulty].bonusTime)} 內 +${DIFFICULTIES[game.difficulty].bonusCoins} 🪙 <i id="freeze-time">${game.frozenSeconds ? `· 凍結 ${game.frozenSeconds}s` : ""}</i></small></span>
@@ -461,7 +461,9 @@ function render() {
             </div>
             <span class="run-milestone-badge">🏅 本局 ${game.milestones?.length || 0}/${RUN_MILESTONES.length}</span>
           </div>
-          <div class="sudoku-board ${game.started ? "" : "waiting"}" role="grid" aria-label="${game.started ? "數獨盤面" : "按下開始後顯示題目"}">
+          <div class="board-stage">
+            ${avatarMarkup()}
+            <div class="sudoku-board ${game.started ? "" : "waiting"}" role="grid" aria-label="${game.started ? "數獨盤面" : "按下開始後顯示題目"}">
             ${game.values.map((value, index) => {
               const fixed = game.puzzle[index] !== 0;
               const selected = index === game.selected;
@@ -470,6 +472,7 @@ function render() {
                 ${game.started ? (value || (game.notes[index].length ? `<span class="notes">${Array.from({ length: 9 }, (_, n) => `<i>${game.notes[index].includes(n + 1) ? n + 1 : ""}</i>`).join("")}</span>` : "")) : ""}
               </button>`;
             }).join("")}
+            </div>
           </div>
           <div class="tools">
             <button id="undo" aria-label="清除目前格"><span>⌫</span><small>清除</small></button>

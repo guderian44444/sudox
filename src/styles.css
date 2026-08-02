@@ -97,6 +97,7 @@ button:focus-visible { outline: 3px solid #4f9dd9; outline-offset: 2px; }
 .goal-chips span.done { background: #e4f6ed; color: #338064; text-decoration: line-through; }
 .run-milestone-badge { padding: 4px 7px; flex: 0 0 auto; border-radius: 999px; background: #fff1cf; color: #8a6831; font-size: 10px; font-weight: 900; white-space: nowrap; }
 .icon-button { width: 32px; height: 32px; border: 0; border-radius: 10px; background: #f8f3ec; cursor: pointer; }
+.board-stage { position: relative; }
 .sudoku-board { position: relative; z-index: 0; isolation: isolate; display: grid; grid-template-columns: repeat(9, minmax(0, 1fr)); grid-template-rows: repeat(9, minmax(0, 1fr)); aspect-ratio: 1; overflow: hidden; border: 2px solid var(--navy); border-radius: 12px; background: white; }
 .sudoku-board.waiting { background: repeating-linear-gradient(135deg, #fff, #fff 12px, #faf6f1 12px, #faf6f1 24px); }
 .sudoku-board.waiting .cell { cursor: default; background: transparent; }
@@ -438,6 +439,23 @@ button:focus-visible { outline: 3px solid #4f9dd9; outline-offset: 2px; }
 /* ── Player Avatar ── */
 .player-avatar { --avatar-hue: 0deg; position: absolute; z-index: 5; top: -18px; right: 22px; display: flex; flex-direction: column; align-items: center; animation: avatar-sway 3s ease-in-out infinite; }
 .player-avatar > span { font-size: 28px; filter: hue-rotate(var(--avatar-hue)) saturate(1.4) brightness(1.1); line-height: 1; }
+.game-avatar-anchor {
+  position: absolute;
+  z-index: 5;
+  top: -42px;
+  left: 0;
+  right: 4px;
+  height: 36px;
+  display: flex;
+  justify-content: flex-end;
+  align-items: flex-start;
+  pointer-events: none;
+}
+.game-avatar-anchor > .player-avatar {
+  position: static;
+  top: auto;
+  right: auto;
+}
 .player-avatar .avatar-bubble {
   position: absolute;
   top: -26px;
@@ -455,6 +473,17 @@ button:focus-visible { outline: 3px solid #4f9dd9; outline-offset: 2px; }
   pointer-events: none;
   color: #333;
 }
+.game-avatar-anchor .avatar-bubble {
+  top: -30px;
+  right: 0;
+  left: auto;
+  box-sizing: border-box;
+  width: max-content;
+  max-width: calc(100% - 8px);
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: center;
+}
 .player-avatar .avatar-bubble::after {
   content: "";
   position: absolute;
@@ -465,6 +494,10 @@ button:focus-visible { outline: 3px solid #4f9dd9; outline-offset: 2px; }
   border-left: 5px solid transparent;
   border-right: 5px solid transparent;
   border-top: 6px solid #fff;
+}
+.game-avatar-anchor .avatar-bubble::after {
+  right: 10px;
+  left: auto;
 }
 .player-avatar.shake { animation: avatar-shake 0.4s ease; }
 .player-avatar.jump { animation: avatar-jump 0.6s ease; }
