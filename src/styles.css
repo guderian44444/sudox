@@ -89,7 +89,7 @@ button:focus-visible { outline: 3px solid #4f9dd9; outline-offset: 2px; }
 .timer-block small { font-size: 11px; color: #8e7d6c; white-space: nowrap; font-style: normal; }
 .timer-block i { font-style: normal; color: #7d63a8; }
 .difficulty-pill { width: max-content; padding: 7px 11px; border-radius: 999px; color: #317a64; background: var(--mint-light); font-size: 13px; font-weight: 800; }
-.adventure-status { display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-start; gap: 10px; margin-bottom: 10px; }
+.adventure-status { position: relative; display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-start; gap: 10px; margin-bottom: 10px; }
 .farm-badge { padding: 4px 8px; border-radius: 999px; background: #fff1cf; color: #8a6831; font-size: 10px; font-weight: 900; white-space: nowrap; }
 .health { flex: 0 0 auto; font-size: 15px; font-weight: 900; white-space: nowrap; }
 .goal-chips { display: flex; justify-content: flex-start; flex-wrap: wrap; gap: 4px; }
@@ -442,13 +442,14 @@ button:focus-visible { outline: 3px solid #4f9dd9; outline-offset: 2px; }
 .game-avatar-anchor {
   position: absolute;
   z-index: 5;
-  top: -42px;
-  left: 0;
+  top: 0;
+  bottom: 0;
+  left: 48%;
   right: 4px;
-  height: 36px;
+  height: auto;
   display: flex;
-  justify-content: flex-end;
-  align-items: flex-start;
+  justify-content: center;
+  align-items: center;
   pointer-events: none;
 }
 .game-avatar-anchor > .player-avatar {
@@ -484,11 +485,19 @@ button:focus-visible { outline: 3px solid #4f9dd9; outline-offset: 2px; }
   flex: 0 1 auto;
   box-sizing: border-box;
   width: max-content;
-  max-width: calc(100% - 38px);
+  max-width: calc(100% - 52px);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 0.85rem;
+  font-family: "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif;
   text-align: center;
+}
+.game-avatar-anchor > .player-avatar > span {
+  font-size: 36px;
+  font-family: "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif;
 }
 .player-avatar .avatar-bubble::after {
   content: "";
@@ -618,6 +627,7 @@ button:focus-visible { outline: 3px solid #4f9dd9; outline-offset: 2px; }
   .board-buddies span { width: 31px; height: 31px; font-size: 18px; }
   .game-meta { margin-bottom: 10px; }
   .adventure-status { align-items: flex-start; flex-direction: column; }
+  .adventure-status .game-avatar-anchor { top: calc(100% - 42px); bottom: auto; left: 0; right: 4px; height: 36px; align-items: flex-start; justify-content: flex-end; }
   .goal-chips { justify-content: flex-start; }
   .goal-chips span { font-size: 11px; }
   .cell { font-size: clamp(20px, 6vw, 27px); }

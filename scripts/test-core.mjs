@@ -40,9 +40,11 @@ assert(/hasLeaderboardRow \? row\.player_avatar : progress\.playerAvatar/.test(a
 assert(/leaderboard-placeholder/.test(appSource) && /avatar-placeholder-mark/.test(appSource), "leaderboard rows without avatars should keep a question-mark placeholder");
 assert(/game-avatar-anchor/.test(appSource) && /board-stage/.test(appSource), "game avatar should be anchored above the board area");
 assert(/grid-template-columns:\s*28px 34px minmax\(0, 1fr\) auto/.test(stylesheet), "leaderboard avatar column should keep a compact proportion");
-assert(/max-width:\s*calc\(100% - 38px\)/.test(stylesheet), "avatar bubbles should stay within the board width");
+assert(/max-width:\s*calc\(100% - 52px\)/.test(stylesheet), "avatar bubbles should stay within the board width");
 assert(/game-avatar-anchor > \.player-avatar \{[\s\S]*flex-direction:\s*row/.test(stylesheet) && /game-avatar-anchor \.avatar-bubble \{[\s\S]*white-space:\s*nowrap/.test(stylesheet), "game avatar bubble should stay horizontal beside the avatar");
 assert(/\.adventure-status \{[^}]*flex-direction:\s*column[^}]*align-items:\s*flex-start/.test(stylesheet), "desktop adventure status should use the mobile vertical layout");
+assert(appSource.indexOf('<div class="adventure-status">') < appSource.indexOf('${avatarMarkup()}') && appSource.indexOf('${avatarMarkup()}') < appSource.indexOf('<div class="board-stage">'), "game avatar should use the open status area");
+assert(/game-avatar-anchor > \.player-avatar > span \{[\s\S]*font-size:\s*36px/.test(stylesheet) && /game-avatar-anchor \.avatar-bubble \{[\s\S]*font-size:\s*0\.85rem/.test(stylesheet), "game avatar and expression bubble should render larger with text emoji fonts");
 assert(/if \(!progress\.playerAvatar\) \{\s*showAvatarPicker = true/.test(appSource), "a new game should require an avatar selection");
 
 function validSolution(solution) {

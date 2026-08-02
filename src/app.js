@@ -460,9 +460,9 @@ function render() {
               <span class="${game.healGoals.streak ? "done" : ""}">連對 8 格</span><span class="${game.healGoals.row ? "done" : ""}">完成一行</span><span class="${game.healGoals.box ? "done" : ""}">完成一宮</span>
             </div>
             <span class="run-milestone-badge">🏅 本局 ${game.milestones?.length || 0}/${RUN_MILESTONES.length}</span>
+            ${avatarMarkup()}
           </div>
           <div class="board-stage">
-            ${avatarMarkup()}
             <div class="sudoku-board ${game.started ? "" : "waiting"}" role="grid" aria-label="${game.started ? "數獨盤面" : "按下開始後顯示題目"}">
             ${game.values.map((value, index) => {
               const fixed = game.puzzle[index] !== 0;
