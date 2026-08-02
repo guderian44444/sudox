@@ -109,3 +109,16 @@ export async function updateLeaderboardTaunt({ playerId, pin, taunt }) {
   if (!response.ok) throw new Error(response.status === 400 ? "家庭 PIN 驗證失敗" : `嗆聲更新失敗 (${response.status})`);
   return cleanTaunt;
 }
+
+export async function updateLeaderboardAvatar({ playerId, pin, avatar, color }) {
+  if (!leaderboardConfigured() || !playerId || !/^\d{4}$/.test(String(pin || ""))) return;
+  const cleanAvatar = typeof avatar === "string" && /^[a-z_]+$/.test(avatar) ? avatar : null;
+  if (!cleanAvatar) return;
+  const cleanColor = Math.max(0, Math.min(7, Math.floor(Number(color) || 0)));
+  const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/update_leaderboard_avatar`, {
+    method: "POST",
+    headers: headers(),
+    body: JSON.stringify({ p_player_id: playerId, p_pin: pin, p_player_avatar: cleanAvatar, p_avatar_color: cleanColor })
+  });
+  if (!response.ok) throw new Error(`??摰? (${response.status})`);
+}

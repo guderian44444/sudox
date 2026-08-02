@@ -3,7 +3,7 @@ import { activateAutomaticTreasures, ADVENTURE_RULES, applyHintTreasure, applyIm
 import { ACHIEVEMENTS, achievementValue, recordAchievementGame } from "./game/achievements.js";
 import { chooseFriendPair, chooseGardenEel } from "./game/friends.js";
 import { cloudConfigured, loadCloudPin, loadCloudProgress, normalizePlayerName, renameCloudPlayer, saveCloudPin, saveCloudProgress, validCloudPin } from "./state/cloud.js";
-import { buildScore, fetchLeaderboard, flushPendingScores, leaderboardConfigured, normalizeLeaderboardTaunt, pendingScoreCount, queueLeaderboardScore, updateLeaderboardTaunt } from "./state/leaderboard.js";
+import { buildScore, fetchLeaderboard, flushPendingScores, leaderboardConfigured, normalizeLeaderboardTaunt, pendingScoreCount, queueLeaderboardScore, updateLeaderboardAvatar, updateLeaderboardTaunt } from "./state/leaderboard.js";
 import { addCard, clearSession, consumeCard, exportSaveCode, importSaveCode, loadProgress, loadSession, rewardProgress, saveProgress, saveSession, spendCoins } from "./state/store.js";
 
 const app = document.querySelector("#app");
@@ -648,6 +648,12 @@ function avatarPickerModal() {
   </section></div>`;
 }
 
+function syncLeaderboardAvatar() {
+  const pin = loadCloudPin();
+  if (!leaderboardConfigured() || !validCloudPin(pin) || !progress.playerAvatar) return;
+  updateLeaderboardAvatar({ playerId: progress.playerId, pin, avatar: progress.playerAvatar, color: progress.avatarColor }).catch(() => {});
+}
+
 function bindEvents() {
   document.querySelectorAll("[data-cell]").forEach((button) => button.addEventListener("click", () => { game.selected = Number(button.dataset.cell); render(); }));
   document.querySelectorAll("[data-number]").forEach((button) => button.addEventListener("click", () => enterNumber(Number(button.dataset.number))));
@@ -695,11 +701,13 @@ function bindEvents() {
   document.querySelectorAll("[data-pick-animal]").forEach((button) => button.addEventListener("click", () => {
     progress = { ...progress, playerAvatar: button.dataset.pickAnimal, avatarColor: progress.avatarColor };
     saveProgress(progress);
+    syncLeaderboardAvatar();
     render();
   }));
   document.querySelectorAll("[data-pick-color]").forEach((button) => button.addEventListener("click", () => {
     progress = { ...progress, avatarColor: Number(button.dataset.pickColor) };
     saveProgress(progress);
+    syncLeaderboardAvatar();
     render();
   }));
 }
