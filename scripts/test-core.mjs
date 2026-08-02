@@ -13,6 +13,9 @@ function assert(condition, message) {
 
 const stylesheet = readFileSync(new URL("../src/styles.css", import.meta.url), "utf8");
 const appSource = readFileSync(new URL("../src/app.js", import.meta.url), "utf8");
+const storeSource = readFileSync(new URL("../src/state/store.js", import.meta.url), "utf8");
+const leaderboardSource = readFileSync(new URL("../src/state/leaderboard.js", import.meta.url), "utf8");
+const leaderboardSql = readFileSync(new URL("../supabase/leaderboard.sql", import.meta.url), "utf8");
 assert(FRIEND_ROSTER.length === 3 && FRIEND_ROSTER.some((friend) => friend.id === "otter"), "夥伴名單應包含水獺");
 const firstFriendPair = chooseFriendPair("", () => 0);
 const nextFriendPair = chooseFriendPair(firstFriendPair.key, () => 0);
@@ -27,6 +30,11 @@ assert(/grid-template-rows:\s*repeat\(9,\s*minmax\(0,\s*1fr\)\)/.test(stylesheet
 assert(/-webkit-text-size-adjust:\s*100%/.test(stylesheet), "iOS 內建瀏覽器不可自動放大文字而裁掉最下列");
 assert(/garden-eel-peek/.test(stylesheet) && /@keyframes garden-eel-peek/.test(stylesheet), "花園鰻應有偷看動畫");
 assert(/garden-eel-img/.test(appSource) && /garden-eel-img/.test(stylesheet), "花園鰻應使用圖片資源");
+
+assert(/player_avatar text/i.test(leaderboardSql) && /avatar_color integer/i.test(leaderboardSql), "leaderboard schema should include avatar columns");
+assert(/p_player_avatar text/i.test(leaderboardSql) && /p_avatar_color integer/i.test(leaderboardSql), "leaderboard RPC should accept avatar parameters");
+assert(/p_player_avatar/.test(leaderboardSource) && /p_avatar_color/.test(leaderboardSource), "score submission should include avatar parameters");
+assert(/a-z_/.test(storeSource) && /Math\.min\(7/.test(storeSource), "avatar persistence should support avatar IDs and all eight colors");
 
 function validSolution(solution) {
   const target = "123456789";

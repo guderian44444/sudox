@@ -76,8 +76,8 @@ function normalizedProgress(saved = {}) {
       alinGames: Math.floor(safeNumber(saved.achievementStats?.alinGames))
     },
     floors: Object.fromEntries(Object.keys(defaultProgress.floors).map((difficulty) => [difficulty, Math.max(1, Math.floor(safeNumber(saved.floors?.[difficulty], 1))) ])),
-    playerAvatar: typeof saved.playerAvatar === "string" && /^[a-z]+$/.test(saved.playerAvatar) ? saved.playerAvatar : "",
-    avatarColor: Math.max(0, Math.min(5, Math.floor(safeNumber(saved.avatarColor))))
+    playerAvatar: typeof saved.playerAvatar === "string" && /^[a-z_]+$/.test(saved.playerAvatar) ? saved.playerAvatar : "",
+    avatarColor: Math.max(0, Math.min(7, Math.floor(safeNumber(saved.avatarColor))))
   };
   return progress;
 }

@@ -246,7 +246,7 @@ function showGardenEel() {
   eel.style.left = `${((cell % 9) / 9) * 100}%`;
   eel.style.top = `${(Math.floor(cell / 9) / 9) * 100}%`;
   eel.setAttribute("title", variant === "orange" ? "橘色花園鰻偷看一下" : "白色花園鰻偷看一下");
-  const eelImg = variant === "orange" ? "/public/assets/eel-orange.png" : "/public/assets/eel-white.png";
+  const eelImg = new URL(variant === "orange" ? "../public/assets/eel-orange.png" : "../public/assets/eel-white.png", import.meta.url).href;
   eel.innerHTML = `<i class="garden-eel-creature"><img class="garden-eel-img" src="${eelImg}" alt="花園鰻" aria-hidden="true"/></i>`;
   board.append(eel);
   eel.addEventListener("animationend", () => eel.remove(), { once: true });

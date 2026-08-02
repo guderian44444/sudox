@@ -1,4 +1,4 @@
-const CACHE_NAME = "sudox-shell-v19";
+const CACHE_NAME = "sudox-shell-v20";
 const BASE_PATH = new URL("./", self.location.href).pathname;
 const APP_SHELL = [
   BASE_PATH,
@@ -14,7 +14,9 @@ const APP_SHELL = [
   `${BASE_PATH}src/state/cloud.js`,
   `${BASE_PATH}src/state/leaderboard.js`,
   `${BASE_PATH}manifest.webmanifest`,
-  `${BASE_PATH}assets/app-icon.svg`
+  `${BASE_PATH}assets/app-icon.svg`,
+  `${BASE_PATH}public/assets/eel-orange.png`,
+  `${BASE_PATH}public/assets/eel-white.png`
 ];
 
 self.addEventListener("install", (event) => {
