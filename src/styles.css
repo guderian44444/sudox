@@ -129,7 +129,7 @@ button:focus-visible { outline: 3px solid #4f9dd9; outline-offset: 2px; }
 .cell.wave-box.wave-variant-0 { animation-name: box-wave-pop; }
 .cell.wave-box.wave-variant-1 { animation-name: box-wave-pop; }
 .notes { position: absolute; inset: 2px; display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr); }
-.notes i { display: grid; place-items: center; font-size: clamp(6px, 1vw, 9px); font-style: normal; font-weight: 700; color: #629a88; }
+.notes i { display: grid; place-items: center; font-size: clamp(7px, 1.2vw, 10px); font-style: normal; font-weight: 700; color: #629a88; }
 .tools { display: flex; justify-content: center; gap: 12px; margin: 16px 0 12px; }
 .tools button { min-width: 72px; padding: 7px 11px; border: 1px solid #eee4d9; border-radius: 14px; background: #faf7f3; cursor: pointer; }
 .tools button.active { color: #2c8568; border-color: #97d5c0; background: var(--mint-light); }
@@ -631,6 +631,7 @@ button:focus-visible { outline: 3px solid #4f9dd9; outline-offset: 2px; }
   .goal-chips { justify-content: flex-start; }
   .goal-chips span { font-size: 11px; }
   .cell { font-size: clamp(20px, 6vw, 27px); }
+  .notes i { font-size: clamp(8px, 2.5vw, 10px); }
   .tools { margin: 11px 0 9px; }
   .tools button { min-width: 67px; padding: 5px 8px; }
   .number-pad { gap: 3px; }

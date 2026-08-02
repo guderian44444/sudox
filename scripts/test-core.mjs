@@ -49,6 +49,10 @@ assert(/\.board-buddies \{ position: static; width: max-content; margin: -2px au
 assert(/\.adventure-status \.game-avatar-anchor \{ position: relative;[^}]*height: 44px[^}]*justify-content: flex-end;/.test(stylesheet), "mobile game avatar should have its own non-overlapping row");
 assert(/\.topbar \{ height: auto; min-height: 48px; flex-wrap: wrap;/.test(stylesheet) && /\.topbar-actions \{ flex: 1 0 100%;[^}]*width: 100%;/.test(stylesheet), "mobile topbar actions should use a separate row");
 assert(/if \(!progress\.playerAvatar\) \{\s*showAvatarPicker = true/.test(appSource), "a new game should require an avatar selection");
+assert(appSource.indexOf('<div class="number-pad"') < appSource.indexOf('<div class="tools">'), "number pad should sit immediately before the tool buttons");
+assert(/\.notes i \{[^}]*font-size:\s*clamp\(7px, 1\.2vw, 10px\)/.test(stylesheet) && /\.notes i \{ font-size: clamp\(8px, 2\.5vw, 10px\); \}/.test(stylesheet), "note digits should be larger on desktop and mobile");
+assert(/let cloudHydrationPending = cloudConfigured\(\) && Boolean\(progress\.playerName\) && validCloudPin\(loadCloudPin\(\)\)/.test(appSource), "cloud progress hydration should start when local cloud credentials exist");
+assert(/function scheduleCloudSync\(\) \{\s*if \(cloudHydrationPending\) return;/.test(appSource) && /async function hydrateCloudProgress\(\)[\s\S]*loadCloudProgress\(progress\.playerName, pin\)[\s\S]*applyImportedSave\(imported\)/.test(appSource), "startup cloud hydration should finish before automatic upload");
 
 function validSolution(solution) {
   const target = "123456789";

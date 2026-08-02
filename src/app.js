@@ -35,6 +35,7 @@ let leaderboardTauntStatus = "";
 let nameSetupStatus = "";
 let cloudSyncStatus = "";
 let cloudSyncTimer;
+let cloudHydrationPending = cloudConfigured() && Boolean(progress.playerName) && validCloudPin(loadCloudPin());
 let equippedCards = restoredSession?.equippedCards || [];
 let timerId;
 let celebrationId = 0;
@@ -474,12 +475,12 @@ function render() {
             }).join("")}
             </div>
           </div>
+          <div class="number-pad" aria-label="數字鍵盤">${Array.from({ length: 9 }, (_, index) => `<button data-number="${index + 1}">${index + 1}</button>`).join("")}</div>
           <div class="tools">
             <button id="undo" aria-label="清除目前格"><span>⌫</span><small>清除</small></button>
             <button id="notes" class="${noteMode ? "active" : ""}" aria-pressed="${noteMode}"><span>✎</span><small>筆記 ${noteMode ? "開" : "關"}</small></button>
             <button id="hint"><span>💡</span><small>${currentHintCost() ? `提示 -${currentHintCost()}` : "免費提示"}</small></button>
           </div>
-          <div class="number-pad" aria-label="數字鍵盤">${Array.from({ length: 9 }, (_, index) => `<button data-number="${index + 1}">${index + 1}</button>`).join("")}</div>
           <p class="mistakes">${alinMode ? `🌈 阿霖模式・目前答錯 ${game.mistakes} 次` : `本局答錯 ${game.mistakes} 次`}</p>
           <div class="card-tray">
             <button id="open-backpack" class="backpack-button">🎒 背包 ${inventoryTotal}</button>
@@ -818,7 +819,28 @@ async function loadExistingPlayer() {
   }
 }
 
+async function hydrateCloudProgress() {
+  if (!cloudHydrationPending) return;
+  clearTimeout(cloudSyncTimer);
+  const pin = loadCloudPin();
+  try {
+    const saveCode = await loadCloudProgress(progress.playerName, pin);
+    const imported = importSaveCode(saveCode);
+    clearInterval(timerId);
+    applyImportedSave(imported);
+    if (imported.session?.game) startTimer();
+    cloudSyncStatus = "已載入雲端的最新進度";
+    cloudHydrationPending = false;
+    if (!progress.playerAvatar) showAvatarPicker = true;
+    render();
+  } catch {
+    // Keep the local save when cloud loading is unavailable; never overwrite a remote save blindly.
+    cloudHydrationPending = false;
+  }
+}
+
 function scheduleCloudSync() {
+  if (cloudHydrationPending) return;
   if (!cloudConfigured() || !progress.playerName || !validCloudPin(loadCloudPin())) return;
   clearTimeout(cloudSyncTimer);
   cloudSyncTimer = setTimeout(() => syncCloudNow(false), 1800);
@@ -1209,6 +1231,7 @@ if (restoredSession) {
   if (!progress.playerAvatar) showAvatarPicker = true;
   render();
 } else newGame("easy");
+hydrateCloudProgress();
 
 window.addEventListener("online", () => {
   flushPendingScores().catch(() => {});
