@@ -113,6 +113,7 @@ button:focus-visible { outline: 3px solid #4f9dd9; outline-offset: 2px; }
 .garden-eel-peek { position: absolute; z-index: 99; width: 11.1112%; height: 11.1112%; overflow: hidden; display: block; pointer-events: none; }
 .garden-eel-creature { position: absolute; inset: 0; display: block; transform-origin: 50% 100%; filter: drop-shadow(0 2px 2px rgba(83, 54, 30, .28)); animation: garden-eel-peek 2.25s cubic-bezier(.28,.75,.35,1) both; }
 .garden-eel-svg { width: 100%; height: 100%; display: block; overflow: visible; }
+.garden-eel-img { width: 100%; height: 100%; object-fit: contain; display: block; }
 .garden-eel-shape { fill: var(--eel-main); stroke: var(--eel-dark); stroke-width: 1.5; stroke-linejoin: round; }
 .garden-eel-peek.orange { --eel-main: #f38b4e; --eel-light: #ffd27c; --eel-dark: #c7643a; --eel-glow: #ffe1a8; }
 .garden-eel-peek.white { --eel-main: #fff8ed; --eel-light: #fffdf7; --eel-dark: #c8956e; --eel-glow: #f0cfae; }

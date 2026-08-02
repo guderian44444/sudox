@@ -149,14 +149,8 @@ function showGardenEel() {
   eel.style.left = `${((cell % 9) / 9) * 100}%`;
   eel.style.top = `${(Math.floor(cell / 9) / 9) * 100}%`;
   eel.setAttribute("title", variant === "orange" ? "橘色花園鰻偷看一下" : "白色花園鰻偷看一下");
-  const orangePath = "M18 64C18 51 16 39 17 29C18 23 17 19 14 16C11 12 12 7 16 4C21 0 31 1 37 5C43 9 44 15 40 19C37 22 31 22 28 26C25 34 29 49 29 64Z";
-  const whitePath = "M21 64C22 49 21 37 22 28C23 23 21 20 17 18C12 15 11 10 14 6C17 2 25 1 31 4C36 7 37 12 34 16C31 20 28 21 29 28C30 39 32 51 32 64Z";
-  const path = variant === "orange" ? orangePath : whitePath;
-  const clipId = `garden-eel-clip-${Date.now()}-${cell}`;
-  const markings = variant === "orange"
-    ? `<g clip-path="url(#${clipId})" fill="none" stroke="#fff3dc" stroke-width="4"><path d="M15 31Q23 34 31 31"/><path d="M16 42Q23 45 31 42"/><path d="M17 53Q24 56 31 53"/></g><circle cx="30" cy="8" r="2.2" fill="#302a28"/><path d="M39 14l2 .7" stroke="#574238" stroke-width="1.4" stroke-linecap="round"/>`
-    : `<g fill="#403a38"><circle cx="23" cy="8" r="2.3"/><circle cx="25" cy="27" r="1.25"/><circle cx="28" cy="36" r="1.15"/><circle cx="25" cy="45" r="1.2"/><circle cx="29" cy="54" r="1.05"/></g><path d="M15 13l-2 .5" stroke="#574f4a" stroke-width="1.4" stroke-linecap="round"/>`;
-  eel.innerHTML = `<i class="garden-eel-creature"><svg class="garden-eel-svg" viewBox="0 0 48 64" aria-hidden="true"><defs><clipPath id="${clipId}"><path d="${path}"/></clipPath></defs><path class="garden-eel-shape" d="${path}"/>${markings}</svg></i>`;
+  const eelImg = variant === "orange" ? "/public/assets/eel-orange.png" : "/public/assets/eel-white.png";
+  eel.innerHTML = `<i class="garden-eel-creature"><img class="garden-eel-img" src="${eelImg}" alt="花園鰻" aria-hidden="true"/></i>`;
   board.append(eel);
   eel.addEventListener("animationend", () => eel.remove(), { once: true });
   setTimeout(() => eel.remove(), 2600);
