@@ -27,6 +27,7 @@ let showSaveCenter = false;
 let showNameSetup = !progress.playerName;
 let showLeaderboard = false;
 let showAchievements = false;
+let showAvatarPicker = false;
 let leaderboardDifficulty = game.difficulty;
 let leaderboardRows = [];
 let leaderboardStatus = "";
@@ -64,6 +65,71 @@ const RUN_MILESTONES = Object.freeze([
   { id: "units8", icon: "🏝️", name: "半島點燈", detail: "累計完成 8 個行、列或宮", test: (current) => current.completedUnits.rows.length + current.completedUnits.columns.length + current.completedUnits.boxes.length >= 8 },
   { id: "lastNine", icon: "🚩", name: "最後衝刺", detail: "盤面只剩最後 9 格", test: (current) => current.values.filter(Boolean).length >= 72 }
 ]);
+const AVATAR_ANIMALS = Object.freeze([
+  { id: "cat", emoji: "🐱", name: "貓" },
+  { id: "dog", emoji: "🐶", name: "狗" },
+  { id: "mouse", emoji: "🐭", name: "老鼠" },
+  { id: "hamster", emoji: "🐹", name: "倉鼠" },
+  { id: "rabbit", emoji: "🐰", name: "兔子" },
+  { id: "fox", emoji: "🦊", name: "狐狸" },
+  { id: "bear", emoji: "🐻", name: "熊" },
+  { id: "panda", emoji: "🐼", name: "熊貓" },
+  { id: "koala", emoji: "🐨", name: "無尾熊" },
+  { id: "tiger", emoji: "🐯", name: "老虎" },
+  { id: "lion", emoji: "🦁", name: "獅子" },
+  { id: "frog", emoji: "🐸", name: "青蛙" },
+  { id: "pig", emoji: "🐷", name: "豬" },
+  { id: "cow", emoji: "🐮", name: "牛" },
+  { id: "monkey", emoji: "🐵", name: "猴子" },
+  { id: "chicken", emoji: "🐔", name: "雞" },
+  { id: "penguin", emoji: "🐧", name: "企鵝" },
+  { id: "whale", emoji: "🐳", name: "鯨魚" },
+  { id: "dolphin", emoji: "🐬", name: "海豚" },
+  { id: "owl", emoji: "🦉", name: "貓頭鷹" },
+  { id: "duck", emoji: "🦆", name: "鴨子" },
+  { id: "bunny", emoji: "🐇", name: "野兔" },
+  { id: "deer", emoji: "🦌", name: "鹿" },
+  { id: "panda_face", emoji: "🐼", name: "熊貓臉" }
+]);
+const AVATAR_COLORS = Object.freeze([
+  { hue: "0deg", bg: "#fff0d4", name: "原色" },
+  { hue: "45deg", bg: "#fff8d0", name: "金黃" },
+  { hue: "90deg", bg: "#d4ffd4", name: "鮮綠" },
+  { hue: "160deg", bg: "#d0f0ff", name: "天藍" },
+  { hue: "210deg", bg: "#d0d4ff", name: "靛藍" },
+  { hue: "270deg", bg: "#e8d0ff", name: "紫羅蘭" },
+  { hue: "320deg", bg: "#ffd0e0", name: "玫紅" },
+  { hue: "350deg", bg: "#ffd4d4", name: "櫻粉" }
+]);
+const AVATAR_FACES = {
+  idle: ["•ᴗ•", "(◕ᴗ◕)", "◕‿◕", "(´・ω・`)"],
+  happy: ["✧ω✧", "(≧▽≦)", "(ﾉ◕ヮ◕)ﾉ*:・ﾟ✧", "☆⌒(｡◕‿◕｡)⌒☆", "(≧∇≦)ﾉ"],
+  sad: ["×_×", "(；￣Д￣)", "T_T", "(＞﹏＜)", "qwq"],
+  thinking: ["(・ω・;)","(？ω？)", "(⊙_⊙)", "Hmm..."],
+  excited: ["(★^O^★)", "(≧∇≦)ﾉ", "ヾ(✿ﾟ▽ﾟ)ノ", "(☆▽☆)"],
+  proud: ["(￣▽￣*)ゞ", "(^▽^)", "(✪ω✪)", "哼♪"],
+  embarrassed: ["(⁄ ⁄•⁄ω⁄•⁄ ⁄)", "(⁄ ⁄>⁄ ▽ ⁄<⁄ ⁄)", "Σ(っ °Д °;)っ"],
+  determined: ["(｀・ω・´)", "(＞﹏＜)→(｀・ω・´)", "嗶嗶!"],
+  tired: ["(´-ω-`)", "z_z...", "(─.─;)"],
+  shocked: ["Σ(°△°|||)", "!!!(⊙_⊙!!)", "What?!"],
+  love: ["(♡ω♡)", "(♥‿♥)", "♡( ◡‿◡ )"],
+  mischievous: ["(๑•̀ㅂ•́)و✧", "✧*。. ( ˃ ⌑ ˂ഃ )", "哼~"]
+};
+let avatarFace = "idle";
+let avatarFaceIndex = 0;
+let avatarFaceTimer;
+
+function getAvatarFace() {
+  const faces = AVATAR_FACES[avatarFace] || AVATAR_FACES.idle;
+  return faces[avatarFaceIndex % faces.length];
+}
+
+function setAvatarFace(face, duration = 2000) {
+  clearTimeout(avatarFaceTimer);
+  avatarFace = face;
+  avatarFaceIndex++;
+  avatarFaceTimer = setTimeout(() => { avatarFace = "idle"; }, duration);
+}
 const currentHintCost = () => alinMode ? 0 : DIFFICULTIES[game.difficulty].hintCost;
 const escapeHtml = (value) => String(value).replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character]);
 const normalizePinInput = (value) => String(value)
@@ -127,6 +193,35 @@ function toggleSound() {
 
 function mascot() {
   return `<div class="mascot" aria-hidden="true"><span class="ear left"></span><span class="ear right"></span><span class="face">•ᴗ•</span></div>`;
+}
+
+function getAvatarEmoji() {
+  const animal = AVATAR_ANIMALS.find(a => a.id === progress.playerAvatar);
+  return animal ? animal.emoji : "❓";
+}
+
+function setAvatarFace(face) {
+  clearTimeout(avatarFaceTimer);
+  avatarFace = face;
+  avatarFaceTimer = setTimeout(() => { avatarFace = "idle"; }, 1500);
+}
+
+function triggerAvatarAnim(anim) {
+  const el = document.querySelector(".player-avatar");
+  if (!el) return;
+  el.classList.remove("shake", "jump");
+  void el.offsetWidth;
+  el.classList.add(anim);
+  el.addEventListener("animationend", () => el.classList.remove(anim), { once: true });
+  setTimeout(() => el.classList.remove(anim), 800);
+}
+
+function avatarMarkup(rank) {
+  if (!progress.playerAvatar) return "";
+  const color = AVATAR_COLORS[progress.avatarColor] || AVATAR_COLORS[0];
+  const face = getAvatarFace();
+  const crown = rank === 0 ? "👑" : rank === 1 ? "🥈" : rank === 2 ? "🥉" : "";
+  return `<div class="player-avatar" style="--avatar-hue:${color.hue}" data-animal="${progress.playerAvatar}"><span>${crown}${getAvatarEmoji()}</span><em class="avatar-bubble">${face}</em></div>`;
 }
 
 function animatedFriendsMarkup() {
@@ -323,7 +418,7 @@ function render() {
     <main class="shell ${game.started ? "game-active" : ""}">
       <header class="topbar">
         <div class="brand">${mascot()}<div><span>阿霖的數獨島</span><small>ALIN'S SUDOKU ISLAND</small></div></div>
-        <div class="topbar-actions"><div class="wallet" aria-label="玩家資源"><span>⭐ ${progress.totalStars}</span><span>🪙 ${progress.coins}</span></div><button id="toggle-sound" class="save-button sound-button" aria-label="${soundEnabled ? "關閉音效" : "開啟音效"}" aria-pressed="${soundEnabled}">${soundEnabled ? "🔊" : "🔇"}</button><button id="open-leaderboard" class="save-button">🏆 <span>排行</span></button><button id="open-save-center" class="save-button">💾 <span>存檔</span></button></div>
+        <div class="topbar-actions"><div class="wallet" aria-label="玩家資源"><span>⭐ ${progress.totalStars}</span><span>🪙 ${progress.coins}</span></div><button id="toggle-sound" class="save-button sound-button" aria-label="${soundEnabled ? "關閉音效" : "開啟音效"}" aria-pressed="${soundEnabled}">${soundEnabled ? "🔊" : "🔇"}</button><button id="open-avatar-picker" class="save-button">🐾 <span>頭像</span></button><button id="open-leaderboard" class="save-button">🏆 <span>排行</span></button><button id="open-save-center" class="save-button">💾 <span>存檔</span></button></div>
       </header>
 
       <section class="hero-card">
@@ -350,6 +445,7 @@ function render() {
 
         <section class="board-card" aria-label="數獨遊戲">
           <div class="board-buddies" aria-hidden="true"><span class="cat-buddy">🐱</span><span class="otter-buddy">🦦</span><span class="mouse-buddy">🐭</span></div>
+          ${avatarMarkup()}
           <div class="game-meta">
             <span class="difficulty-pill">${DIFFICULTIES[game.difficulty].icon} ${DIFFICULTIES[game.difficulty].label}・第 ${game.floor} 層</span>
             <span class="timer-block" aria-label="經過時間，沒有時間限制"><span>⏱ <strong id="timer">${formatTime(game.elapsed)}</strong></span><small>不限時 · ${formatTime(DIFFICULTIES[game.difficulty].bonusTime)} 內 +${DIFFICULTIES[game.difficulty].bonusCoins} 🪙 <i id="freeze-time">${game.frozenSeconds ? `· 凍結 ${game.frozenSeconds}s` : ""}</i></small></span>
@@ -401,7 +497,7 @@ function render() {
         </aside>
       </section>
     </main>
-    ${showNameSetup ? nameSetupModal() : showLeaderboard ? leaderboardModal() : showAchievements ? achievementModal() : showSaveCenter ? saveCenterModal() : showBackpack ? backpackModal() : !game.started ? startModal() : game.completed ? completionModal() : game.failed ? failureModal() : ""}
+    ${showNameSetup ? nameSetupModal() : showLeaderboard ? leaderboardModal() : showAchievements ? achievementModal() : showSaveCenter ? saveCenterModal() : showBackpack ? backpackModal() : showAvatarPicker ? avatarPickerModal() : !game.started ? startModal() : game.completed ? completionModal() : game.failed ? failureModal() : ""}
   `;
   bindEvents();
   playNextCellWave();
@@ -481,7 +577,7 @@ function leaderboardModal() {
     <div class="celebrate">🏆</div><h2 id="leaderboard-title">家庭全球排行</h2>
     <div class="leaderboard-tabs">${Object.entries(LEADERBOARD_MODES).map(([key, item]) => `<button data-rank-difficulty="${key}" class="${leaderboardDifficulty === key ? "active" : ""}">${item.icon} ${item.label}</button>`).join("")}</div>
     ${!configured ? `<div class="empty-ranking"><strong>尚未連接資料庫</strong><small>設定 Supabase 後，家人的成績會出現在這裡。</small></div>` : leaderboardStatus ? `<div class="empty-ranking"><span class="loading-orbit">☁️</span><small>${escapeHtml(leaderboardStatus)}</small></div>` : leaderboardRows.length ? `<div class="leaderboard-list">${leaderboardRows.map((row, index) => `
-      <div class="leaderboard-row ${row.player_id === progress.playerId ? "mine" : ""}"><b>${index + 1}</b><span class="leaderboard-player"><strong>${escapeHtml(row.player_name)}</strong><small>${row.stars}⭐・${row.mistakes} 次失誤・${formatTime(row.elapsed_seconds)}</small>${row.taunt ? `<q>${escapeHtml(row.taunt)}</q>` : `<q class="quiet">還沒有留下嗆聲</q>`}</span><em>第 ${row.floor} 層</em></div>`).join("")}</div>` : `<div class="empty-ranking"><strong>還沒有成績</strong><small>完成第一層就能成為榜首！</small></div>`}
+      <div class="leaderboard-row ${row.player_id === progress.playerId ? "mine" : ""}"><b>${index + 1}</b>${avatarMarkup(index)}<span class="leaderboard-player"><strong>${escapeHtml(row.player_name)}</strong><small>${row.stars}⭐・${row.mistakes} 次失誤・${formatTime(row.elapsed_seconds)}</small>${row.taunt ? `<q>${escapeHtml(row.taunt)}</q>` : `<q class="quiet">還沒有留下嗆聲</q>`}</span><em>第 ${row.floor} 層</em></div>`).join("")}</div>` : `<div class="empty-ranking"><strong>還沒有成績</strong><small>完成第一層就能成為榜首！</small></div>`}
     ${configured ? `<div class="taunt-editor"><label for="leaderboard-taunt">📣 我的島主宣言</label><div><input id="leaderboard-taunt" maxlength="48" value="${escapeHtml(myRow?.taunt || "")}" placeholder="例如：榜首先借我坐一下！"><button id="save-leaderboard-taunt" ${myRow ? "" : "disabled"}>送出</button></div><small>${escapeHtml(leaderboardTauntStatus || (myRow ? "最多 48 字，所有玩家都看得到" : "完成一局上榜後就能留言"))}</small></div>` : ""}
     <p class="pending-scores">${pendingScoreCount() ? `尚有 ${pendingScoreCount()} 筆離線成績等待同步` : "每位玩家、每個難度只保留最佳成績"}</p>
     <button id="close-leaderboard" class="primary-button">回到遊戲</button>
@@ -530,6 +626,25 @@ function backpackModal() {
   </section></div>`;
 }
 
+function avatarPickerModal() {
+  const selectedAnimal = progress.playerAvatar;
+  const selectedColor = progress.avatarColor;
+  const animal = AVATAR_ANIMALS.find(a => a.id === selectedAnimal);
+  const color = AVATAR_COLORS[selectedColor] || AVATAR_COLORS[0];
+  return `<div class="modal-backdrop"><section class="modal avatar-modal" role="dialog" aria-modal="true" aria-labelledby="avatar-title">
+    <div class="celebrate">🐾</div><h2 id="avatar-title">選擇你的動物頭像</h2>
+    <p>選一個動物代表你，在遊戲中會陪你一起解數獨！</p>
+    <div class="avatar-preview" style="filter: hue-rotate(${color.hue})">${animal ? animal.emoji : "❓"}</div>
+    <div class="avatar-picker-grid">${AVATAR_ANIMALS.map(a => `
+      <button data-pick-animal="${a.id}" class="avatar-picker-animal ${selectedAnimal === a.id ? "selected" : ""}">
+        <span>${a.emoji}</span><small>${a.name}</small>
+      </button>`).join("")}</div>
+    ${selectedAnimal ? `<div class="avatar-color-row">${AVATAR_COLORS.map((c, i) => `
+      <button data-pick-color="${i}" class="avatar-color-dot ${selectedColor === i ? "selected" : ""}" style="background:${c.bg}" title="${c.name}" aria-label="${c.name}色"></button>`).join("")}</div>` : ""}
+    <button id="close-avatar-picker" class="primary-button">完成</button>
+  </section></div>`;
+}
+
 function bindEvents() {
   document.querySelectorAll("[data-cell]").forEach((button) => button.addEventListener("click", () => { game.selected = Number(button.dataset.cell); render(); }));
   document.querySelectorAll("[data-number]").forEach((button) => button.addEventListener("click", () => enterNumber(Number(button.dataset.number))));
@@ -572,6 +687,18 @@ function bindEvents() {
   document.querySelector("#create-player")?.addEventListener("click", createPlayer);
   document.querySelector("#load-cloud-player")?.addEventListener("click", loadExistingPlayer);
   document.querySelector("#close-backpack")?.addEventListener("click", () => { showBackpack = false; game.equippedCards = [...equippedCards]; render(); });
+  document.querySelector("#open-avatar-picker")?.addEventListener("click", () => { showAvatarPicker = true; render(); });
+  document.querySelector("#close-avatar-picker")?.addEventListener("click", () => { showAvatarPicker = false; render(); });
+  document.querySelectorAll("[data-pick-animal]").forEach((button) => button.addEventListener("click", () => {
+    progress = { ...progress, playerAvatar: button.dataset.pickAnimal, avatarColor: progress.avatarColor };
+    saveProgress(progress);
+    render();
+  }));
+  document.querySelectorAll("[data-pick-color]").forEach((button) => button.addEventListener("click", () => {
+    progress = { ...progress, avatarColor: Number(button.dataset.pickColor) };
+    saveProgress(progress);
+    render();
+  }));
 }
 
 function openSaveCenter() {
@@ -792,6 +919,12 @@ function enterNumber(number) {
     else showGameEffect("friends", game.failed ? "體力用完，雙雙昏倒！" : "猜錯了，雙雙昏倒！", alinMode ? "躺一下再繼續，阿霖模式不會失敗" : game.failed ? "休息一下，可以使用寶物或金幣復活" : "好朋友們休息一下，再陪你試一次！", "mistake", game.failed ? "failure" : "");
     document.body.classList.add("shake");
     setTimeout(() => document.body.classList.remove("shake"), 320);
+    triggerAvatarAnim("shake");
+    if (game.failed) {
+      setAvatarFace("shocked", 3000);
+    } else {
+      setAvatarFace("sad", 2000);
+    }
   } else {
     game.actions += 1;
     game.correctStreak += 1;
@@ -836,6 +969,8 @@ function completeHealGoal(goal, label) {
   const reward = healOrShield();
   showCelebration("🎉", `恭喜完成「${label}」！`, reward);
   showGameEffect("friends", "扭腰擺臀慶祝！", `${label}・${reward}`, "success");
+  setAvatarFace("excited", 2500);
+  triggerAvatarAnim("jump");
 }
 
 function celebrateCompletedUnit(type, unitIndex) {
@@ -856,6 +991,12 @@ function celebrateCompletedUnit(type, unitIndex) {
     showCelebration("🎉", `首次完成${type === "row" ? "一行" : "一宮"}！`, reward);
   }
   showGameEffect("friends", `${label}完成，換舞步！`, detail, "success", `${type}-${variant}`);
+  triggerAvatarAnim("jump");
+  const totalCompleted = game.completedUnits.rows.length + game.completedUnits.columns.length + game.completedUnits.boxes.length;
+  if (totalCompleted >= 18) setAvatarFace("excited", 3000);
+  else if (totalCompleted >= 10) setAvatarFace("proud", 2500);
+  else if (firstReward) setAvatarFace("love", 2500);
+  else setAvatarFace("happy", 2000);
 }
 
 function checkHealGoals() {
@@ -888,6 +1029,8 @@ function checkRunMilestones() {
     saveProgress(progress);
     showCelebration(milestone.icon, `本局里程碑・${milestone.name}`, `${milestone.detail}・🪙 +2`);
     showGameEffect("friends", `${milestone.name}達成！`, `${milestone.detail}，獲得 2 金幣`, "success");
+    setAvatarFace("excited", 2500);
+    triggerAvatarAnim("jump");
   });
 }
 
@@ -899,6 +1042,7 @@ function useHint() {
   game.hintsUsed += 1;
   game.values[game.selected] = game.solution[game.selected];
   removeRelatedNotes(game.selected, game.values[game.selected]);
+  setAvatarFace("thinking", 1500);
   checkHealGoals();
   checkCompletion();
   render();

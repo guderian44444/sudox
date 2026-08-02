@@ -37,7 +37,9 @@ const defaultProgress = {
   rewardedRuns: [],
   achievements: [],
   achievementStats: { perfectGames: 0, speedGames: 0, alinGames: 0 },
-  floors: { easy: 1, medium: 1, hard: 1 }
+  floors: { easy: 1, medium: 1, hard: 1 },
+  playerAvatar: "",
+  avatarColor: 0
 };
 
 const safeNumber = (value, fallback = 0) => Number.isFinite(Number(value)) ? Math.max(0, Number(value)) : fallback;
@@ -73,7 +75,9 @@ function normalizedProgress(saved = {}) {
       speedGames: Math.floor(safeNumber(saved.achievementStats?.speedGames)),
       alinGames: Math.floor(safeNumber(saved.achievementStats?.alinGames))
     },
-    floors: Object.fromEntries(Object.keys(defaultProgress.floors).map((difficulty) => [difficulty, Math.max(1, Math.floor(safeNumber(saved.floors?.[difficulty], 1))) ]))
+    floors: Object.fromEntries(Object.keys(defaultProgress.floors).map((difficulty) => [difficulty, Math.max(1, Math.floor(safeNumber(saved.floors?.[difficulty], 1))) ])),
+    playerAvatar: typeof saved.playerAvatar === "string" && /^[a-z]+$/.test(saved.playerAvatar) ? saved.playerAvatar : "",
+    avatarColor: Math.max(0, Math.min(5, Math.floor(safeNumber(saved.avatarColor))))
   };
   return progress;
 }
