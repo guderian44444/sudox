@@ -482,6 +482,15 @@ button:focus-visible { outline: 3px solid #4f9dd9; outline-offset: 2px; }
 }
 .leaderboard-row .player-avatar .avatar-bubble { display: none; }
 .leaderboard-row .player-avatar > span { font-size: 20px; }
+/* Crown-only avatar (player has no avatar set) */
+.leaderboard-row .player-avatar.leaderboard-crown {
+  animation: none;
+  transform: scale(0.7);
+}
+.leaderboard-row .player-avatar.leaderboard-crown > span {
+  font-size: 16px;
+  filter: none;
+}
 
 @keyframes avatar-sway { 0%, 100% { transform: rotate(-4deg); } 50% { transform: rotate(4deg); } }
 @keyframes avatar-shake { 0%, 100% { transform: translateX(0) rotate(0); } 15% { transform: translateX(-6px) rotate(-10deg); } 30% { transform: translateX(6px) rotate(10deg); } 45% { transform: translateX(-5px) rotate(-8deg); } 60% { transform: translateX(4px) rotate(6deg); } 75% { transform: translateX(-2px) rotate(-3deg); } }

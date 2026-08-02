@@ -216,12 +216,20 @@ function triggerAvatarAnim(anim) {
   setTimeout(() => el.classList.remove(anim), 800);
 }
 
-function avatarMarkup(rank) {
-  if (!progress.playerAvatar) return "";
-  const color = AVATAR_COLORS[progress.avatarColor] || AVATAR_COLORS[0];
+function avatarMarkup(rank, row) {
+  const avatar = (row && row.player_avatar) || progress.playerAvatar;
+  const color = (row && row.avatar_color != null) ? (row.avatar_color || 0) : (progress.avatarColor || 0);
+  if (!avatar) {
+    const crown = rank === 0 ? "👑" : rank === 1 ? "🥈" : rank === 2 ? "🥉" : "";
+    if (crown) return `<div class="player-avatar leaderboard-crown"><span>${crown}</span></div>`;
+    return "";
+  }
+  const animal = AVATAR_ANIMALS.find(a => a.id === avatar);
+  const emoji = animal ? animal.emoji : "❓";
+  const colorDef = AVATAR_COLORS[color] || AVATAR_COLORS[0];
   const face = getAvatarFace();
   const crown = rank === 0 ? "👑" : rank === 1 ? "🥈" : rank === 2 ? "🥉" : "";
-  return `<div class="player-avatar" style="--avatar-hue:${color.hue}" data-animal="${progress.playerAvatar}"><span>${crown}${getAvatarEmoji()}</span><em class="avatar-bubble">${face}</em></div>`;
+  return `<div class="player-avatar" style="--avatar-hue:${colorDef.hue}" data-animal="${avatar}"><span>${crown}${emoji}</span><em class="avatar-bubble">${face}</em></div>`;
 }
 
 function animatedFriendsMarkup() {
@@ -577,7 +585,7 @@ function leaderboardModal() {
     <div class="celebrate">🏆</div><h2 id="leaderboard-title">家庭全球排行</h2>
     <div class="leaderboard-tabs">${Object.entries(LEADERBOARD_MODES).map(([key, item]) => `<button data-rank-difficulty="${key}" class="${leaderboardDifficulty === key ? "active" : ""}">${item.icon} ${item.label}</button>`).join("")}</div>
     ${!configured ? `<div class="empty-ranking"><strong>尚未連接資料庫</strong><small>設定 Supabase 後，家人的成績會出現在這裡。</small></div>` : leaderboardStatus ? `<div class="empty-ranking"><span class="loading-orbit">☁️</span><small>${escapeHtml(leaderboardStatus)}</small></div>` : leaderboardRows.length ? `<div class="leaderboard-list">${leaderboardRows.map((row, index) => `
-      <div class="leaderboard-row ${row.player_id === progress.playerId ? "mine" : ""}"><b>${index + 1}</b>${avatarMarkup(index)}<span class="leaderboard-player"><strong>${escapeHtml(row.player_name)}</strong><small>${row.stars}⭐・${row.mistakes} 次失誤・${formatTime(row.elapsed_seconds)}</small>${row.taunt ? `<q>${escapeHtml(row.taunt)}</q>` : `<q class="quiet">還沒有留下嗆聲</q>`}</span><em>第 ${row.floor} 層</em></div>`).join("")}</div>` : `<div class="empty-ranking"><strong>還沒有成績</strong><small>完成第一層就能成為榜首！</small></div>`}
+      <div class="leaderboard-row ${row.player_id === progress.playerId ? "mine" : ""}"><b>${index + 1}</b>${avatarMarkup(index, row)}<span class="leaderboard-player"><strong>${escapeHtml(row.player_name)}</strong><small>${row.stars}⭐・${row.mistakes} 次失誤・${formatTime(row.elapsed_seconds)}</small>${row.taunt ? `<q>${escapeHtml(row.taunt)}</q>` : `<q class="quiet">還沒有留下嗆聲</q>`}</span><em>第 ${row.floor} 層</em></div>`).join("")}</div>` : `<div class="empty-ranking"><strong>還沒有成績</strong><small>完成第一層就能成為榜首！</small></div>`}
     ${configured ? `<div class="taunt-editor"><label for="leaderboard-taunt">📣 我的島主宣言</label><div><input id="leaderboard-taunt" maxlength="48" value="${escapeHtml(myRow?.taunt || "")}" placeholder="例如：榜首先借我坐一下！"><button id="save-leaderboard-taunt" ${myRow ? "" : "disabled"}>送出</button></div><small>${escapeHtml(leaderboardTauntStatus || (myRow ? "最多 48 字，所有玩家都看得到" : "完成一局上榜後就能留言"))}</small></div>` : ""}
     <p class="pending-scores">${pendingScoreCount() ? `尚有 ${pendingScoreCount()} 筆離線成績等待同步` : "每位玩家、每個難度只保留最佳成績"}</p>
     <button id="close-leaderboard" class="primary-button">回到遊戲</button>

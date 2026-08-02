@@ -42,7 +42,9 @@ export function buildScore(progress, game, alinMode = false) {
     p_score: Math.max(0, Math.round(score)),
     p_elapsed_seconds: Math.max(0, Math.round(game.elapsed)),
     p_mistakes: Math.max(0, Math.round(game.mistakes)),
-    p_stars: Math.max(1, Math.min(3, Math.round(game.stars)))
+    p_stars: Math.max(1, Math.min(3, Math.round(game.stars))),
+    p_player_avatar: progress.playerAvatar || null,
+    p_avatar_color: progress.avatarColor != null ? progress.avatarColor : 0
   };
 }
 
@@ -86,7 +88,7 @@ export async function fetchLeaderboard(difficulty = "easy") {
   if (!leaderboardConfigured()) throw new Error("排行榜尚未連接資料庫");
   if (!difficulties.has(difficulty)) throw new Error("排行榜難度不正確");
   const query = new URLSearchParams({
-    select: "player_id,player_name,difficulty,floor,score,elapsed_seconds,mistakes,stars,taunt,updated_at",
+    select: "player_id,player_name,difficulty,floor,score,elapsed_seconds,mistakes,stars,taunt,player_avatar,avatar_color,updated_at",
     difficulty: `eq.${difficulty}`,
     order: "floor.desc,score.desc",
     limit: "50"
