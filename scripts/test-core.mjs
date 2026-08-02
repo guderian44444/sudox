@@ -45,8 +45,9 @@ assert(/game-avatar-anchor > \.player-avatar \{[\s\S]*flex-direction:\s*row/.tes
 assert(/\.adventure-status \{[^}]*flex-direction:\s*column[^}]*align-items:\s*flex-start/.test(stylesheet), "desktop adventure status should use the mobile vertical layout");
 assert(appSource.indexOf('<div class="adventure-status">') < appSource.indexOf('${avatarMarkup()}') && appSource.indexOf('${avatarMarkup()}') < appSource.indexOf('<div class="board-stage">'), "game avatar should use the open status area");
 assert(/game-avatar-anchor > \.player-avatar > span \{[\s\S]*font-size:\s*36px/.test(stylesheet) && /game-avatar-anchor \.avatar-bubble \{[\s\S]*font-size:\s*0\.85rem/.test(stylesheet), "game avatar and expression bubble should render larger with text emoji fonts");
-assert(/\.board-buddies \{ top: -24px; left: 50%; right: auto; width: max-content; gap: 5px;/.test(stylesheet), "mobile buddies should be grouped above the board");
+assert(/\.board-buddies \{ position: static; width: max-content; margin: -2px auto 10px; gap: 5px;/.test(stylesheet), "mobile buddies should be grouped in normal flow above the board");
 assert(/\.adventure-status \.game-avatar-anchor \{ position: relative;[^}]*height: 44px[^}]*justify-content: flex-end;/.test(stylesheet), "mobile game avatar should have its own non-overlapping row");
+assert(/\.topbar \{ height: auto; min-height: 48px; flex-wrap: wrap;/.test(stylesheet) && /\.topbar-actions \{ flex: 1 0 100%;[^}]*width: 100%;/.test(stylesheet), "mobile topbar actions should use a separate row");
 assert(/if \(!progress\.playerAvatar\) \{\s*showAvatarPicker = true/.test(appSource), "a new game should require an avatar selection");
 
 function validSolution(solution) {

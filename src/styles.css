@@ -595,11 +595,11 @@ button:focus-visible { outline: 3px solid #4f9dd9; outline-offset: 2px; }
 
 @media (max-width: 680px) {
   .shell { padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left)); }
-  .topbar { height: 48px; }
+  .topbar { height: auto; min-height: 48px; flex-wrap: wrap; align-items: center; row-gap: 6px; }
   .brand { font-size: 20px; }
   .mascot { width: 36px; height: 32px; }
   .wallet span { padding: 8px 10px; font-size: 14px; }
-  .topbar-actions { gap: 5px; }
+  .topbar-actions { flex: 1 0 100%; justify-content: flex-end; gap: 5px; width: 100%; }
   .save-button { padding: 8px 10px; }
   .save-button span { display: none; }
   .hero-card { min-height: 98px; margin: 12px 0 14px; padding: 17px 19px; border-radius: 22px; }
@@ -623,7 +623,7 @@ button:focus-visible { outline: 3px solid #4f9dd9; outline-offset: 2px; }
   .alin-mode small { display: block; }
   .island-card { display: none; }
   .board-card { padding: 12px; border-radius: 20px; box-shadow: 0 10px 25px rgba(103,76,49,.09); }
-  .board-buddies { top: -24px; left: 50%; right: auto; width: max-content; gap: 5px; justify-content: center; transform: translateX(-50%); }
+  .board-buddies { position: static; width: max-content; margin: -2px auto 10px; gap: 5px; justify-content: center; transform: none; }
   .board-buddies span { width: 31px; height: 31px; font-size: 18px; }
   .game-meta { margin-bottom: 10px; }
   .adventure-status { align-items: flex-start; flex-direction: column; }
