@@ -211,8 +211,9 @@ function triggerAvatarAnim(anim) {
 }
 
 function avatarMarkup(rank, row) {
-  const avatar = (row && row.player_avatar) || progress.playerAvatar;
-  const color = (row && row.avatar_color != null) ? (row.avatar_color || 0) : (progress.avatarColor || 0);
+  const hasLeaderboardRow = Boolean(row);
+  const avatar = hasLeaderboardRow ? row.player_avatar : progress.playerAvatar;
+  const color = hasLeaderboardRow ? (row.avatar_color != null ? row.avatar_color : 0) : (progress.avatarColor || 0);
   if (!avatar) {
     const crown = rank === 0 ? "👑" : rank === 1 ? "🥈" : rank === 2 ? "🥉" : "";
     if (crown) return `<div class="player-avatar leaderboard-crown"><span>${crown}</span></div>`;
@@ -643,7 +644,7 @@ function avatarPickerModal() {
       </button>`).join("")}</div>
     ${selectedAnimal ? `<div class="avatar-color-row">${AVATAR_COLORS.map((c, i) => `
       <button data-pick-color="${i}" class="avatar-color-dot ${selectedColor === i ? "selected" : ""}" style="background:${c.bg}" title="${c.name}" aria-label="${c.name}色"></button>`).join("")}</div>` : ""}
-    <button id="close-avatar-picker" class="primary-button">完成</button>
+    <button id="close-avatar-picker" class="primary-button" ${selectedAnimal ? "" : "disabled"}>${selectedAnimal ? "完成" : "請先選擇動物"}</button>
   </section></div>`;
 }
 
@@ -1151,6 +1152,11 @@ function startTimer() {
 
 function startGame() {
   if (game.started || game.completed || game.failed) return;
+  if (!progress.playerAvatar) {
+    showAvatarPicker = true;
+    render();
+    return;
+  }
   game.started = true;
   game.startedAt = Date.now();
   game.equippedCards = [...equippedCards];
@@ -1190,6 +1196,7 @@ document.addEventListener("keydown", (event) => {
 
 if (restoredSession) {
   startTimer();
+  if (!progress.playerAvatar) showAvatarPicker = true;
   render();
 } else newGame("easy");
 

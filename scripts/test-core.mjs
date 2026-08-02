@@ -35,6 +35,9 @@ assert(/player_avatar text/i.test(leaderboardSql) && /avatar_color integer/i.tes
 assert(/p_player_avatar text/i.test(leaderboardSql) && /p_avatar_color integer/i.test(leaderboardSql), "leaderboard RPC should accept avatar parameters");
 assert(/p_player_avatar/.test(leaderboardSource) && /p_avatar_color/.test(leaderboardSource), "score submission should include avatar parameters");
 assert(/a-z_/.test(storeSource) && /Math\.min\(7/.test(storeSource), "avatar persistence should support avatar IDs and all eight colors");
+assert(/hasLeaderboardRow \? row\.player_avatar : progress\.playerAvatar/.test(appSource), "leaderboard rows should use each player's own avatar");
+assert(/grid-template-columns:\s*28px 34px minmax\(0, 1fr\) auto/.test(stylesheet), "leaderboard avatar column should keep a compact proportion");
+assert(/if \(!progress\.playerAvatar\) \{\s*showAvatarPicker = true/.test(appSource), "a new game should require an avatar selection");
 
 function validSolution(solution) {
   const target = "123456789";
