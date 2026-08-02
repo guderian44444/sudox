@@ -89,10 +89,10 @@ button:focus-visible { outline: 3px solid #4f9dd9; outline-offset: 2px; }
 .timer-block small { font-size: 11px; color: #8e7d6c; white-space: nowrap; font-style: normal; }
 .timer-block i { font-style: normal; color: #7d63a8; }
 .difficulty-pill { width: max-content; padding: 7px 11px; border-radius: 999px; color: #317a64; background: var(--mint-light); font-size: 13px; font-weight: 800; }
-.adventure-status { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+.adventure-status { display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-start; gap: 10px; margin-bottom: 10px; }
 .farm-badge { padding: 4px 8px; border-radius: 999px; background: #fff1cf; color: #8a6831; font-size: 10px; font-weight: 900; white-space: nowrap; }
 .health { flex: 0 0 auto; font-size: 15px; font-weight: 900; white-space: nowrap; }
-.goal-chips { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 4px; }
+.goal-chips { display: flex; justify-content: flex-start; flex-wrap: wrap; gap: 4px; }
 .goal-chips span { padding: 4px 7px; border-radius: 999px; background: #f4eee7; color: #87796a; font-size: 10px; font-weight: 800; }
 .goal-chips span.done { background: #e4f6ed; color: #338064; text-decoration: line-through; }
 .run-milestone-badge { padding: 4px 7px; flex: 0 0 auto; border-radius: 999px; background: #fff1cf; color: #8a6831; font-size: 10px; font-weight: 900; white-space: nowrap; }
