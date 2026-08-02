@@ -37,6 +37,7 @@ assert(/p_player_avatar/.test(leaderboardSource) && /p_avatar_color/.test(leader
 assert(/update_leaderboard_avatar/.test(leaderboardSource) && /update_leaderboard_avatar/.test(leaderboardSql), "avatar changes should sync to existing leaderboard rows");
 assert(/a-z_/.test(storeSource) && /Math\.min\(7/.test(storeSource), "avatar persistence should support avatar IDs and all eight colors");
 assert(/hasLeaderboardRow \? row\.player_avatar : progress\.playerAvatar/.test(appSource), "leaderboard rows should use each player's own avatar");
+assert(/leaderboard-placeholder/.test(appSource) && /avatar-placeholder-mark/.test(appSource), "leaderboard rows without avatars should keep a question-mark placeholder");
 assert(/grid-template-columns:\s*28px 34px minmax\(0, 1fr\) auto/.test(stylesheet), "leaderboard avatar column should keep a compact proportion");
 assert(/if \(!progress\.playerAvatar\) \{\s*showAvatarPicker = true/.test(appSource), "a new game should require an avatar selection");
 

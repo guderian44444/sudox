@@ -486,14 +486,28 @@ button:focus-visible { outline: 3px solid #4f9dd9; outline-offset: 2px; }
 }
 .leaderboard-row .player-avatar .avatar-bubble { display: none; }
 .leaderboard-row .player-avatar > span { font-size: 22px; }
-/* Crown-only avatar (player has no avatar set) */
-.leaderboard-row .player-avatar.leaderboard-crown {
+/* Placeholder avatar (player has no avatar set) */
+.leaderboard-row .player-avatar.leaderboard-placeholder {
   animation: none;
   transform: none;
 }
-.leaderboard-row .player-avatar.leaderboard-crown > span {
-  font-size: 18px;
+.leaderboard-row .player-avatar.leaderboard-placeholder > span {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  font-size: 14px;
   filter: none;
+}
+.leaderboard-row .player-avatar.leaderboard-placeholder > span > b {
+  font-size: 16px;
+  line-height: 1;
+}
+.leaderboard-row .player-avatar .avatar-placeholder-mark {
+  margin: 0;
+  color: #8a7e74;
+  font-size: 14px;
+  font-weight: 900;
+  line-height: 1;
 }
 
 @keyframes avatar-sway { 0%, 100% { transform: rotate(-4deg); } 50% { transform: rotate(4deg); } }

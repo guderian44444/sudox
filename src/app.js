@@ -216,8 +216,7 @@ function avatarMarkup(rank, row) {
   const color = hasLeaderboardRow ? (row.avatar_color != null ? row.avatar_color : 0) : (progress.avatarColor || 0);
   if (!avatar) {
     const crown = rank === 0 ? "👑" : rank === 1 ? "🥈" : rank === 2 ? "🥉" : "";
-    if (crown) return `<div class="player-avatar leaderboard-crown"><span>${crown}</span></div>`;
-    return "";
+    return `<div class="player-avatar leaderboard-placeholder" aria-label="尚未選擇頭像"><span>${crown ? `<b>${crown}</b>` : ""}<small class="avatar-placeholder-mark">❔</small></span></div>`;
   }
   const animal = AVATAR_ANIMALS.find(a => a.id === avatar);
   const emoji = animal ? animal.emoji : "❓";
