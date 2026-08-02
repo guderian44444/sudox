@@ -200,12 +200,6 @@ function getAvatarEmoji() {
   return animal ? animal.emoji : "❓";
 }
 
-function setAvatarFace(face) {
-  clearTimeout(avatarFaceTimer);
-  avatarFace = face;
-  avatarFaceTimer = setTimeout(() => { avatarFace = "idle"; }, 1500);
-}
-
 function triggerAvatarAnim(anim) {
   const el = document.querySelector(".player-avatar");
   if (!el) return;
