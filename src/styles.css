@@ -453,6 +453,12 @@ button:focus-visible { outline: 3px solid #4f9dd9; outline-offset: 2px; }
 }
 .game-avatar-anchor > .player-avatar {
   position: static;
+  width: 100%;
+  box-sizing: border-box;
+  flex-direction: row;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 4px;
   top: auto;
   right: auto;
 }
@@ -474,14 +480,14 @@ button:focus-visible { outline: 3px solid #4f9dd9; outline-offset: 2px; }
   color: #333;
 }
 .game-avatar-anchor .avatar-bubble {
-  top: -30px;
-  right: 0;
-  left: auto;
+  position: static;
+  flex: 0 1 auto;
   box-sizing: border-box;
   width: max-content;
-  max-width: calc(100% - 8px);
-  white-space: normal;
-  overflow-wrap: anywhere;
+  max-width: calc(100% - 38px);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   text-align: center;
 }
 .player-avatar .avatar-bubble::after {
@@ -496,8 +502,15 @@ button:focus-visible { outline: 3px solid #4f9dd9; outline-offset: 2px; }
   border-top: 6px solid #fff;
 }
 .game-avatar-anchor .avatar-bubble::after {
-  right: 10px;
-  left: auto;
+  top: 50%;
+  right: auto;
+  bottom: auto;
+  left: -7px;
+  transform: translateY(-50%);
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+  border-right: 6px solid #fff;
+  border-left: 0;
 }
 .player-avatar.shake { animation: avatar-shake 0.4s ease; }
 .player-avatar.jump { animation: avatar-jump 0.6s ease; }
