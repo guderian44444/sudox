@@ -1,5 +1,17 @@
 import { createGame, DIFFICULTIES, relatedCells } from "./game/sudoku.js";
-import { activateAutomaticTreasures, ADVENTURE_RULES, applyHintTreasure, applyImmediateTreasure, calculateStars, completedSudokuUnits, drawTreasureCards, newlyCompletedSudokuUnits, strongestEquippedRevive, sudokuUnitCells, treasureClaimsForFloor, TREASURE_AUTO_EFFECTS, TREASURE_CARDS } from "./game/adventure.js";
+import { activateAutomaticTreasures, ADVENTURE_RULES, applyHintTreasure, applyImmediateTreasure, completedSudokuUnits, strongestEquippedRevive, sudokuUnitCells, TREASURE_AUTO_EFFECTS, TREASURE_CARDS } from "./game/adventure.js";
+import {
+  applyAdventureSetup,
+  applyHintFill,
+  applyPlayerDigit,
+  claimRewardCard,
+  clearEditableCell,
+  collectBoardProgressEvents,
+  collectNewMilestones,
+  removeRelatedNotes,
+  RUN_MILESTONES,
+  settleCompletedGame
+} from "./game/flow.js";
 import { ACHIEVEMENTS, achievementValue, recordAchievementGame } from "./game/achievements.js";
 import { chooseFriendPair, chooseGardenEel } from "./game/friends.js";
 import { cloudConfigured, loadCloudPin, loadCloudProgress, normalizePlayerName, renameCloudPlayer, saveCloudPin, saveCloudProgress, validCloudPin } from "./state/cloud.js";
@@ -57,15 +69,6 @@ const LEADERBOARD_MODES = Object.freeze({
   hard: { icon: DIFFICULTIES.hard.icon, label: DIFFICULTIES.hard.label },
   alin: { icon: "🌈", label: "阿霖" }
 });
-const RUN_MILESTONES = Object.freeze([
-  { id: "streak15", icon: "🔥", name: "靈感連線", detail: "連續答對 15 格", test: (current) => current.correctStreak >= 15 },
-  { id: "filled60", icon: "🧩", name: "拼圖成形", detail: "本局盤面填滿 60 格", test: (current) => current.values.filter(Boolean).length >= 60 },
-  { id: "rows3", icon: "↔️", name: "橫行小隊", detail: "完成 3 條橫行", test: (current) => current.completedUnits.rows.length >= 3 },
-  { id: "columns3", icon: "↕️", name: "直列登山隊", detail: "完成 3 條縱列", test: (current) => current.completedUnits.columns.length >= 3 },
-  { id: "boxes3", icon: "🏘️", name: "九宮守護者", detail: "完成 3 個九宮格", test: (current) => current.completedUnits.boxes.length >= 3 },
-  { id: "units8", icon: "🏝️", name: "半島點燈", detail: "累計完成 8 個行、列或宮", test: (current) => current.completedUnits.rows.length + current.completedUnits.columns.length + current.completedUnits.boxes.length >= 8 },
-  { id: "lastNine", icon: "🚩", name: "最後衝刺", detail: "盤面只剩最後 9 格", test: (current) => current.values.filter(Boolean).length >= 72 }
-]);
 const AVATAR_ANIMALS = Object.freeze([
   { id: "cat", emoji: "🐱", name: "貓" },
   { id: "dog", emoji: "🐶", name: "狗" },
@@ -374,29 +377,8 @@ function showFinaleCelebration() {
 }
 
 function setupAdventure() {
-  const rules = ADVENTURE_RULES[game.difficulty];
   equippedCards = equippedCards.filter((cardId) => progress.inventory[cardId] > 0).slice(0, 2);
-  Object.assign(game, {
-    maxHealth: rules.maxHealth,
-    health: rules.maxHealth,
-    shields: 0,
-    failed: false,
-    actions: 0,
-    correctStreak: 0,
-    healGoals: { streak: false, row: false, box: false },
-    completedUnits: { rows: [], columns: [], boxes: [] },
-    milestones: [],
-    hintsUsed: 0,
-    frozenSeconds: 0,
-    xpMultiplier: 1,
-    extraCardClaims: 0,
-    equippedCards: [...equippedCards],
-    usedCards: [],
-    cardChoices: [],
-    claimedCards: [],
-    remainingClaims: 0,
-    started: false
-  });
+  applyAdventureSetup(game, equippedCards);
   lastWaveVariants = { row: null, column: null, box: null };
 }
 
@@ -1015,139 +997,39 @@ function toggleEquipCard(cardId) {
   render();
 }
 
-function enterNumber(number) {
-  const index = game.selected;
-  if (!game.started || game.completed || game.failed || game.puzzle[index]) return;
-  if (noteMode) {
-    const notes = new Set(game.notes[index]);
-    notes.has(number) ? notes.delete(number) : notes.add(number);
-    game.notes[index] = [...notes];
-  } else if (game.solution[index] !== number) {
-    game.actions += 1;
-    game.mistakes += 1;
-    game.correctStreak = 0;
-    let blockedByShield = false;
-    if (!alinMode) {
-      if (game.shields) {
-        game.shields -= 1;
-        blockedByShield = true;
-      }
-      else game.health -= 1;
-      if (game.health <= 0) {
-        game.failed = true;
-        clearInterval(timerId);
-      }
-    }
-    if (blockedByShield) showGameEffect("🛡️", "鏘！成功格擋", "護盾替你擋住這次錯誤", "shield");
-    else showGameEffect("friends", game.failed ? "體力用完，雙雙昏倒！" : "猜錯了，雙雙昏倒！", alinMode ? "躺一下再繼續，阿霖模式不會失敗" : game.failed ? "休息一下，可以使用寶物或金幣復活" : "好朋友們休息一下，再陪你試一次！", "mistake", game.failed ? "failure" : "");
-    document.body.classList.add("shake");
-    setTimeout(() => document.body.classList.remove("shake"), 320);
-    triggerAvatarAnim("shake");
-    if (game.failed) {
-      setAvatarFace("shocked", 3000);
-    } else {
-      setAvatarFace("sad", 2000);
-    }
-  } else {
-    game.actions += 1;
-    game.correctStreak += 1;
-    game.values[index] = number;
-    game.notes[index] = [];
-    removeRelatedNotes(index, number);
-    playSound("correct");
-    const newlyCompleted = checkHealGoals();
-    checkCompletion();
-    render();
-    if (!game.completed && !newlyCompleted.rows.length && !newlyCompleted.columns.length && !newlyCompleted.boxes.length) showGardenEel();
-    return;
-  }
-  render();
-}
-
-function removeRelatedNotes(index, number) {
-  relatedCells(index).forEach((cell) => { game.notes[cell] = game.notes[cell].filter((note) => note !== number); });
-}
-
-function clearCell() {
-  if (!game.started || game.completed || game.failed) return;
-  if (!game.puzzle[game.selected]) {
-    game.values[game.selected] = 0;
-    game.notes[game.selected] = [];
-    render();
-  }
-}
-
-function healOrShield() {
-  if (alinMode) return "阿霖模式目標達成";
-  if (game.health < game.maxHealth) {
-    game.health += 1;
-    return "回復 1 顆心";
-  }
-  game.shields += 1;
-  return "獲得 1 層護盾";
-}
-
-function completeHealGoal(goal, label) {
-  game.healGoals[goal] = true;
-  const reward = healOrShield();
-  showCelebration("🎉", `恭喜完成「${label}」！`, reward);
-  showGameEffect("friends", "扭腰擺臀慶祝！", `${label}・${reward}`, "success");
-  setAvatarFace("excited", 2500);
-  triggerAvatarAnim("jump");
-}
-
-function celebrateCompletedUnit(type, unitIndex) {
-  const goal = type === "row" ? "row" : type === "box" ? "box" : null;
-  const label = type === "row" ? `第 ${unitIndex + 1} 行` : type === "column" ? `第 ${unitIndex + 1} 直列` : `第 ${unitIndex + 1} 宮`;
-  const firstReward = goal && !game.healGoals[goal];
+function presentBoardProgressEvents(events) {
   const danceNames = {
     row: ["好朋友側滑、拍手跳", "好朋友扭腰、小碎步"],
     column: ["好朋友向上跳、伸懶腰", "好朋友蹲跳、衝天舞"],
     box: ["好朋友反方向繞圈", "好朋友抖肩、旋轉舞"]
   };
-  const variant = queueCellWave(type, unitIndex);
-  let detail = `${label}完成・${danceNames[type][variant]}！`;
-  if (firstReward) {
-    game.healGoals[goal] = true;
-    const reward = healOrShield();
-    detail = `${detail}・${reward}`;
-    showCelebration("🎉", `首次完成${type === "row" ? "一行" : "一宮"}！`, reward);
-  }
-  showGameEffect("friends", `${label}完成，換舞步！`, detail, "success", `${type}-${variant}`);
-  triggerAvatarAnim("jump");
-  const totalCompleted = game.completedUnits.rows.length + game.completedUnits.columns.length + game.completedUnits.boxes.length;
-  if (totalCompleted >= 18) setAvatarFace("excited", 3000);
-  else if (totalCompleted >= 10) setAvatarFace("proud", 2500);
-  else if (firstReward) setAvatarFace("love", 2500);
-  else setAvatarFace("happy", 2000);
+  events.forEach((event) => {
+    if (event.kind === "healGoal") {
+      showCelebration("🎉", `恭喜完成「${event.label}」！`, event.reward);
+      showGameEffect("friends", "扭腰擺臀慶祝！", `${event.label}・${event.reward}`, "success");
+      setAvatarFace("excited", 2500);
+      triggerAvatarAnim("jump");
+      return;
+    }
+    if (event.kind !== "unit") return;
+    const variant = queueCellWave(event.type, event.unitIndex);
+    let detail = `${event.label}完成・${danceNames[event.type][variant]}！`;
+    if (event.firstReward) {
+      detail = `${detail}・${event.reward}`;
+      showCelebration("🎉", `首次完成${event.type === "row" ? "一行" : "一宮"}！`, event.reward);
+    }
+    showGameEffect("friends", `${event.label}完成，換舞步！`, detail, "success", `${event.type}-${variant}`);
+    triggerAvatarAnim("jump");
+    const totalCompleted = game.completedUnits.rows.length + game.completedUnits.columns.length + game.completedUnits.boxes.length;
+    if (totalCompleted >= 18) setAvatarFace("excited", 3000);
+    else if (totalCompleted >= 10) setAvatarFace("proud", 2500);
+    else if (event.firstReward) setAvatarFace("love", 2500);
+    else setAvatarFace("happy", 2000);
+  });
 }
 
-function checkHealGoals() {
-  if (!game.healGoals.streak && game.correctStreak >= 8) completeHealGoal("streak", "連對 8 格");
-  if (!game.completedUnits) game.completedUnits = { rows: [], columns: [], boxes: [] };
-  else if (!Array.isArray(game.completedUnits.columns)) game.completedUnits.columns = completedSudokuUnits(game.values).columns;
-  const newlyCompleted = newlyCompletedSudokuUnits(game.values, game.completedUnits);
-  newlyCompleted.rows.forEach((row) => {
-    game.completedUnits.rows.push(row);
-    celebrateCompletedUnit("row", row);
-  });
-  newlyCompleted.columns.forEach((column) => {
-    game.completedUnits.columns.push(column);
-    celebrateCompletedUnit("column", column);
-  });
-  newlyCompleted.boxes.forEach((box) => {
-    game.completedUnits.boxes.push(box);
-    celebrateCompletedUnit("box", box);
-  });
-  checkRunMilestones();
-  return newlyCompleted;
-}
-
-function checkRunMilestones() {
-  game.milestones ||= [];
-  RUN_MILESTONES.forEach((milestone) => {
-    if (game.milestones.includes(milestone.id) || !milestone.test(game)) return;
-    game.milestones.push(milestone.id);
+function presentNewMilestones(milestones) {
+  milestones.forEach((milestone) => {
     progress = { ...progress, coins: progress.coins + 2 };
     saveProgress(progress);
     showCelebration(milestone.icon, `本局里程碑・${milestone.name}`, `${milestone.detail}・🪙 +2`);
@@ -1157,17 +1039,53 @@ function checkRunMilestones() {
   });
 }
 
+function afterCorrectFill() {
+  const { newlyCompleted, events } = collectBoardProgressEvents(game, alinMode);
+  presentBoardProgressEvents(events);
+  presentNewMilestones(collectNewMilestones(game));
+  checkCompletion();
+  return newlyCompleted;
+}
+
+function enterNumber(number) {
+  const result = applyPlayerDigit(game, number, { noteMode, alinMode });
+  if (result.type === "noop") return;
+
+  if (result.type === "mistake") {
+    if (result.failed) clearInterval(timerId);
+    if (result.blockedByShield) showGameEffect("🛡️", "鏘！成功格擋", "護盾替你擋住這次錯誤", "shield");
+    else showGameEffect("friends", game.failed ? "體力用完，雙雙昏倒！" : "猜錯了，雙雙昏倒！", alinMode ? "躺一下再繼續，阿霖模式不會失敗" : game.failed ? "休息一下，可以使用寶物或金幣復活" : "好朋友們休息一下，再陪你試一次！", "mistake", game.failed ? "failure" : "");
+    document.body.classList.add("shake");
+    setTimeout(() => document.body.classList.remove("shake"), 320);
+    triggerAvatarAnim("shake");
+    setAvatarFace(game.failed ? "shocked" : "sad", game.failed ? 3000 : 2000);
+    render();
+    return;
+  }
+
+  if (result.type === "correct") {
+    playSound("correct");
+    const newlyCompleted = afterCorrectFill();
+    render();
+    if (!game.completed && !newlyCompleted.rows.length && !newlyCompleted.columns.length && !newlyCompleted.boxes.length) showGardenEel();
+    return;
+  }
+
+  render();
+}
+
+function clearCell() {
+  if (!clearEditableCell(game)) return;
+  render();
+}
+
 function useHint() {
   const cost = currentHintCost();
   if (!game.started || game.failed || progress.coins < cost || game.puzzle[game.selected] || game.values[game.selected]) return;
   if (cost) progress = spendCoins(progress, cost);
-  game.actions += 1;
-  game.hintsUsed += 1;
-  game.values[game.selected] = game.solution[game.selected];
-  removeRelatedNotes(game.selected, game.values[game.selected]);
+  if (!applyHintFill(game, game.selected)) return;
   setAvatarFace("thinking", 1500);
-  checkHealGoals();
-  checkCompletion();
+  afterCorrectFill();
   render();
 }
 
@@ -1182,11 +1100,10 @@ function useCard(cardId) {
     game.actions += 1;
     game.hintsUsed += targets.length;
     targets.forEach((target) => {
-      removeRelatedNotes(target, game.values[target]);
+      removeRelatedNotes(game, target, game.values[target]);
     });
     resultDetail = `已填入 ${targets.length} 格正確答案`;
-    checkHealGoals();
-    checkCompletion();
+    afterCorrectFill();
   } else if (card.effect === "revive") return;
   else if (!applyImmediateTreasure(game, card, { alinMode, index })) return;
   progress = consumeCard(progress, cardId);
@@ -1219,32 +1136,23 @@ function resumeAfterRevive(health = 2, source = null) {
 }
 
 function claimCard(cardId) {
-  if (!game.completed || !game.remainingClaims || game.claimedCards.includes(cardId) || !game.cardChoices.includes(cardId)) return;
+  if (!claimRewardCard(game, cardId)) return;
   progress = addCard(progress, cardId);
-  game.claimedCards.push(cardId);
-  game.remainingClaims -= 1;
   render();
   const card = TREASURE_CARDS[cardId];
   showCelebration(card.icon, `恭喜獲得「${card.name}」！`, "已放進寶物背包");
 }
 
 function checkCompletion() {
-  if (game.completed || !game.values.every((value, index) => value === game.solution[index])) return;
-  game.completed = true;
+  const settlement = settleCompletedGame(game, { alinMode });
+  if (!settlement) return;
   clearInterval(timerId);
   showFinaleCelebration();
-  const reward = DIFFICULTIES[game.difficulty];
-  game.stars = calculateStars(game);
-  const farmMultiplier = game.floor > 1 ? 0.55 : 1;
-  game.xpReward = Math.max(10, Math.round(reward.xp * game.xpMultiplier * farmMultiplier));
-  game.timeBonus = game.elapsed <= reward.bonusTime ? reward.bonusCoins : 0;
-  game.remainingClaims = treasureClaimsForFloor(game.floor, game.extraCardClaims);
-  game.cardChoices = game.remainingClaims ? drawTreasureCards(game.difficulty, game.stars, Math.max(3, game.remainingClaims)) : [];
-  progress = rewardProgress(progress, game.xpReward, game.timeBonus, game.stars, game.difficulty);
+  progress = rewardProgress(progress, settlement.xpReward, settlement.timeBonus, settlement.stars, game.difficulty);
   const achievementResult = recordAchievementGame(progress, {
-    perfect: game.mistakes === 0 && game.hintsUsed === 0,
-    speed: game.timeBonus > 0,
-    alin: alinMode
+    perfect: settlement.perfect,
+    speed: settlement.speed,
+    alin: settlement.alin
   });
   progress = achievementResult.progress;
   saveProgress(progress);

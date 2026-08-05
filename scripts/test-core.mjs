@@ -1,6 +1,14 @@
 import { readFileSync } from "node:fs";
 import { countSolutions, createGame, DIFFICULTIES, generatePuzzle, isDifficultyPlayable, PLAYABLE_DIFFICULTIES, PUZZLES, relatedCells, solveSudoku } from "../src/game/sudoku.js";
 import { activateAutomaticTreasures, ADVENTURE_RULES, applyHintTreasure, applyImmediateTreasure, candidatesFor, completedSudokuUnits, drawTreasureCards, newlyCompletedSudokuUnits, strongestEquippedRevive, sudokuUnitCells, treasureClaimsForFloor, treasurePool, TREASURE_AUTO_EFFECTS, TREASURE_CARDS, TREASURE_EFFECTS } from "../src/game/adventure.js";
+import {
+  applyAdventureSetup,
+  applyPlayerDigit,
+  collectBoardProgressEvents,
+  collectNewMilestones,
+  RUN_MILESTONES,
+  settleCompletedGame
+} from "../src/game/flow.js";
 import { ACHIEVEMENTS, achievementValue, recordAchievementGame } from "../src/game/achievements.js";
 import { chooseFriendPair, chooseGardenEel, FRIEND_ROSTER, friendPairKey, GARDEN_EEL_VARIANTS } from "../src/game/friends.js";
 import { normalizePlayerName, validCloudPin } from "../src/state/cloud.js";
@@ -58,6 +66,9 @@ assert(/\.topbar \{ height: auto; min-height: 48px; flex-wrap: wrap;/.test(style
 assert(/if \(!progress\.playerAvatar\) \{\s*showAvatarPicker = true/.test(appSource), "a new game should require an avatar selection");
 assert(appSource.indexOf('<div class="number-pad"') < appSource.indexOf('<div class="tools">'), "number pad should sit immediately before the tool buttons");
 assert(/\.notes i \{[^}]*font-size:\s*clamp\(7px, 1\.2vw, 10px\)/.test(stylesheet) && /\.notes i \{ font-size: clamp\(8px, 2\.5vw, 10px\); \}/.test(stylesheet), "note digits should be larger on desktop and mobile");
+assert(/from "\.\/game\/flow\.js"/.test(appSource) && /applyPlayerDigit|settleCompletedGame/.test(appSource), "app 應透過 flow 模組處理填格與完局規則");
+assert(/src\/game\/flow\.js/.test(readFileSync(new URL("../sw.js", import.meta.url), "utf8")), "Service Worker 應快取 flow 模組");
+assert(RUN_MILESTONES.length >= 5, "本局里程碑規則應集中在 flow 模組");
 assert(PLAYABLE_DIFFICULTIES.join(",") === "easy,medium,hard", "三種難度皆應列為可遊玩");
 assert(isDifficultyPlayable("easy") && isDifficultyPlayable("medium") && isDifficultyPlayable("hard"), "輕鬆／動腦／高手從一開始即可遊玩");
 assert(!isDifficultyPlayable("expert"), "未知難度不可標記為可遊玩");
@@ -279,6 +290,43 @@ assert(!("unlockedDifficulty" in strippedUnlock.progress), "載入舊存檔應�
 const afterRewards = rewardProgress(strippedUnlock.progress, 35, 0, 1, "hard");
 assert(afterRewards.completedGames === 1 && !("unlockedDifficulty" in afterRewards), "完賽獎勵不應再建立難度解鎖狀態");
 assert(afterRewards.floors.hard >= 2, "高手難度從第一局即可推進樓層");
+
+const flowGame = createGame("easy");
+applyAdventureSetup(flowGame, []);
+flowGame.started = true;
+flowGame.floor = 1;
+flowGame.health = 2;
+flowGame.shields = 1;
+const emptyCell = flowGame.values.findIndex((value, index) => !value && !flowGame.puzzle[index]);
+flowGame.selected = emptyCell;
+const wrongDigit = [1, 2, 3, 4, 5, 6, 7, 8, 9].find((digit) => digit !== flowGame.solution[emptyCell]);
+const mistake = applyPlayerDigit(flowGame, wrongDigit, { alinMode: false });
+assert(mistake.type === "mistake" && mistake.blockedByShield && flowGame.health === 2 && flowGame.shields === 0, "錯誤答案應先消耗護盾");
+const secondMistake = applyPlayerDigit(flowGame, wrongDigit, { alinMode: false });
+assert(secondMistake.type === "mistake" && !secondMistake.blockedByShield && flowGame.health === 1, "無護盾時錯誤應扣血");
+const correct = applyPlayerDigit(flowGame, flowGame.solution[emptyCell], { alinMode: false });
+assert(correct.type === "correct" && flowGame.values[emptyCell] === flowGame.solution[emptyCell], "正確答案應寫入盤面");
+flowGame.correctStreak = 8;
+const progressEvents = collectBoardProgressEvents(flowGame, false);
+assert(progressEvents.events.some((event) => event.kind === "healGoal" && event.goal === "streak"), "連對 8 格應產生回血事件");
+assert(flowGame.healGoals.streak === true, "連對目標標記應由 flow 更新");
+flowGame.values = [...flowGame.solution];
+flowGame.elapsed = 30;
+flowGame.mistakes = 0;
+flowGame.hintsUsed = 0;
+flowGame.xpMultiplier = 1;
+const settlement = settleCompletedGame(flowGame, { alinMode: false });
+assert(settlement && settlement.stars === 3 && settlement.xpReward >= 10 && flowGame.completed, "完局結算應計算星級與 XP");
+assert(settleCompletedGame(flowGame, { alinMode: false }) === null, "已完局不可重複結算");
+flowGame.completed = false;
+flowGame.values = [...flowGame.solution];
+flowGame.values[emptyCell] = 0;
+flowGame.completedUnits = completedSudokuUnits(flowGame.values);
+flowGame.milestones = [];
+flowGame.correctStreak = 15;
+const milestones = collectNewMilestones(flowGame);
+assert(milestones.some((item) => item.id === "streak15"), "里程碑規則應可獨立測試");
+
 assert(validCloudPin("0428") && !validCloudPin("123") && !validCloudPin("12a4"), "家庭 PIN 必須是 4 位數字");
 assert(normalizePlayerName("  新阿霖\n") === "新阿霖" && normalizePlayerName("島".repeat(20)).length === 16, "雲端玩家名稱應清理控制字元並限制為 16 字");
 assert(leaderboardConfigured(), "Supabase 專案設定後排行榜應啟用雲端模式");
