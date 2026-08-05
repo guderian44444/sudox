@@ -1,8 +1,9 @@
 /**
  * Pure-ish run-loop rules for a single adventure game.
  * Mutates the game object and returns structured events for the UI layer.
+ * Also owns the full runtime game factory + session normalization (P2).
  */
-import { DIFFICULTIES, relatedCells } from "./sudoku.js";
+import { createGame, DIFFICULTIES, relatedCells } from "./sudoku.js";
 import {
   ADVENTURE_RULES,
   calculateStars,
@@ -11,6 +12,8 @@ import {
   newlyCompletedSudokuUnits,
   treasureClaimsForFloor
 } from "./adventure.js";
+
+const DIFFICULTY_IDS = new Set(Object.keys(DIFFICULTIES));
 
 export const RUN_MILESTONES = Object.freeze([
   { id: "streak15", icon: "🔥", name: "靈感連線", detail: "連續答對 15 格", test: (current) => current.correctStreak >= 15 },
@@ -28,11 +31,87 @@ export const RUN_MILESTONES = Object.freeze([
   { id: "lastNine", icon: "🚩", name: "最後衝刺", detail: "盤面只剩最後 9 格", test: (current) => current.values.filter(Boolean).length >= 72 }
 ]);
 
+const MILESTONE_IDS = new Set(RUN_MILESTONES.map((item) => item.id));
+
 export const UNIT_LABELS = Object.freeze({
   row: (unitIndex) => `第 ${unitIndex + 1} 行`,
   column: (unitIndex) => `第 ${unitIndex + 1} 直列`,
   box: (unitIndex) => `第 ${unitIndex + 1} 宮`
 });
+
+function clampInt(value, min, max, fallback) {
+  const number = Math.floor(Number(value));
+  if (!Number.isFinite(number)) return fallback;
+  return Math.min(max, Math.max(min, number));
+}
+
+function validGrid(grid, allowZero) {
+  return Array.isArray(grid)
+    && grid.length === 81
+    && grid.every((value) => Number.isInteger(value) && value >= (allowZero ? 0 : 1) && value <= 9);
+}
+
+function validNotes(notes) {
+  return Array.isArray(notes)
+    && notes.length === 81
+    && notes.every((cell) => Array.isArray(cell)
+      && cell.length <= 9
+      && cell.every((note) => Number.isInteger(note) && note >= 1 && note <= 9));
+}
+
+function normalizeCardIds(list) {
+  if (!Array.isArray(list)) return [];
+  return [...new Set(list.filter((id) => typeof id === "string" && /^[a-zA-Z][a-zA-Z0-9]{0,40}$/.test(id)))];
+}
+
+function normalizeHealGoals(goals = {}) {
+  return {
+    streak: Boolean(goals?.streak),
+    row: Boolean(goals?.row),
+    box: Boolean(goals?.box)
+  };
+}
+
+function normalizeUnitIndexList(list) {
+  if (!Array.isArray(list)) return null;
+  return [...new Set(list.filter((index) => Number.isInteger(index) && index >= 0 && index <= 8))];
+}
+
+function normalizeCompletedUnits(units, values) {
+  const actual = completedSudokuUnits(values);
+  const pick = (key, claimed) => {
+    if (!claimed) return [...actual[key]];
+    return claimed.filter((index) => actual[key].includes(index));
+  };
+  return {
+    rows: pick("rows", normalizeUnitIndexList(units?.rows)),
+    columns: pick("columns", normalizeUnitIndexList(units?.columns)),
+    boxes: pick("boxes", normalizeUnitIndexList(units?.boxes))
+  };
+}
+
+function normalizeSelected(rawSelected, puzzle, values) {
+  if (Number.isInteger(rawSelected) && rawSelected >= 0 && rawSelected < 81 && !puzzle[rawSelected]) {
+    return rawSelected;
+  }
+  const empty = values.findIndex((value, index) => !puzzle[index] && !value);
+  if (empty >= 0) return empty;
+  const anyEditable = puzzle.findIndex((value) => value === 0);
+  return anyEditable >= 0 ? anyEditable : 0;
+}
+
+function boardsConsistent(puzzle, solution, values) {
+  for (let index = 0; index < 81; index += 1) {
+    if (puzzle[index] !== 0 && puzzle[index] !== solution[index]) return false;
+    if (puzzle[index] !== 0 && values[index] !== puzzle[index]) return false;
+    if (values[index] !== 0 && values[index] !== solution[index] && puzzle[index] === 0) {
+      // Player may have wrong values? In this game wrong answers don't write values.
+      // So any non-zero editable cell must match solution.
+      return false;
+    }
+  }
+  return true;
+}
 
 export function createAdventureFields(difficulty, equippedCards = []) {
   const rules = ADVENTURE_RULES[difficulty] || ADVENTURE_RULES.easy;
@@ -50,7 +129,7 @@ export function createAdventureFields(difficulty, equippedCards = []) {
     frozenSeconds: 0,
     xpMultiplier: 1,
     extraCardClaims: 0,
-    equippedCards: [...equippedCards],
+    equippedCards: normalizeCardIds(equippedCards).slice(0, 2),
     usedCards: [],
     cardChoices: [],
     claimedCards: [],
@@ -59,8 +138,125 @@ export function createAdventureFields(difficulty, equippedCards = []) {
   };
 }
 
+/**
+ * Build a full playable adventure game in one step (board + adventure + floor).
+ */
+export function createAdventureGame({
+  difficulty = "easy",
+  floor = 1,
+  equippedCards = []
+} = {}) {
+  const safeDifficulty = DIFFICULTY_IDS.has(difficulty) ? difficulty : "easy";
+  const base = createGame(safeDifficulty);
+  return {
+    ...base,
+    ...createAdventureFields(safeDifficulty, equippedCards),
+    floor: clampInt(floor, 1, 1000000, 1)
+  };
+}
+
+/**
+ * Normalize a raw/partial game (session restore, import). Returns null if unusable.
+ * @param {object} raw
+ * @param {{ allowTerminal?: boolean }} [options] allowTerminal keeps completed/failed games (default false for playable sessions)
+ */
+export function normalizeRuntimeGame(raw, { allowTerminal = false } = {}) {
+  if (!raw || typeof raw !== "object") return null;
+  const difficulty = DIFFICULTY_IDS.has(raw.difficulty) ? raw.difficulty : null;
+  if (!difficulty) return null;
+  if (!validGrid(raw.puzzle, true) || !validGrid(raw.solution, false) || !validGrid(raw.values, true) || !validNotes(raw.notes)) {
+    return null;
+  }
+  if (!boardsConsistent(raw.puzzle, raw.solution, raw.values)) return null;
+
+  const rules = ADVENTURE_RULES[difficulty] || ADVENTURE_RULES.easy;
+  const maxHealth = rules.maxHealth;
+  const defaults = createAdventureFields(difficulty, raw.equippedCards);
+  const completed = Boolean(raw.completed);
+  const failed = Boolean(raw.failed);
+  if (!allowTerminal && (completed || failed)) return null;
+
+  const health = clampInt(raw.health, 0, maxHealth, failed ? 0 : maxHealth);
+  const game = {
+    difficulty,
+    puzzle: [...raw.puzzle],
+    solution: [...raw.solution],
+    values: [...raw.values],
+    notes: raw.notes.map((cell) => [...new Set(cell)].filter((note) => note >= 1 && note <= 9).sort((a, b) => a - b)),
+    selected: normalizeSelected(raw.selected, raw.puzzle, raw.values),
+    mistakes: clampInt(raw.mistakes, 0, 9999, 0),
+    elapsed: clampInt(raw.elapsed, 0, 10_000_000, 0),
+    startedAt: Number.isFinite(Number(raw.startedAt)) ? Number(raw.startedAt) : Date.now(),
+    completed,
+    failed,
+    floor: clampInt(raw.floor, 1, 1000000, 1),
+    maxHealth,
+    health: failed ? 0 : health,
+    shields: clampInt(raw.shields, 0, 99, 0),
+    actions: clampInt(raw.actions, 0, 1_000_000, 0),
+    correctStreak: clampInt(raw.correctStreak, 0, 81, 0),
+    healGoals: normalizeHealGoals(raw.healGoals ?? defaults.healGoals),
+    completedUnits: normalizeCompletedUnits(raw.completedUnits, raw.values),
+    milestones: Array.isArray(raw.milestones)
+      ? [...new Set(raw.milestones.filter((id) => MILESTONE_IDS.has(id)))].slice(0, RUN_MILESTONES.length)
+      : [],
+    hintsUsed: clampInt(raw.hintsUsed, 0, 81, 0),
+    frozenSeconds: clampInt(raw.frozenSeconds, 0, 1_000_000, 0),
+    xpMultiplier: (() => {
+      const value = Number(raw.xpMultiplier);
+      return Number.isFinite(value) && value > 0 && value <= 10 ? value : 1;
+    })(),
+    extraCardClaims: clampInt(raw.extraCardClaims, 0, 10, 0),
+    equippedCards: normalizeCardIds(raw.equippedCards).slice(0, 2),
+    usedCards: normalizeCardIds(raw.usedCards).slice(0, 20),
+    cardChoices: normalizeCardIds(raw.cardChoices).slice(0, 6),
+    claimedCards: normalizeCardIds(raw.claimedCards).slice(0, 6),
+    remainingClaims: clampInt(raw.remainingClaims, 0, 10, 0),
+    started: typeof raw.started === "boolean" ? raw.started : true
+  };
+
+  // Optional reward fields may exist after completion (allowTerminal).
+  if (allowTerminal && completed) {
+    if (Number.isInteger(raw.stars)) game.stars = clampInt(raw.stars, 1, 3, 1);
+    if (Number.isFinite(Number(raw.xpReward))) game.xpReward = Math.max(0, Math.round(Number(raw.xpReward)));
+    if (Number.isFinite(Number(raw.timeBonus))) game.timeBonus = Math.max(0, Math.round(Number(raw.timeBonus)));
+  }
+
+  return game;
+}
+
+/** True when game is a full, playable mid-run object (not completed/failed). */
+export function isValidRuntimeGame(game, { allowTerminal = false } = {}) {
+  return Boolean(normalizeRuntimeGame(game, { allowTerminal }));
+}
+
+/**
+ * Validate + normalize a persisted session envelope.
+ * @returns {null | { game: object, equippedCards: string[], alinMode: boolean }}
+ */
+export function normalizeSession(session) {
+  if (!session || typeof session !== "object") return null;
+  if (session.alinMode != null && typeof session.alinMode !== "boolean") return null;
+  if (session.equippedCards != null && !Array.isArray(session.equippedCards)) return null;
+
+  const game = normalizeRuntimeGame(session.game, { allowTerminal: false });
+  if (!game) return null;
+
+  const equippedCards = normalizeCardIds(
+    session.equippedCards != null ? session.equippedCards : game.equippedCards
+  ).slice(0, 2);
+  game.equippedCards = equippedCards;
+
+  return {
+    game,
+    equippedCards,
+    alinMode: Boolean(session.alinMode)
+  };
+}
+
 export function applyAdventureSetup(game, equippedCards = []) {
-  Object.assign(game, createAdventureFields(game.difficulty, equippedCards));
+  const floor = clampInt(game?.floor, 1, 1000000, 1);
+  Object.assign(game, createAdventureFields(game.difficulty, equippedCards), { floor });
   return game;
 }
 

@@ -1,3 +1,5 @@
+import { normalizeSession } from "../game/flow.js";
+
 const STORAGE_KEY = "sudox-progress-v3";
 const SESSION_KEY = "sudox-session-v3";
 const LEGACY_STORAGE_KEYS = ["sudox-progress-v2", "sudox-progress-v1"];
@@ -141,19 +143,7 @@ function normalizedProgress(saved = {}) {
 }
 
 function validSession(session) {
-  const game = session?.game;
-  const validGrid = (grid, allowZero) => Array.isArray(grid) && grid.length === 81 && grid.every((value) => Number.isInteger(value) && value >= (allowZero ? 0 : 1) && value <= 9);
-  return Boolean(game
-    && !game.completed
-    && !game.failed
-    && ["easy", "medium", "hard"].includes(game.difficulty)
-    && validGrid(game.puzzle, true)
-    && validGrid(game.solution, false)
-    && validGrid(game.values, true)
-    && Array.isArray(game.notes)
-    && game.notes.length === 81
-    && Number.isInteger(game.floor)
-    && game.floor >= 1);
+  return Boolean(normalizeSession(session));
 }
 
 export function loadProgress() {
@@ -182,7 +172,7 @@ export function saveSession(session) {
 export function loadSession() {
   try {
     const session = JSON.parse(localStorage.getItem(SESSION_KEY) || "null");
-    return validSession(session) ? session : null;
+    return normalizeSession(session);
   } catch {
     return null;
   }
@@ -273,8 +263,11 @@ export function parseSaveCode(code) {
   if (payload.version !== 3 || !payload.progress) throw new Error("不支援這個存檔版本");
   const progress = normalizedProgress(payload.progress);
   if (!progress.updatedAt) progress.updatedAt = normalizeUpdatedAt(payload.exportedAt);
-  if (payload.session?.game && !validSession(payload.session)) throw new Error("存檔中的關卡資料不完整");
-  const session = payload.session?.game && validSession(payload.session) ? payload.session : null;
+  let session = null;
+  if (payload.session?.game) {
+    session = normalizeSession(payload.session);
+    if (!session) throw new Error("存檔中的關卡資料不完整");
+  }
   return {
     progress,
     session,

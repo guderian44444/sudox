@@ -6,6 +6,10 @@ import {
   applyPlayerDigit,
   collectBoardProgressEvents,
   collectNewMilestones,
+  createAdventureGame,
+  isValidRuntimeGame,
+  normalizeRuntimeGame,
+  normalizeSession,
   RUN_MILESTONES,
   settleCompletedGame
 } from "../src/game/flow.js";
@@ -67,8 +71,23 @@ assert(/if \(!progress\.playerAvatar\) \{\s*showAvatarPicker = true/.test(appSou
 assert(appSource.indexOf('<div class="number-pad"') < appSource.indexOf('<div class="tools">'), "number pad should sit immediately before the tool buttons");
 assert(/\.notes i \{[^}]*font-size:\s*clamp\(7px, 1\.2vw, 10px\)/.test(stylesheet) && /\.notes i \{ font-size: clamp\(8px, 2\.5vw, 10px\); \}/.test(stylesheet), "note digits should be larger on desktop and mobile");
 assert(/from "\.\/game\/flow\.js"/.test(appSource) && /applyPlayerDigit|settleCompletedGame/.test(appSource), "app 應透過 flow 模組處理填格與完局規則");
+assert(/createAdventureGame/.test(appSource) && !/createGame\(/.test(appSource), "app 應以 createAdventureGame 建立完整局，不再直接 createGame");
+assert(/normalizeSession/.test(storeSource), "session 載入應走完整 runtime 正規化");
 assert(/src\/game\/flow\.js/.test(readFileSync(new URL("../sw.js", import.meta.url), "utf8")), "Service Worker 應快取 flow 模組");
 assert(RUN_MILESTONES.length >= 5, "本局里程碑規則應集中在 flow 模組");
+const factoryGame = createAdventureGame({ difficulty: "medium", floor: 4, equippedCards: ["shield", "revive", "extra"] });
+assert(factoryGame.difficulty === "medium" && factoryGame.floor === 4, "工廠應套用難度與樓層");
+assert(factoryGame.maxHealth === ADVENTURE_RULES.medium.maxHealth && factoryGame.health === factoryGame.maxHealth, "工廠應一次帶入冒險血量");
+assert(factoryGame.equippedCards.length === 2 && factoryGame.healGoals && Array.isArray(factoryGame.milestones), "工廠應帶入裝備與目標結構");
+assert(isValidRuntimeGame(factoryGame), "工廠產出必須通過 runtime 驗證");
+assert(normalizeRuntimeGame({ difficulty: "easy" }) === null, "缺盤面的物件不可通過 runtime 驗證");
+const legacyPartial = { ...createGame("hard"), floor: 2 };
+const normalizedLegacy = normalizeRuntimeGame(legacyPartial);
+assert(normalizedLegacy && normalizedLegacy.maxHealth === ADVENTURE_RULES.hard.maxHealth && normalizedLegacy.floor === 2, "僅有盤面的舊局應能正規化成完整 runtime");
+assert(normalizedLegacy.healGoals && Array.isArray(normalizedLegacy.completedUnits.rows), "正規化應補齊冒險欄位");
+assert(normalizeSession({ game: { ...factoryGame, completed: true }, alinMode: false }) === null, "已完局 session 不可繼續遊玩");
+assert(normalizeSession({ game: factoryGame, equippedCards: ["shield"], alinMode: true })?.alinMode === true, "合法 session 應正規化成功");
+assert(normalizeSession({ game: { ...createGame("easy"), floor: 1, completed: false, failed: false }, equippedCards: [], alinMode: false })?.game.maxHealth === ADVENTURE_RULES.easy.maxHealth, "載入 session 時應補齊血量等欄位");
 assert(PLAYABLE_DIFFICULTIES.join(",") === "easy,medium,hard", "三種難度皆應列為可遊玩");
 assert(isDifficultyPlayable("easy") && isDifficultyPlayable("medium") && isDifficultyPlayable("hard"), "輕鬆／動腦／高手從一開始即可遊玩");
 assert(!isDifficultyPlayable("expert"), "未知難度不可標記為可遊玩");
@@ -248,7 +267,7 @@ globalThis.localStorage = {
   removeItem: (key) => memory.delete(key)
 };
 const saveProgress = { playerId: "5e2b1c42-fc62-4f58-9f01-29ded0bab4d2", playerName: "阿霖", level: 7, xp: 42, coins: 88, floors: { easy: 9, medium: 4, hard: 2 }, inventory: { dragonElixir: 1 }, cardCollection: ["dragonElixir"], updatedAt: "2026-01-01T00:00:00.000Z" };
-const saveSession = { game: { ...createGame("easy"), floor: 9 }, equippedCards: ["dragonElixir"], alinMode: false };
+const saveSession = { game: createAdventureGame({ difficulty: "easy", floor: 9, equippedCards: ["dragonElixir"] }), equippedCards: ["dragonElixir"], alinMode: false };
 const saveCode = exportSaveCode(saveProgress, saveSession);
 const parsedOnly = parseSaveCode(saveCode);
 assert(parsedOnly.progress.level === 7 && memory.size === 0, "parseSaveCode 不可寫入 localStorage");
@@ -291,10 +310,8 @@ const afterRewards = rewardProgress(strippedUnlock.progress, 35, 0, 1, "hard");
 assert(afterRewards.completedGames === 1 && !("unlockedDifficulty" in afterRewards), "完賽獎勵不應再建立難度解鎖狀態");
 assert(afterRewards.floors.hard >= 2, "高手難度從第一局即可推進樓層");
 
-const flowGame = createGame("easy");
-applyAdventureSetup(flowGame, []);
+const flowGame = createAdventureGame({ difficulty: "easy", floor: 1 });
 flowGame.started = true;
-flowGame.floor = 1;
 flowGame.health = 2;
 flowGame.shields = 1;
 const emptyCell = flowGame.values.findIndex((value, index) => !value && !flowGame.puzzle[index]);

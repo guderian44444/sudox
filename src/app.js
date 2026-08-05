@@ -1,13 +1,13 @@
-import { createGame, DIFFICULTIES, relatedCells } from "./game/sudoku.js";
-import { activateAutomaticTreasures, ADVENTURE_RULES, applyHintTreasure, applyImmediateTreasure, completedSudokuUnits, strongestEquippedRevive, sudokuUnitCells, TREASURE_AUTO_EFFECTS, TREASURE_CARDS } from "./game/adventure.js";
+import { DIFFICULTIES, relatedCells } from "./game/sudoku.js";
+import { activateAutomaticTreasures, ADVENTURE_RULES, applyHintTreasure, applyImmediateTreasure, strongestEquippedRevive, sudokuUnitCells, TREASURE_AUTO_EFFECTS, TREASURE_CARDS } from "./game/adventure.js";
 import {
-  applyAdventureSetup,
   applyHintFill,
   applyPlayerDigit,
   claimRewardCard,
   clearEditableCell,
   collectBoardProgressEvents,
   collectNewMilestones,
+  createAdventureGame,
   removeRelatedNotes,
   RUN_MILESTONES,
   settleCompletedGame
@@ -24,14 +24,7 @@ const migratedAchievements = recordAchievementGame(progress);
 progress = migratedAchievements.progress;
 if (migratedAchievements.unlocked.length) saveProgress(progress);
 const restoredSession = loadSession();
-let game = restoredSession?.game || createGame("easy");
-if (restoredSession && typeof game.started !== "boolean") game.started = true;
-if (restoredSession) {
-  const restoredCompletedUnits = completedSudokuUnits(game.values);
-  if (!game.completedUnits) game.completedUnits = restoredCompletedUnits;
-  else if (!Array.isArray(game.completedUnits.columns)) game.completedUnits.columns = restoredCompletedUnits.columns;
-  if (!Array.isArray(game.milestones)) game.milestones = [];
-}
+let game = restoredSession?.game || createAdventureGame({ difficulty: "easy", floor: 1 });
 let noteMode = false;
 let alinMode = restoredSession?.alinMode || false;
 let showBackpack = false;
@@ -374,12 +367,6 @@ function showFinaleCelebration() {
   playFinaleMelody();
   setTimeout(() => finale.classList.add("leaving"), 2850);
   setTimeout(() => finale.remove(), 3400);
-}
-
-function setupAdventure() {
-  equippedCards = equippedCards.filter((cardId) => progress.inventory[cardId] > 0).slice(0, 2);
-  applyAdventureSetup(game, equippedCards);
-  lastWaveVariants = { row: null, column: null, box: null };
 }
 
 function sessionSnapshot() {
@@ -844,9 +831,13 @@ function applyImportedSave(imported) {
     equippedCards = imported.session.equippedCards || [];
     alinMode = imported.session.alinMode || false;
   } else {
-    game = createGame("easy");
-    setupAdventure();
-    game.floor = progress.floors.easy;
+    equippedCards = [];
+    game = createAdventureGame({
+      difficulty: "easy",
+      floor: progress.floors?.easy || 1,
+      equippedCards
+    });
+    lastWaveVariants = { row: null, column: null, box: null };
   }
 }
 
@@ -1204,11 +1195,15 @@ function newGame(difficulty) {
   clearInterval(timerId);
   cellWaveQueue = [];
   cellWaveActive = false;
-  game = createGame(difficulty);
-  game.floor = progress.floors[difficulty] || 1;
+  equippedCards = equippedCards.filter((cardId) => progress.inventory[cardId] > 0).slice(0, 2);
+  game = createAdventureGame({
+    difficulty,
+    floor: progress.floors[difficulty] || 1,
+    equippedCards
+  });
   noteMode = false;
   showBackpack = false;
-  setupAdventure();
+  lastWaveVariants = { row: null, column: null, box: null };
   render();
 }
 
