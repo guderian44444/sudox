@@ -1,11 +1,11 @@
 import { readFileSync } from "node:fs";
-import { countSolutions, createGame, DIFFICULTIES, generatePuzzle, PUZZLES, relatedCells, solveSudoku } from "../src/game/sudoku.js";
+import { countSolutions, createGame, DIFFICULTIES, generatePuzzle, isDifficultyPlayable, PLAYABLE_DIFFICULTIES, PUZZLES, relatedCells, solveSudoku } from "../src/game/sudoku.js";
 import { activateAutomaticTreasures, ADVENTURE_RULES, applyHintTreasure, applyImmediateTreasure, candidatesFor, completedSudokuUnits, drawTreasureCards, newlyCompletedSudokuUnits, strongestEquippedRevive, sudokuUnitCells, treasureClaimsForFloor, treasurePool, TREASURE_AUTO_EFFECTS, TREASURE_CARDS, TREASURE_EFFECTS } from "../src/game/adventure.js";
 import { ACHIEVEMENTS, achievementValue, recordAchievementGame } from "../src/game/achievements.js";
 import { chooseFriendPair, chooseGardenEel, FRIEND_ROSTER, friendPairKey, GARDEN_EEL_VARIANTS } from "../src/game/friends.js";
 import { normalizePlayerName, validCloudPin } from "../src/state/cloud.js";
 import { buildScore, leaderboardConfigured, normalizeLeaderboardTaunt } from "../src/state/leaderboard.js";
-import { exportSaveCode, importSaveCode, parseSaveCode, preferSaveSide, saveProgress as writeProgress, saveTimestampMs } from "../src/state/store.js";
+import { exportSaveCode, importSaveCode, parseSaveCode, preferSaveSide, rewardProgress, saveProgress as writeProgress, saveTimestampMs } from "../src/state/store.js";
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -58,6 +58,11 @@ assert(/\.topbar \{ height: auto; min-height: 48px; flex-wrap: wrap;/.test(style
 assert(/if \(!progress\.playerAvatar\) \{\s*showAvatarPicker = true/.test(appSource), "a new game should require an avatar selection");
 assert(appSource.indexOf('<div class="number-pad"') < appSource.indexOf('<div class="tools">'), "number pad should sit immediately before the tool buttons");
 assert(/\.notes i \{[^}]*font-size:\s*clamp\(7px, 1\.2vw, 10px\)/.test(stylesheet) && /\.notes i \{ font-size: clamp\(8px, 2\.5vw, 10px\); \}/.test(stylesheet), "note digits should be larger on desktop and mobile");
+assert(PLAYABLE_DIFFICULTIES.join(",") === "easy,medium,hard", "三種難度皆應列為可遊玩");
+assert(isDifficultyPlayable("easy") && isDifficultyPlayable("medium") && isDifficultyPlayable("hard"), "輕鬆／動腦／高手從一開始即可遊玩");
+assert(!isDifficultyPlayable("expert"), "未知難度不可標記為可遊玩");
+assert(!/unlockedDifficulty\s*=/.test(storeSource) && !/completedGames >= 2/.test(storeSource), "進度不應再寫入難度解鎖欄位");
+assert(!/unlockedDifficulty/.test(appSource), "UI 不應依賴已廢棄的 unlockedDifficulty");
 assert(/let cloudHydrationPending = cloudConfigured\(\) && Boolean\(progress\.playerName\) && validCloudPin\(loadCloudPin\(\)\)/.test(appSource), "cloud progress hydration should start when local cloud credentials exist");
 assert(/function scheduleCloudSync\(\) \{\s*if \(cloudHydrationPending\) return;/.test(appSource), "startup cloud hydration should block automatic upload until finished");
 assert(/parseSaveCode\(saveCode\)/.test(appSource) && /preferSaveSide\(/.test(appSource), "cloud hydration should compare local and cloud saves before writing");
@@ -263,6 +268,17 @@ assert(preferSaveSide(
 assert(saveTimestampMs({ updatedAt: "2026-03-01T12:00:00.000Z" }) > 0, "saveTimestampMs 應解析 ISO 時間");
 writeProgress({ ...imported.progress, coins: 99 }, { touch: true });
 assert(saveTimestampMs(JSON.parse(memory.get("sudox-progress-v3"))) > Date.parse("2026-01-01T00:00:00.000Z"), "saveProgress 預設應更新 updatedAt");
+const legacyUnlockSave = exportSaveCode({
+  ...imported.progress,
+  unlockedDifficulty: "easy",
+  completedGames: 0,
+  updatedAt: "2026-04-01T00:00:00.000Z"
+}, null);
+const strippedUnlock = importSaveCode(legacyUnlockSave, { touch: false });
+assert(!("unlockedDifficulty" in strippedUnlock.progress), "載入舊存檔應移除 unlockedDifficulty");
+const afterRewards = rewardProgress(strippedUnlock.progress, 35, 0, 1, "hard");
+assert(afterRewards.completedGames === 1 && !("unlockedDifficulty" in afterRewards), "完賽獎勵不應再建立難度解鎖狀態");
+assert(afterRewards.floors.hard >= 2, "高手難度從第一局即可推進樓層");
 assert(validCloudPin("0428") && !validCloudPin("123") && !validCloudPin("12a4"), "家庭 PIN 必須是 4 位數字");
 assert(normalizePlayerName("  新阿霖\n") === "新阿霖" && normalizePlayerName("島".repeat(20)).length === 16, "雲端玩家名稱應清理控制字元並限制為 16 字");
 assert(leaderboardConfigured(), "Supabase 專案設定後排行榜應啟用雲端模式");

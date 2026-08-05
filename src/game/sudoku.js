@@ -1,8 +1,16 @@
+// All listed difficulties are playable from the first game (no unlock progression).
 export const DIFFICULTIES = {
   easy: { label: "輕鬆", icon: "🌱", xp: 35, hintCost: 0, bonusTime: 480, bonusCoins: 5 },
   medium: { label: "動腦", icon: "🌼", xp: 60, hintCost: 8, bonusTime: 720, bonusCoins: 8 },
   hard: { label: "高手", icon: "🏆", xp: 100, hintCost: 12, bonusTime: 1080, bonusCoins: 12 }
 };
+
+export const PLAYABLE_DIFFICULTIES = Object.freeze(Object.keys(DIFFICULTIES));
+
+/** @returns {boolean} always true for known difficulties — free choice product rule */
+export function isDifficultyPlayable(difficulty) {
+  return Object.hasOwn(DIFFICULTIES, difficulty);
+}
 
 export const PUZZLES = {
   easy: [

@@ -21,6 +21,8 @@ const starterInventory = {
   treasureKey: 0
 };
 
+// Difficulties are free-choice from the first game (easy / medium / hard).
+// Legacy saves may still contain unlockedDifficulty; it is stripped on normalize/save.
 const defaultProgress = {
   playerId: "",
   playerName: "",
@@ -29,7 +31,6 @@ const defaultProgress = {
   coins: 20,
   streak: 0,
   completedGames: 0,
-  unlockedDifficulty: "easy",
   inventory: starterInventory,
   cardCollection: [],
   totalStars: 0,
@@ -105,35 +106,37 @@ function normalizedInventory(inventory = {}) {
 }
 
 function normalizedProgress(saved = {}) {
-  const playerName = typeof saved.playerName === "string" ? saved.playerName.replace(/[\u0000-\u001f\u007f]/g, "").trim().slice(0, 16) : "";
-  const playerId = typeof saved.playerId === "string" && /^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(saved.playerId) ? saved.playerId : createPlayerId();
+  // Drop legacy unlock gate — product rule is free difficulty choice from day one.
+  const { unlockedDifficulty: _legacyUnlockedDifficulty, ...safeSaved } = saved && typeof saved === "object" ? saved : {};
+  const playerName = typeof safeSaved.playerName === "string" ? safeSaved.playerName.replace(/[\u0000-\u001f\u007f]/g, "").trim().slice(0, 16) : "";
+  const playerId = typeof safeSaved.playerId === "string" && /^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(safeSaved.playerId) ? safeSaved.playerId : createPlayerId();
   const progress = {
     ...defaultProgress,
-    ...saved,
+    ...safeSaved,
     playerId,
     playerName,
-    level: Math.max(1, Math.floor(safeNumber(saved.level, 1))),
-    xp: Math.floor(safeNumber(saved.xp)),
-    coins: Math.floor(safeNumber(saved.coins, 20)),
-    streak: Math.floor(safeNumber(saved.streak)),
-    completedGames: Math.floor(safeNumber(saved.completedGames)),
-    totalStars: Math.floor(safeNumber(saved.totalStars)),
-    unlockedDifficulty: ["easy", "medium", "hard"].includes(saved.unlockedDifficulty) ? saved.unlockedDifficulty : "easy",
-    inventory: normalizedInventory(saved.inventory),
-    cardCollection: Array.isArray(saved.cardCollection) ? saved.cardCollection.filter((cardId) => typeof cardId === "string" && /^[a-zA-Z][a-zA-Z0-9]{0,40}$/.test(cardId)).slice(0, 60) : [],
-    bestTimes: saved.bestTimes || {},
-    rewardedRuns: Array.isArray(saved.rewardedRuns) ? saved.rewardedRuns : [],
-    achievements: Array.isArray(saved.achievements) ? [...new Set(saved.achievements.filter((id) => typeof id === "string" && /^[a-zA-Z][a-zA-Z0-9]{0,40}$/.test(id)))].slice(0, 50) : [],
+    level: Math.max(1, Math.floor(safeNumber(safeSaved.level, 1))),
+    xp: Math.floor(safeNumber(safeSaved.xp)),
+    coins: Math.floor(safeNumber(safeSaved.coins, 20)),
+    streak: Math.floor(safeNumber(safeSaved.streak)),
+    completedGames: Math.floor(safeNumber(safeSaved.completedGames)),
+    totalStars: Math.floor(safeNumber(safeSaved.totalStars)),
+    inventory: normalizedInventory(safeSaved.inventory),
+    cardCollection: Array.isArray(safeSaved.cardCollection) ? safeSaved.cardCollection.filter((cardId) => typeof cardId === "string" && /^[a-zA-Z][a-zA-Z0-9]{0,40}$/.test(cardId)).slice(0, 60) : [],
+    bestTimes: safeSaved.bestTimes || {},
+    rewardedRuns: Array.isArray(safeSaved.rewardedRuns) ? safeSaved.rewardedRuns : [],
+    achievements: Array.isArray(safeSaved.achievements) ? [...new Set(safeSaved.achievements.filter((id) => typeof id === "string" && /^[a-zA-Z][a-zA-Z0-9]{0,40}$/.test(id)))].slice(0, 50) : [],
     achievementStats: {
-      perfectGames: Math.floor(safeNumber(saved.achievementStats?.perfectGames)),
-      speedGames: Math.floor(safeNumber(saved.achievementStats?.speedGames)),
-      alinGames: Math.floor(safeNumber(saved.achievementStats?.alinGames))
+      perfectGames: Math.floor(safeNumber(safeSaved.achievementStats?.perfectGames)),
+      speedGames: Math.floor(safeNumber(safeSaved.achievementStats?.speedGames)),
+      alinGames: Math.floor(safeNumber(safeSaved.achievementStats?.alinGames))
     },
-    floors: Object.fromEntries(Object.keys(defaultProgress.floors).map((difficulty) => [difficulty, Math.max(1, Math.floor(safeNumber(saved.floors?.[difficulty], 1))) ])),
-    playerAvatar: typeof saved.playerAvatar === "string" && /^[a-z_]+$/.test(saved.playerAvatar) ? saved.playerAvatar : "",
-    avatarColor: Math.max(0, Math.min(7, Math.floor(safeNumber(saved.avatarColor)))),
-    updatedAt: normalizeUpdatedAt(saved.updatedAt)
+    floors: Object.fromEntries(Object.keys(defaultProgress.floors).map((difficulty) => [difficulty, Math.max(1, Math.floor(safeNumber(safeSaved.floors?.[difficulty], 1))) ])),
+    playerAvatar: typeof safeSaved.playerAvatar === "string" && /^[a-z_]+$/.test(safeSaved.playerAvatar) ? safeSaved.playerAvatar : "",
+    avatarColor: Math.max(0, Math.min(7, Math.floor(safeNumber(safeSaved.avatarColor)))),
+    updatedAt: normalizeUpdatedAt(safeSaved.updatedAt)
   };
+  delete progress.unlockedDifficulty;
   return progress;
 }
 
@@ -164,6 +167,7 @@ export function loadProgress() {
 }
 
 export function saveProgress(progress, { touch = true } = {}) {
+  if (progress && "unlockedDifficulty" in progress) delete progress.unlockedDifficulty;
   if (touch || !normalizeUpdatedAt(progress.updatedAt)) {
     progress.updatedAt = new Date().toISOString();
   }
@@ -223,8 +227,7 @@ export function rewardProgress(progress, xpReward, bonusCoins = 0, stars = 0, di
     next.level += 1;
     next.coins += 25;
   }
-  if (next.completedGames >= 2) next.unlockedDifficulty = "medium";
-  if (next.completedGames >= 5) next.unlockedDifficulty = "hard";
+  // No difficulty unlock gate — medium/hard stay available from the first session.
   saveProgress(next);
   return next;
 }
