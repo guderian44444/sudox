@@ -16,8 +16,10 @@ const types = {
 createServer(async (request, response) => {
   try {
     const pathname = decodeURIComponent(new URL(request.url, "http://localhost").pathname);
-    const safePath = normalize(pathname).replace(/^(\.\.[/\\])+/, "");
-    let filePath = join(root, safePath === "/" ? "index.html" : safePath);
+    // Strip leading slashes so Windows path.join does not treat "/preview/..." as absolute.
+    const relative = pathname.replace(/^[/\\]+/, "").replace(/\\/g, "/");
+    const safePath = normalize(relative).replace(/^(\.\.(?:[/\\]|$))+/, "");
+    let filePath = join(root, !safePath || safePath === "." ? "index.html" : safePath);
     if ((await stat(filePath)).isDirectory()) filePath = join(filePath, "index.html");
     response.writeHead(200, { "Content-Type": types[extname(filePath)] || "application/octet-stream" });
     response.end(await readFile(filePath));

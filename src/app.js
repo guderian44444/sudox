@@ -13,10 +13,10 @@ import {
   settleCompletedGame
 } from "./game/flow.js";
 import { ACHIEVEMENTS, achievementValue, recordAchievementGame } from "./game/achievements.js";
-import { chooseFriendPair, chooseGardenEel } from "./game/friends.js";
+import { chooseFriendPair, chooseGardenEel, choosePartyFriends, nextDanceVariants } from "./game/friends.js";
 import { cloudConfigured, loadCloudPin, loadCloudProgress, normalizePlayerName, renameCloudPlayer, saveCloudPin, saveCloudProgress, validCloudPin } from "./state/cloud.js";
 import { buildScore, fetchLeaderboard, flushPendingScores, leaderboardConfigured, normalizeLeaderboardTaunt, pendingScoreCount, queueLeaderboardScore, updateLeaderboardAvatar, updateLeaderboardTaunt } from "./state/leaderboard.js";
-import { addCard, clearSession, consumeCard, exportSaveCode, importSaveCode, loadProgress, loadSession, parseSaveCode, preferSaveSide, rewardProgress, saveProgress, saveSession, saveTimestampMs, spendCoins } from "./state/store.js";
+import { addCard, clearSession, consumeCard, exportSaveCode, importSaveCode, loadProgress, loadSession, mergeProgressHighWater, nextFloorFromCompleted, parseSaveCode, preferSaveSide, raiseFloorProgress, rewardProgress, saveProgress, saveSession, saveTimestampMs, spendCoins } from "./state/store.js";
 
 const app = document.querySelector("#app");
 let progress = loadProgress();
@@ -54,6 +54,14 @@ let soundEnabled = localStorage.getItem(SOUND_KEY) !== "off";
 let audioContext = null;
 let lastFinaleMelody = -1;
 let lastFriendPairKey = "";
+let danceVariantCursor = 0;
+/** Three random stickers perched on the board frame (refreshed each new game). */
+let boardBuddyIds = [];
+
+const friendAssetUrl = (folder, fileName) => new URL(`../public/assets/${folder}/${fileName}`, import.meta.url).href;
+const friendStickerUrl = (id) => friendAssetUrl("friends", `${id}.png`);
+const friendDanceUrl = (id, variant) => friendAssetUrl("friends-dance", `${id}_${variant}.webp`);
+const friendFaintUrl = (id) => friendAssetUrl("friends-faint", `${id}.webp`);
 
 const formatTime = (seconds) => `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
 const LEADERBOARD_MODES = Object.freeze({
@@ -84,9 +92,10 @@ const AVATAR_ANIMALS = Object.freeze([
   { id: "dolphin", emoji: "🐬", name: "海豚" },
   { id: "owl", emoji: "🦉", name: "貓頭鷹" },
   { id: "duck", emoji: "🦆", name: "鴨子" },
-  { id: "bunny", emoji: "🐇", name: "野兔" },
+  { id: "horse", emoji: "🐴", name: "馬" },
   { id: "deer", emoji: "🦌", name: "鹿" },
-  { id: "panda_face", emoji: "🐼", name: "熊貓臉" }
+  { id: "sheep", emoji: "🐑", name: "羊" },
+  { id: "otter", emoji: "🦦", name: "水獺" }
 ]);
 const AVATAR_COLORS = Object.freeze([
   { hue: "0deg", bg: "#fff0d4", name: "原色" },
@@ -133,6 +142,30 @@ const normalizePinInput = (value) => String(value)
   .replace(/[０-９]/g, (digit) => String(digit.charCodeAt(0) - 0xFF10))
   .replace(/\D/g, "")
   .slice(0, 4);
+
+function pickBoardBuddies(count = 3, random = Math.random) {
+  const pool = [...AVATAR_ANIMALS];
+  for (let index = pool.length - 1; index > 0; index -= 1) {
+    const swap = Math.floor(Math.max(0, Math.min(0.999999, Number(random()) || 0)) * (index + 1));
+    [pool[index], pool[swap]] = [pool[swap], pool[index]];
+  }
+  return pool.slice(0, Math.min(count, pool.length)).map((animal) => animal.id);
+}
+
+function refreshBoardBuddies() {
+  boardBuddyIds = pickBoardBuddies(3);
+}
+
+function boardBuddiesMarkup() {
+  if (!boardBuddyIds.length) refreshBoardBuddies();
+  return `<div class="board-buddies" aria-hidden="true">${boardBuddyIds.map((id, index) => {
+    const animal = AVATAR_ANIMALS.find((entry) => entry.id === id);
+    const name = animal?.name || id;
+    return `<span class="board-buddy buddy-${index + 1}" title="${escapeHtml(name)}">
+      <img class="board-buddy-img" src="${friendStickerUrl(id)}" alt="" draggable="false" width="48" height="48">
+    </span>`;
+  }).join("")}</div>`;
+}
 
 function playSound(name) {
   if (!soundEnabled) return;
@@ -207,6 +240,12 @@ function triggerAvatarAnim(anim) {
   setTimeout(() => el.classList.remove(anim), 800);
 }
 
+function avatarStickerMarkup(animalId, name = "") {
+  if (!animalId) return `<span class="avatar-placeholder-mark">❔</span>`;
+  const label = name || AVATAR_ANIMALS.find((a) => a.id === animalId)?.name || animalId;
+  return `<img class="avatar-sticker" src="${friendStickerUrl(animalId)}" alt="${escapeHtml(label)}" draggable="false" width="64" height="64">`;
+}
+
 function avatarMarkup(rank, row) {
   const hasLeaderboardRow = Boolean(row);
   const avatar = hasLeaderboardRow ? row.player_avatar : progress.playerAvatar;
@@ -217,38 +256,77 @@ function avatarMarkup(rank, row) {
     return wrapGameAvatar(`<div class="player-avatar leaderboard-placeholder" aria-label="尚未選擇頭像"><span>${crown ? `<b>${crown}</b>` : ""}<small class="avatar-placeholder-mark">❔</small></span></div>`);
   }
   const animal = AVATAR_ANIMALS.find(a => a.id === avatar);
-  const emoji = animal ? animal.emoji : "❓";
   const colorDef = AVATAR_COLORS[color] || AVATAR_COLORS[0];
   const face = getAvatarFace();
   const crown = rank === 0 ? "👑" : rank === 1 ? "🥈" : rank === 2 ? "🥉" : "";
-  return wrapGameAvatar(`<div class="player-avatar" style="--avatar-hue:${colorDef.hue}" data-animal="${avatar}"><span>${crown}${emoji}</span><em class="avatar-bubble">${face}</em></div>`);
+  return wrapGameAvatar(`<div class="player-avatar" style="--avatar-hue:${colorDef.hue}" data-animal="${avatar}"><span class="avatar-face-wrap">${crown ? `<b class="avatar-crown">${crown}</b>` : ""}${avatarStickerMarkup(avatar, animal?.name)}</span><em class="avatar-bubble">${face}</em></div>`);
 }
 
-function animatedFriendsMarkup() {
+/**
+ * Event pair: two animals + rotating dance WebPs (variants 1–4).
+ * Mistake mode uses dedicated faint animations (one per animal).
+ */
+function animatedFriendsMarkup(mode = "dance") {
   const selection = chooseFriendPair(lastFriendPairKey);
   lastFriendPairKey = selection.key;
-  const animal = ({ id, name, face }) => `<span class="animated-animal ${id}" title="${name}">
-    <i class="animal-tail"></i><i class="animal-leg left"></i><i class="animal-leg right"></i><i class="animal-body"></i>
-    <i class="animal-arm left"></i><i class="animal-arm right"></i>
-    <i class="animal-head"><b class="animal-ear left"></b><b class="animal-ear right"></b><em>${face}</em></i>
-  </span>`;
-  return `<span class="animated-friends">${selection.friends.map(animal).join("")}</span>`;
+  const variants = nextDanceVariants(danceVariantCursor);
+  danceVariantCursor = variants.nextCursor;
+  const [left, right] = selection.friends;
+  const slots = [
+    { friend: left, variant: variants.left },
+    { friend: right, variant: variants.right }
+  ];
+  const animal = ({ friend, variant }, index) => {
+    const src = mode === "faint"
+      ? friendFaintUrl(friend.id)
+      : friendDanceUrl(friend.id, variant);
+    // Cache-bust restarts animated WebP frames each toast.
+    const bust = `${src}?t=${Date.now() + index}`;
+    return `<span class="animated-animal sticker-animal ${mode === "faint" ? "is-faint" : "is-dance"} ${friend.id}" title="${escapeHtml(friend.name)}" data-variant="${variant}">
+      <img class="friend-sticker-img" src="${bust}" alt="" draggable="false" width="96" height="96" style="animation-delay:${index * 0.08}s">
+    </span>`;
+  };
+  return `<span class="animated-friends sticker-friends mode-${mode}">${slots.map(animal).join("")}</span>`;
+}
+
+/** Full clear: player + 5 guests, each with a dance GIF. */
+function partyFriendsMarkup() {
+  const party = choosePartyFriends(progress.playerAvatar, 5);
+  return `<span class="animated-friends party-friends">${party.map((friend, index) => {
+    const variant = ((danceVariantCursor + index) % 4) + 1;
+    return `<span class="animated-animal sticker-animal party-guest ${friend.id}${friend.id === progress.playerAvatar ? " is-player" : ""}" title="${escapeHtml(friend.name)}">
+      <img class="friend-sticker-img" src="${friendDanceUrl(friend.id, variant)}" alt="" draggable="false" width="88" height="88" style="animation-delay:${index * 0.07}s">
+    </span>`;
+  }).join("")}</span>`;
 }
 
 function showGardenEel() {
   const board = document.querySelector(".sudoku-board");
   if (!board || !game.started || game.completed || game.failed) return;
-  const { cell, variant } = chooseGardenEel();
+  // Only blank cells — never cover a filled number.
+  const emptyCells = game.values
+    .map((value, index) => (value === 0 ? index : -1))
+    .filter((index) => index >= 0);
+  const pick = chooseGardenEel(Math.random, { emptyCells });
+  if (!pick) return;
+  const { cell, variant } = pick;
   const eel = document.createElement("span");
   eel.className = `garden-eel-peek ${variant}`;
   eel.style.left = `${((cell % 9) / 9) * 100}%`;
   eel.style.top = `${(Math.floor(cell / 9) / 9) * 100}%`;
   eel.setAttribute("title", variant === "orange" ? "橘色花園鰻偷看一下" : "白色花園鰻偷看一下");
-  const eelImg = new URL(variant === "orange" ? "../public/assets/eel-orange.png" : "../public/assets/eel-white.png", import.meta.url).href;
-  eel.innerHTML = `<i class="garden-eel-creature"><img class="garden-eel-img" src="${eelImg}" alt="花園鰻" aria-hidden="true"/></i>`;
+  // Animated WebP has peek motion + real alpha (no checkerboard). Cache-bust restarts frames.
+  const eelSrc = new URL(variant === "orange" ? "../public/assets/eel-orange.webp" : "../public/assets/eel-white.webp", import.meta.url).href;
+  const img = document.createElement("img");
+  img.className = "garden-eel-img";
+  img.src = `${eelSrc}?t=${Date.now()}`;
+  img.alt = "";
+  img.setAttribute("aria-hidden", "true");
+  img.draggable = false;
+  eel.append(img);
   board.append(eel);
-  eel.addEventListener("animationend", () => eel.remove(), { once: true });
-  setTimeout(() => eel.remove(), 2600);
+  // Match short peek clip (~2.4s) plus brief fade.
+  setTimeout(() => eel.remove(), 2500);
 }
 
 function showCelebration(icon, title, detail) {
@@ -290,9 +368,12 @@ function playNextGameEffect() {
   effect.className = `game-effect ${tone}${hasFriends ? " has-friends" : ""}${motion ? ` motion-${motion}` : ""}`;
   effect.setAttribute("role", "status");
   effect.setAttribute("aria-live", "polite");
+  const friendsMarkup = hasFriends
+    ? animatedFriendsMarkup(tone === "mistake" ? "faint" : "dance")
+    : icon;
   effect.innerHTML = `
     <span class="effect-spark one">✦</span><span class="effect-spark two">●</span><span class="effect-spark three">✦</span>
-    <div class="effect-character" aria-hidden="true">${hasFriends ? animatedFriendsMarkup() : icon}</div>
+    <div class="effect-character" aria-hidden="true">${friendsMarkup}</div>
     <div class="effect-bubble"><strong>${title}</strong><small>${detail}</small></div>
     <span class="effect-spark four">●</span><span class="effect-spark five">✦</span>`;
   document.body.append(effect);
@@ -300,11 +381,13 @@ function playNextGameEffect() {
   document.body.classList.remove("flash-success", "flash-mistake", "flash-shield", "flash-card");
   document.body.classList.add(`flash-${tone}`);
   setTimeout(() => document.body.classList.remove(`flash-${tone}`), 780);
+  // Faint WebPs run ~2.7s; dances are shorter loops — keep toast long enough to read.
+  const holdMs = tone === "mistake" ? 2800 : 1750;
   setTimeout(() => {
     effect.remove();
     gameEffectActive = false;
     playNextGameEffect();
-  }, 1750);
+  }, holdMs);
 }
 
 function queueCellWave(type, unitIndex) {
@@ -345,28 +428,37 @@ function showFinaleCelebration() {
   finale.className = "finale-overlay";
   finale.setAttribute("role", "status");
   finale.setAttribute("aria-live", "assertive");
-  const colors = ["#f47f62", "#ffd15c", "#56c9a5", "#69aee8", "#b78ade", "#ff9cc2"];
-  const confetti = Array.from({ length: 48 }, (_, index) => {
+  const colors = ["#f47f62", "#ffd15c", "#56c9a5", "#69aee8", "#b78ade", "#ff9cc2", "#ff8f6b", "#7ee0c3"];
+  const confetti = Array.from({ length: 64 }, (_, index) => {
     const left = (index * 37) % 100;
     const delay = (index % 12) * 0.07;
     const duration = 1.55 + (index % 7) * 0.13;
     const color = colors[index % colors.length];
-    return `<i style="--confetti-left:${left}%;--confetti-delay:${delay}s;--confetti-duration:${duration}s;--confetti-color:${color};--confetti-rotation:${(index * 47) % 180}deg"></i>`;
+    const shape = index % 3 === 0 ? "circle" : index % 3 === 1 ? "strip" : "diamond";
+    return `<i class="confetti-${shape}" style="--confetti-left:${left}%;--confetti-delay:${delay}s;--confetti-duration:${duration}s;--confetti-color:${color};--confetti-rotation:${(index * 47) % 180}deg"></i>`;
+  }).join("");
+  const fireworks = Array.from({ length: 8 }, (_, index) => {
+    const left = 8 + (index * 12) % 84;
+    const top = 8 + (index * 17) % 48;
+    const delay = (index % 5) * 0.22;
+    const color = colors[index % colors.length];
+    return `<span class="finale-firework" style="--fw-left:${left}%;--fw-top:${top}%;--fw-delay:${delay}s;--fw-color:${color}"></span>`;
   }).join("");
   const numbers = game.values.map((value, index) => `<span style="--finale-direction:${index % 2 ? 1 : -1}">${value}</span>`).join("");
   finale.innerHTML = `
     <div class="finale-glow"></div>
+    <div class="finale-fireworks" aria-hidden="true">${fireworks}</div>
     <div class="finale-confetti" aria-hidden="true">${confetti}</div>
-    <div class="finale-stage">
-      <div class="finale-friends" aria-hidden="true">${animatedFriendsMarkup()}</div>
-      <strong>全盤完成！一起跳舞吧！</strong>
+    <div class="finale-stage finale-party">
+      <div class="finale-friends party-line" aria-hidden="true">${partyFriendsMarkup()}</div>
+      <strong>全盤完成！好朋友大合舞！</strong>
       <div class="finale-board" aria-hidden="true">${numbers}</div>
-      <small>阿霖的數獨島・完美過關</small>
+      <small>阿霖的數獨島・完美過關・灑花放煙火</small>
     </div>`;
   document.body.append(finale);
   playFinaleMelody();
-  setTimeout(() => finale.classList.add("leaving"), 2850);
-  setTimeout(() => finale.remove(), 3400);
+  setTimeout(() => finale.classList.add("leaving"), 4200);
+  setTimeout(() => finale.remove(), 4800);
 }
 
 function sessionSnapshot() {
@@ -417,7 +509,7 @@ function render() {
         </aside>
 
         <section class="board-card" aria-label="數獨遊戲">
-          <div class="board-buddies" aria-hidden="true"><span class="cat-buddy">🐱</span><span class="otter-buddy">🦦</span><span class="mouse-buddy">🐭</span></div>
+          ${boardBuddiesMarkup()}
           <div class="game-meta">
             <span class="difficulty-pill">${DIFFICULTIES[game.difficulty].icon} ${DIFFICULTIES[game.difficulty].label}・第 ${game.floor} 層</span>
             <span class="timer-block" aria-label="經過時間，沒有時間限制"><span>⏱ <strong id="timer">${formatTime(game.elapsed)}</strong></span><small>不限時 · ${formatTime(DIFFICULTIES[game.difficulty].bonusTime)} 內 +${DIFFICULTIES[game.difficulty].bonusCoins} 🪙 <i id="freeze-time">${game.frozenSeconds ? `· 凍結 ${game.frozenSeconds}s` : ""}</i></small></span>
@@ -554,13 +646,17 @@ function nameSetupModal() {
 function leaderboardModal() {
   const configured = leaderboardConfigured();
   const myRow = leaderboardRows.find((row) => row.player_id === progress.playerId);
+  const modeLabel = LEADERBOARD_MODES[leaderboardDifficulty]?.label || "此難度";
+  const tauntHint = myRow
+    ? `只套用在「${modeLabel}」榜・最多 48 字`
+    : `先在「${modeLabel}」完成一局上榜後就能留言`;
   return `<div class="modal-backdrop"><section class="modal leaderboard-modal" role="dialog" aria-modal="true" aria-labelledby="leaderboard-title">
     <div class="celebrate">🏆</div><h2 id="leaderboard-title">家庭全球排行</h2>
     <div class="leaderboard-tabs">${Object.entries(LEADERBOARD_MODES).map(([key, item]) => `<button data-rank-difficulty="${key}" class="${leaderboardDifficulty === key ? "active" : ""}">${item.icon} ${item.label}</button>`).join("")}</div>
     ${!configured ? `<div class="empty-ranking"><strong>尚未連接資料庫</strong><small>設定 Supabase 後，家人的成績會出現在這裡。</small></div>` : leaderboardStatus ? `<div class="empty-ranking"><span class="loading-orbit">☁️</span><small>${escapeHtml(leaderboardStatus)}</small></div>` : leaderboardRows.length ? `<div class="leaderboard-list">${leaderboardRows.map((row, index) => `
       <div class="leaderboard-row ${row.player_id === progress.playerId ? "mine" : ""}"><b>${index + 1}</b>${avatarMarkup(index, row)}<span class="leaderboard-player"><strong>${escapeHtml(row.player_name)}</strong><small>${row.stars}⭐・${row.mistakes} 次失誤・${formatTime(row.elapsed_seconds)}</small>${row.taunt ? `<q>${escapeHtml(row.taunt)}</q>` : `<q class="quiet">還沒有留下嗆聲</q>`}</span><em>第 ${row.floor} 層</em></div>`).join("")}</div>` : `<div class="empty-ranking"><strong>還沒有成績</strong><small>完成第一層就能成為榜首！</small></div>`}
-    ${configured ? `<div class="taunt-editor"><label for="leaderboard-taunt">📣 我的島主宣言</label><div><input id="leaderboard-taunt" maxlength="48" value="${escapeHtml(myRow?.taunt || "")}" placeholder="例如：榜首先借我坐一下！"><button id="save-leaderboard-taunt" ${myRow ? "" : "disabled"}>送出</button></div><small>${escapeHtml(leaderboardTauntStatus || (myRow ? "最多 48 字，所有玩家都看得到" : "完成一局上榜後就能留言"))}</small></div>` : ""}
-    <p class="pending-scores">${pendingScoreCount() ? `尚有 ${pendingScoreCount()} 筆離線成績等待同步` : "每位玩家、每個難度只保留最佳成績"}</p>
+    ${configured ? `<div class="taunt-editor"><label for="leaderboard-taunt">📣 ${escapeHtml(modeLabel)}・我的島主宣言</label><div><input id="leaderboard-taunt" maxlength="48" value="${escapeHtml(myRow?.taunt || "")}" placeholder="例如：這難度先借我坐一下！"><button id="save-leaderboard-taunt" ${myRow ? "" : "disabled"}>送出</button></div><small>${escapeHtml(leaderboardTauntStatus || tauntHint)}</small></div>` : ""}
+    <p class="pending-scores">${pendingScoreCount() ? `尚有 ${pendingScoreCount()} 筆離線成績等待同步` : "每位玩家、每個難度只保留最佳成績；嗆聲也依難度分開"}</p>
     <button id="close-leaderboard" class="primary-button">回到遊戲</button>
   </section></div>`;
 }
@@ -631,11 +727,11 @@ function avatarPickerModal() {
   const color = AVATAR_COLORS[selectedColor] || AVATAR_COLORS[0];
   return `<div class="modal-backdrop"><section class="modal avatar-modal" role="dialog" aria-modal="true" aria-labelledby="avatar-title">
     <div class="celebrate">🐾</div><h2 id="avatar-title">選擇你的動物頭像</h2>
-    <p>選一個動物代表你，在遊戲中會陪你一起解數獨！</p>
-    <div class="avatar-preview" style="filter: hue-rotate(${color.hue})">${animal ? animal.emoji : "❓"}</div>
+    <p>選一個好朋友代表你，在遊戲中會陪你一起解數獨！</p>
+    <div class="avatar-preview" style="filter: hue-rotate(${color.hue})">${animal ? avatarStickerMarkup(animal.id, animal.name) : `<span class="avatar-placeholder-mark big">❔</span>`}</div>
     <div class="avatar-picker-grid">${AVATAR_ANIMALS.map(a => `
-      <button data-pick-animal="${a.id}" class="avatar-picker-animal ${selectedAnimal === a.id ? "selected" : ""}">
-        <span>${a.emoji}</span><small>${a.name}</small>
+      <button data-pick-animal="${a.id}" class="avatar-picker-animal ${selectedAnimal === a.id ? "selected" : ""}" title="${a.name}">
+        <img class="avatar-picker-sticker" src="${friendStickerUrl(a.id)}" alt="${escapeHtml(a.name)}" draggable="false" width="48" height="48"><small>${a.name}</small>
       </button>`).join("")}</div>
     ${selectedAnimal ? `<div class="avatar-color-row">${AVATAR_COLORS.map((c, i) => `
       <button data-pick-color="${i}" class="avatar-color-dot ${selectedColor === i ? "selected" : ""}" style="background:${c.bg}" title="${c.name}" aria-label="${c.name}色"></button>`).join("")}</div>` : ""}
@@ -824,12 +920,18 @@ async function createPlayer() {
   }
 }
 
-function applyImportedSave(imported) {
-  progress = imported.progress;
+function applyImportedSave(imported, { mergeWithLocal = null } = {}) {
+  progress = mergeWithLocal
+    ? mergeProgressHighWater(imported.progress, mergeWithLocal)
+    : imported.progress;
   if (imported.session) {
     game = imported.session.game;
     equippedCards = imported.session.equippedCards || [];
     alinMode = imported.session.alinMode || false;
+    // Session may be mid-floor while floors counter lagged — keep next-floor high water.
+    if (game?.difficulty && game?.floor) {
+      progress = raiseFloorProgress(progress, game.difficulty, game.floor);
+    }
   } else {
     equippedCards = [];
     game = createAdventureGame({
@@ -839,6 +941,27 @@ function applyImportedSave(imported) {
     });
     lastWaveVariants = { row: null, column: null, box: null };
   }
+}
+
+/** Leaderboard floor = highest completed; local floors = next to play. */
+function reconcileFloorsFromLeaderboardRows(rows) {
+  if (!Array.isArray(rows) || !progress?.playerId) return false;
+  let changed = false;
+  let next = progress;
+  rows.forEach((row) => {
+    if (row.player_id !== progress.playerId) return;
+    const difficulty = row.difficulty === "alin" ? (game?.difficulty || "easy") : row.difficulty;
+    const raised = raiseFloorProgress(next, difficulty, nextFloorFromCompleted(row.floor));
+    if (raised !== next) {
+      next = raised;
+      changed = true;
+    }
+  });
+  if (changed) {
+    progress = next;
+    saveProgress(progress);
+  }
+  return changed;
 }
 
 async function loadExistingPlayer() {
@@ -879,7 +1002,9 @@ async function hydrateCloudProgress() {
     if (winner === "cloud") {
       const imported = importSaveCode(saveCode, { touch: false });
       clearInterval(timerId);
-      applyImportedSave(imported);
+      // Cloud wins base fields, but never drop higher local floors / lifetime counters.
+      applyImportedSave(imported, { mergeWithLocal: progress });
+      saveProgress(progress, { touch: false });
       if (imported.session?.game) startTimer();
       cloudSyncStatus = "已載入雲端的較新進度";
       cloudHydrationPending = false;
@@ -888,7 +1013,13 @@ async function hydrateCloudProgress() {
       return;
     }
 
-    // Local is newer or equivalent: keep playing here and push upward when needed.
+    // Local is newer or equivalent — still high-water floors from cloud so we don't lag behind another device.
+    const mergedLocal = mergeProgressHighWater(progress, cloud.progress);
+    if (JSON.stringify(mergedLocal.floors) !== JSON.stringify(progress.floors)
+      || mergedLocal.completedGames !== progress.completedGames) {
+      progress = mergedLocal;
+      saveProgress(progress);
+    }
     cloudSyncStatus = localHasSession || saveTimestampMs(progress)
       ? "本機進度較新或相同，已保留本機並準備同步"
       : "已核對雲端進度，繼續使用本機存檔";
@@ -939,6 +1070,8 @@ async function refreshLeaderboard() {
   try {
     leaderboardRows = await fetchLeaderboard(leaderboardDifficulty);
     leaderboardStatus = "";
+    // If my uploaded completed floor is ahead of local next-floor, catch up.
+    reconcileFloorsFromLeaderboardRows(leaderboardRows);
   } catch (error) {
     leaderboardRows = [];
     leaderboardStatus = error.message || "排行榜暫時無法連線";
@@ -963,11 +1096,19 @@ async function saveLeaderboardTaunt() {
     return;
   }
   const taunt = normalizeLeaderboardTaunt(document.querySelector("#leaderboard-taunt")?.value || "");
-  leaderboardTauntStatus = "正在送出嗆聲…";
+  const modeLabel = LEADERBOARD_MODES[leaderboardDifficulty]?.label || "此難度";
+  leaderboardTauntStatus = `正在送出「${modeLabel}」嗆聲…`;
   render();
   try {
-    await updateLeaderboardTaunt({ playerId: progress.playerId, pin, taunt });
-    leaderboardTauntStatus = taunt ? "嗆聲已送上排行榜！" : "已清除嗆聲";
+    await updateLeaderboardTaunt({
+      playerId: progress.playerId,
+      pin,
+      taunt,
+      difficulty: leaderboardDifficulty
+    });
+    leaderboardTauntStatus = taunt
+      ? `「${modeLabel}」嗆聲已更新！`
+      : `已清除「${modeLabel}」嗆聲`;
     await refreshLeaderboard();
   } catch (error) {
     leaderboardTauntStatus = error.message || "嗆聲暫時無法送出";
@@ -989,27 +1130,29 @@ function toggleEquipCard(cardId) {
 }
 
 function presentBoardProgressEvents(events) {
-  const danceNames = {
-    row: ["好朋友側滑、拍手跳", "好朋友扭腰、小碎步"],
-    column: ["好朋友向上跳、伸懶腰", "好朋友蹲跳、衝天舞"],
-    box: ["好朋友反方向繞圈", "好朋友抖肩、旋轉舞"]
+  // Flavor lines — describe the moment, not the old CSS puppet moves.
+  const cheerLines = {
+    row: ["整排亮燈，好朋友來站台！", "一排數字排好了，蹦迪時間！"],
+    column: ["從上到下串成彩虹橋！", "這一柱氣勢，誰看了不鼓掌？"],
+    box: ["九宮格變成小派對帳篷！", "這一宮塞滿歡呼聲！"]
   };
+  const healLines = ["好朋友們為你打氣！", "回復滿點，繼續衝啊！", "島上氣氛瞬間熱起來！"];
   events.forEach((event) => {
     if (event.kind === "healGoal") {
       showCelebration("🎉", `恭喜完成「${event.label}」！`, event.reward);
-      showGameEffect("friends", "扭腰擺臀慶祝！", `${event.label}・${event.reward}`, "success");
+      showGameEffect("friends", healLines[Math.floor(Math.random() * healLines.length)], `${event.label}・${event.reward}`, "success");
       setAvatarFace("excited", 2500);
       triggerAvatarAnim("jump");
       return;
     }
     if (event.kind !== "unit") return;
     const variant = queueCellWave(event.type, event.unitIndex);
-    let detail = `${event.label}完成・${danceNames[event.type][variant]}！`;
+    let detail = `${event.label}完成・${cheerLines[event.type][variant]}`;
     if (event.firstReward) {
       detail = `${detail}・${event.reward}`;
       showCelebration("🎉", `首次完成${event.type === "row" ? "一行" : "一宮"}！`, event.reward);
     }
-    showGameEffect("friends", `${event.label}完成，換舞步！`, detail, "success", `${event.type}-${variant}`);
+    showGameEffect("friends", `${event.label}完成，好朋友上場！`, detail, "success", `${event.type}-${variant}`);
     triggerAvatarAnim("jump");
     const totalCompleted = game.completedUnits.rows.length + game.completedUnits.columns.length + game.completedUnits.boxes.length;
     if (totalCompleted >= 18) setAvatarFace("excited", 3000);
@@ -1045,7 +1188,7 @@ function enterNumber(number) {
   if (result.type === "mistake") {
     if (result.failed) clearInterval(timerId);
     if (result.blockedByShield) showGameEffect("🛡️", "鏘！成功格擋", "護盾替你擋住這次錯誤", "shield");
-    else showGameEffect("friends", game.failed ? "體力用完，雙雙昏倒！" : "猜錯了，雙雙昏倒！", alinMode ? "躺一下再繼續，阿霖模式不會失敗" : game.failed ? "休息一下，可以使用寶物或金幣復活" : "好朋友們休息一下，再陪你試一次！", "mistake", game.failed ? "failure" : "");
+    else showGameEffect("friends", game.failed ? "體力用完，好朋友也累趴了！" : "哎呀猜錯，好朋友愣住了！", alinMode ? "躺一下再繼續，阿霖模式不會失敗" : game.failed ? "休息一下，可以使用寶物或金幣復活" : "好朋友們喘口氣，再陪你試一次！", "mistake", game.failed ? "failure" : "");
     document.body.classList.add("shake");
     setTimeout(() => document.body.classList.remove("shake"), 320);
     triggerAvatarAnim("shake");
@@ -1139,18 +1282,21 @@ function checkCompletion() {
   if (!settlement) return;
   clearInterval(timerId);
   showFinaleCelebration();
-  progress = rewardProgress(progress, settlement.xpReward, settlement.timeBonus, settlement.stars, game.difficulty);
+  progress = rewardProgress(progress, settlement.xpReward, settlement.timeBonus, settlement.stars, game.difficulty, game.floor);
   const achievementResult = recordAchievementGame(progress, {
     perfect: settlement.perfect,
     speed: settlement.speed,
     alin: settlement.alin
   });
   progress = achievementResult.progress;
+  // Belt-and-suspenders: next floor is always at least completed + 1.
+  progress = raiseFloorProgress(progress, game.difficulty, nextFloorFromCompleted(game.floor));
   saveProgress(progress);
   achievementResult.unlocked.forEach((achievement, index) => {
     setTimeout(() => showCelebration(achievement.icon, `永久成就・${achievement.name}`, `${achievement.description}・🪙 +${achievement.coins}`), 3500 + index * 450);
   });
   clearSession();
+  // Upload the completed floor (game.floor), not the next-floor counter.
   queueLeaderboardScore(buildScore(progress, game, alinMode)).catch(() => {});
   syncCloudNow(false);
 }
@@ -1196,14 +1342,24 @@ function newGame(difficulty) {
   cellWaveQueue = [];
   cellWaveActive = false;
   equippedCards = equippedCards.filter((cardId) => progress.inventory[cardId] > 0).slice(0, 2);
+  // If we just cleared a board, never re-open a lower floor than completed + 1.
+  const fromLastClear = game?.completed && game?.difficulty === difficulty
+    ? nextFloorFromCompleted(game.floor)
+    : 1;
+  const floor = Math.max(progress.floors[difficulty] || 1, fromLastClear, 1);
+  if ((progress.floors[difficulty] || 1) < floor) {
+    progress = raiseFloorProgress(progress, difficulty, floor);
+    saveProgress(progress);
+  }
   game = createAdventureGame({
     difficulty,
-    floor: progress.floors[difficulty] || 1,
+    floor,
     equippedCards
   });
   noteMode = false;
   showBackpack = false;
   lastWaveVariants = { row: null, column: null, box: null };
+  refreshBoardBuddies();
   render();
 }
 

@@ -14,10 +14,10 @@ import {
   settleCompletedGame
 } from "../src/game/flow.js";
 import { ACHIEVEMENTS, achievementValue, recordAchievementGame } from "../src/game/achievements.js";
-import { chooseFriendPair, chooseGardenEel, FRIEND_ROSTER, friendPairKey, GARDEN_EEL_VARIANTS } from "../src/game/friends.js";
+import { chooseFriendPair, chooseGardenEel, choosePartyFriends, nextDanceVariants, FRIEND_ROSTER, friendPairKey, GARDEN_EEL_VARIANTS, DANCE_VARIANT_COUNT } from "../src/game/friends.js";
 import { normalizePlayerName, validCloudPin } from "../src/state/cloud.js";
 import { buildScore, leaderboardConfigured, normalizeLeaderboardTaunt } from "../src/state/leaderboard.js";
-import { exportSaveCode, importSaveCode, parseSaveCode, preferSaveSide, rewardProgress, saveProgress as writeProgress, saveTimestampMs } from "../src/state/store.js";
+import { exportSaveCode, importSaveCode, mergeProgressHighWater, nextFloorFromCompleted, parseSaveCode, preferSaveSide, raiseFloorProgress, rewardProgress, saveProgress as writeProgress, saveTimestampMs } from "../src/state/store.js";
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -28,20 +28,39 @@ const appSource = readFileSync(new URL("../src/app.js", import.meta.url), "utf8"
 const storeSource = readFileSync(new URL("../src/state/store.js", import.meta.url), "utf8");
 const leaderboardSource = readFileSync(new URL("../src/state/leaderboard.js", import.meta.url), "utf8");
 const leaderboardSql = readFileSync(new URL("../supabase/leaderboard.sql", import.meta.url), "utf8");
-assert(FRIEND_ROSTER.length === 3 && FRIEND_ROSTER.some((friend) => friend.id === "otter"), "夥伴名單應包含水獺");
+assert(FRIEND_ROSTER.length === 25 && FRIEND_ROSTER.some((friend) => friend.id === "otter"), "夥伴名單應包含 25 種動物與水獺");
+assert(FRIEND_ROSTER.some((friend) => friend.id === "horse") && FRIEND_ROSTER.some((friend) => friend.id === "sheep"), "夥伴名單應包含馬與羊");
 const firstFriendPair = chooseFriendPair("", () => 0);
 const nextFriendPair = chooseFriendPair(firstFriendPair.key, () => 0);
 assert(firstFriendPair.friends.length === 2 && new Set(firstFriendPair.friends.map((friend) => friend.id)).size === 2, "慶祝應選出兩位不同夥伴");
 assert(nextFriendPair.key !== firstFriendPair.key, "同一組夥伴不應連續出現");
 assert(friendPairKey([...firstFriendPair.friends].reverse()) === firstFriendPair.key, "夥伴配對鍵不應受站位順序影響");
+const danceA = nextDanceVariants(0);
+const danceB = nextDanceVariants(danceA.nextCursor);
+assert(DANCE_VARIANT_COUNT === 4 && danceA.left === 1 && danceA.right === 2, "舞蹈變體應從 1、2 開始輪轉");
+assert(danceB.left === 2 && danceB.right === 3, "舞蹈變體應持續輪番");
+const party = choosePartyFriends("cat", 5, () => 0.1);
+assert(party.length === 6 && party[0].id === "cat", "過關派對應為玩家 + 5 位好朋友");
+assert(new Set(party.map((friend) => friend.id)).size === party.length, "過關派對成員不可重複");
+assert(/friends-dance\/.*_\$\{|friendDanceUrl|friends-dance/.test(appSource), "事件慶祝應使用舞蹈動畫");
+assert(/friendFaintUrl|friends-faint/.test(appSource), "失誤應使用專用昏倒動畫");
+assert(/avatar-sticker|friends\/\$\{|friendStickerUrl/.test(appSource), "頭像應使用貼紙 PNG");
+assert(/finale-firework|partyFriendsMarkup|choosePartyFriends/.test(appSource), "過關應有大合舞與煙火");
+assert(/\.webp/.test(appSource) && /friendDanceUrl/.test(appSource), "好朋友舞蹈應為透明 WebP");
 const orangeEel = chooseGardenEel(() => 0);
 const whiteEel = chooseGardenEel(() => 0.999999);
 assert(GARDEN_EEL_VARIANTS.length === 2 && orangeEel.cell === 0 && orangeEel.variant === "orange", "橘色花園鰻應可從第一格偷看");
 assert(whiteEel.cell === 80 && whiteEel.variant === "white", "白色花園鰻應可從最後一格偷看");
+const emptyOnly = chooseGardenEel(() => 0, { emptyCells: [14, 27, 63] });
+assert(emptyOnly && emptyOnly.cell === 14, "花園鰻應優先選空白格");
+assert(chooseGardenEel(() => 0, { emptyCells: [] }) === null, "沒有空白格時不應出現花園鰻");
+assert(/emptyCells/.test(appSource), "探頭流程應只使用空白格");
 assert(/grid-template-rows:\s*repeat\(9,\s*minmax\(0,\s*1fr\)\)/.test(stylesheet), "數獨盤面必須固定為 9 個可縮小橫列");
 assert(/-webkit-text-size-adjust:\s*100%/.test(stylesheet), "iOS 內建瀏覽器不可自動放大文字而裁掉最下列");
 assert(/garden-eel-peek/.test(stylesheet) && /@keyframes garden-eel-peek/.test(stylesheet), "花園鰻應有偷看動畫");
 assert(/garden-eel-img/.test(appSource) && /garden-eel-img/.test(stylesheet), "花園鰻應使用圖片資源");
+assert(/eel-orange\.webp/.test(appSource) && /eel-white\.webp/.test(appSource), "花園鰻探頭應使用雙色透明 WebP");
+assert(/width:\s*11\.1112%/.test(stylesheet) && /height:\s*11\.1112%/.test(stylesheet), "花園鰻容器應約為一格大小");
 
 assert(/player_avatar text/i.test(leaderboardSql) && /avatar_color integer/i.test(leaderboardSql), "leaderboard schema should include avatar columns");
 assert(/p_player_avatar text/i.test(leaderboardSql) && /p_avatar_color integer/i.test(leaderboardSql), "leaderboard RPC should accept avatar parameters");
@@ -59,13 +78,18 @@ assert(/hasLeaderboardRow \? row\.player_avatar : progress\.playerAvatar/.test(a
 assert(/leaderboard-placeholder/.test(appSource) && /avatar-placeholder-mark/.test(appSource), "leaderboard rows without avatars should keep a question-mark placeholder");
 assert(/game-avatar-anchor/.test(appSource) && /board-stage/.test(appSource), "game avatar should be anchored above the board area");
 assert(/grid-template-columns:\s*28px 34px minmax\(0, 1fr\) auto/.test(stylesheet), "leaderboard avatar column should keep a compact proportion");
-assert(/max-width:\s*calc\(100% - 52px\)/.test(stylesheet), "avatar bubbles should stay within the board width");
+assert(/max-width:\s*min\(11\.5em,\s*calc\(100% - 64px\)\)/.test(stylesheet), "avatar bubbles should stay within the board width without hard clipping");
 assert(/game-avatar-anchor > \.player-avatar \{[\s\S]*flex-direction:\s*row/.test(stylesheet) && /game-avatar-anchor \.avatar-bubble \{[\s\S]*white-space:\s*nowrap/.test(stylesheet), "game avatar bubble should stay horizontal beside the avatar");
 assert(/\.adventure-status \{[^}]*flex-direction:\s*column[^}]*align-items:\s*flex-start/.test(stylesheet), "desktop adventure status should use the mobile vertical layout");
 assert(appSource.indexOf('<div class="adventure-status">') < appSource.indexOf('${avatarMarkup()}') && appSource.indexOf('${avatarMarkup()}') < appSource.indexOf('<div class="board-stage">'), "game avatar should use the open status area");
-assert(/game-avatar-anchor > \.player-avatar > span \{[\s\S]*font-size:\s*36px/.test(stylesheet) && /game-avatar-anchor \.avatar-bubble \{[\s\S]*font-size:\s*0\.85rem/.test(stylesheet), "game avatar and expression bubble should render larger with text emoji fonts");
-assert(/\.board-buddies \{ position: static; width: max-content; margin: -2px auto 10px; gap: 5px;/.test(stylesheet), "mobile buddies should be grouped in normal flow above the board");
-assert(/\.adventure-status \.game-avatar-anchor \{ position: relative;[^}]*height: 44px[^}]*justify-content: flex-end;/.test(stylesheet), "mobile game avatar should have its own non-overlapping row");
+assert(/game-avatar-anchor \.avatar-sticker \{[\s\S]*width:\s*58px/.test(stylesheet) && /game-avatar-anchor \.avatar-bubble \{[\s\S]*overflow:\s*visible/.test(stylesheet), "game avatar sticker should be larger and bubble must not be clipped");
+assert(/boardBuddiesMarkup|board-buddy-img|pickBoardBuddies/.test(appSource), "盤面三好友應使用隨機靜態貼紙");
+assert(/board-buddies \{[\s\S]*top:\s*-26px[\s\S]*left:\s*18px/.test(stylesheet), "三好友應站在白卡片左上框線");
+assert(/margin-right:\s*-10px/.test(stylesheet), "三好友應互相靠近像一起出遊");
+assert(/board-card[\s\S]*boardBuddiesMarkup|\$\{boardBuddiesMarkup\(\)\}[\s\S]*game-meta/.test(appSource), "三好友應掛在 board-card 上緣而非數獨格線");
+assert(/\.board-buddies \{[\s\S]*top:\s*-22px[\s\S]*left:\s*12px/.test(stylesheet), "手機版三好友仍靠卡片左上");
+assert(/\.adventure-status \.game-avatar-anchor \{[\s\S]*position: relative;[\s\S]*justify-content: flex-end;/.test(stylesheet), "mobile game avatar should have its own non-overlapping row");
+assert(/adventure-status \.avatar-sticker \{ width: 48px/.test(stylesheet), "mobile avatar should grow modestly without dominating the status row");
 assert(/\.topbar \{ height: auto; min-height: 48px; flex-wrap: wrap;/.test(stylesheet) && /\.topbar-actions \{ flex: 1 0 100%;[^}]*width: 100%;/.test(stylesheet), "mobile topbar actions should use a separate row");
 assert(/if \(!progress\.playerAvatar\) \{\s*showAvatarPicker = true/.test(appSource), "a new game should require an avatar selection");
 assert(appSource.indexOf('<div class="number-pad"') < appSource.indexOf('<div class="tools">'), "number pad should sit immediately before the tool buttons");
@@ -309,6 +333,18 @@ assert(!("unlockedDifficulty" in strippedUnlock.progress), "載入舊存檔應�
 const afterRewards = rewardProgress(strippedUnlock.progress, 35, 0, 1, "hard");
 assert(afterRewards.completedGames === 1 && !("unlockedDifficulty" in afterRewards), "完賽獎勵不應再建立難度解鎖狀態");
 assert(afterRewards.floors.hard >= 2, "高手難度從第一局即可推進樓層");
+assert(nextFloorFromCompleted(16) === 17, "排行榜已完成樓層應對應下一層 = 完成層 + 1");
+assert(raiseFloorProgress({ floors: { easy: 15, medium: 1, hard: 1 } }, "easy", 17).floors.easy === 17, "本機樓層落後時應被抬高");
+assert(raiseFloorProgress({ floors: { easy: 18, medium: 1, hard: 1 } }, "easy", 17).floors.easy === 18, "本機已較高時不可被排行榜拉低");
+const mergedFloors = mergeProgressHighWater(
+  { floors: { easy: 12, medium: 2, hard: 1 }, completedGames: 4, totalStars: 8, level: 3, coins: 10 },
+  { floors: { easy: 16, medium: 1, hard: 4 }, completedGames: 2, totalStars: 20, level: 2, coins: 40 }
+);
+assert(mergedFloors.floors.easy === 16 && mergedFloors.floors.hard === 4, "合併存檔應取各難度最高樓層");
+assert(mergedFloors.completedGames === 4 && mergedFloors.totalStars === 20 && mergedFloors.coins === 40, "合併存檔應取生命週期計數高水位");
+const catchUp = rewardProgress({ floors: { easy: 15, medium: 1, hard: 1 }, completedGames: 0, xp: 0, level: 1, coins: 0, streak: 0, totalStars: 0 }, 10, 0, 1, "easy", 16);
+assert(catchUp.floors.easy === 17, "完賽時若局內樓層高於存檔計數，下一層應對齊 completed+1");
+assert(/mergeProgressHighWater|raiseFloorProgress|reconcileFloorsFromLeaderboardRows/.test(appSource), "雲端與排行榜應能抬高落後的本機樓層");
 
 const flowGame = createAdventureGame({ difficulty: "easy", floor: 1 });
 flowGame.started = true;
@@ -353,6 +389,11 @@ assert(!("p_pin" in score), "成績佇列物件不可內嵌家庭 PIN");
 assert(buildScore(imported.progress, { difficulty: "hard", floor: 3, stars: 2, elapsed: 300, mistakes: 4 }, true).p_difficulty === "alin", "阿霖模式成績應送往獨立排行榜");
 assert(normalizeLeaderboardTaunt("  榜首是我的！\n  ") === "榜首是我的！", "排行榜嗆聲應移除控制字元與前後空白");
 assert(normalizeLeaderboardTaunt("哈".repeat(60)).length === 48, "排行榜嗆聲應限制為 48 字");
+assert(/p_difficulty/.test(leaderboardSource) && /update_leaderboard_taunt/.test(leaderboardSource), "嗆聲更新 API 應帶上難度");
+assert(/p_difficulty text/.test(leaderboardSql) && /and difficulty = p_difficulty/.test(leaderboardSql), "DB 嗆聲更新應只寫入對應難度列");
+assert(!/set taunt = trim\(p_taunt\)\s*where player_id = p_player_id;\s*end;/.test(leaderboardSql), "嗆聲不可再一次寫入該玩家所有難度");
+assert(/difficulty: leaderboardDifficulty|p_difficulty: difficulty/.test(appSource), "前端送出嗆聲應使用目前排行榜分頁難度");
+assert(/只套用在|嗆聲也依難度分開/.test(appSource), "UI 應提示嗆聲依難度分開");
 const achievementRun = recordAchievementGame({ ...imported.progress, completedGames: 5, totalStars: 20, coins: 0, achievements: [], achievementStats: {} }, { perfect: true, speed: true, alin: true });
 assert(achievementRun.unlocked.some((item) => item.id === "fiveClears") && achievementRun.unlocked.some((item) => item.id === "starCollector"), "累計局數與星星應解鎖永久成就");
 assert(achievementRun.progress.achievementStats.perfectGames === 1 && achievementRun.progress.coins > 0, "完賽統計與成就金幣應永久累積");

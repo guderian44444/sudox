@@ -99,6 +99,52 @@ export function preferSaveSide(localProgress, cloudProgress, {
   return "local";
 }
 
+/**
+ * Never let floors / lifetime counters go backwards when merging two saves.
+ * `primary` supplies the base fields; numeric high-water marks come from both sides.
+ */
+export function mergeProgressHighWater(primary, secondary = {}) {
+  const base = primary && typeof primary === "object" ? primary : {};
+  const other = secondary && typeof secondary === "object" ? secondary : {};
+  const floorKeys = Object.keys(defaultProgress.floors);
+  const floors = Object.fromEntries(floorKeys.map((difficulty) => [
+    difficulty,
+    Math.max(
+      1,
+      Math.floor(Number(base.floors?.[difficulty]) || 1),
+      Math.floor(Number(other.floors?.[difficulty]) || 1)
+    )
+  ]));
+  return {
+    ...base,
+    floors,
+    completedGames: Math.max(0, Math.floor(Number(base.completedGames) || 0), Math.floor(Number(other.completedGames) || 0)),
+    totalStars: Math.max(0, Math.floor(Number(base.totalStars) || 0), Math.floor(Number(other.totalStars) || 0)),
+    level: Math.max(1, Math.floor(Number(base.level) || 1), Math.floor(Number(other.level) || 1)),
+    coins: Math.max(0, Math.floor(Number(base.coins) || 0), Math.floor(Number(other.coins) || 0))
+  };
+}
+
+/**
+ * Leaderboard stores the highest COMPLETED floor.
+ * Local `floors[difficulty]` is the NEXT floor to play, so it must be >= completed + 1.
+ */
+export function nextFloorFromCompleted(completedFloor) {
+  return Math.max(1, Math.floor(Number(completedFloor) || 0) + 1);
+}
+
+export function raiseFloorProgress(progress, difficulty, nextFloor) {
+  const key = difficulty === "alin" ? null : difficulty;
+  if (!key || !defaultProgress.floors[key]) return progress;
+  const target = Math.max(1, Math.floor(Number(nextFloor) || 1));
+  const current = Math.max(1, Math.floor(Number(progress?.floors?.[key]) || 1));
+  if (current >= target) return progress;
+  return {
+    ...progress,
+    floors: { ...progress.floors, [key]: target }
+  };
+}
+
 const safeNumber = (value, fallback = 0) => Number.isFinite(Number(value)) ? Math.max(0, Number(value)) : fallback;
 
 function normalizedInventory(inventory = {}) {
@@ -134,7 +180,13 @@ function normalizedProgress(saved = {}) {
       alinGames: Math.floor(safeNumber(safeSaved.achievementStats?.alinGames))
     },
     floors: Object.fromEntries(Object.keys(defaultProgress.floors).map((difficulty) => [difficulty, Math.max(1, Math.floor(safeNumber(safeSaved.floors?.[difficulty], 1))) ])),
-    playerAvatar: typeof safeSaved.playerAvatar === "string" && /^[a-z_]+$/.test(safeSaved.playerAvatar) ? safeSaved.playerAvatar : "",
+    playerAvatar: (() => {
+      if (typeof safeSaved.playerAvatar !== "string" || !/^[a-z_]+$/.test(safeSaved.playerAvatar)) return "";
+      // Legacy renames: wild rabbit slot → horse, panda face → sheep.
+      if (safeSaved.playerAvatar === "bunny") return "horse";
+      if (safeSaved.playerAvatar === "panda_face") return "sheep";
+      return safeSaved.playerAvatar;
+    })(),
     avatarColor: Math.max(0, Math.min(7, Math.floor(safeNumber(safeSaved.avatarColor)))),
     updatedAt: normalizeUpdatedAt(safeSaved.updatedAt)
   };
@@ -204,14 +256,26 @@ export function spendCoins(progress, amount) {
   return next;
 }
 
-export function rewardProgress(progress, xpReward, bonusCoins = 0, stars = 0, difficulty = "easy") {
+/**
+ * @param {object} progress
+ * @param {number} xpReward
+ * @param {number} [bonusCoins]
+ * @param {number} [stars]
+ * @param {string} [difficulty]
+ * @param {number | null} [completedFloor] floor just cleared — next floor must be >= completed + 1
+ */
+export function rewardProgress(progress, xpReward, bonusCoins = 0, stars = 0, difficulty = "easy", completedFloor = null) {
   const next = { ...progress, floors: { ...progress.floors } };
   next.xp += xpReward;
   next.coins += Math.ceil(xpReward / 5) + bonusCoins;
   next.completedGames += 1;
   next.streak += 1;
   next.totalStars = (next.totalStars || 0) + stars;
-  next.floors[difficulty] = (next.floors[difficulty] || 1) + 1;
+  // floors[difficulty] = NEXT floor to play (never regress; honor completed floor).
+  const key = defaultProgress.floors[difficulty] != null ? difficulty : "easy";
+  const current = Math.max(1, Math.floor(Number(next.floors[key]) || 1));
+  const fromCompleted = completedFloor != null ? Math.floor(Number(completedFloor) || 0) + 1 : 0;
+  next.floors[key] = Math.max(current + 1, fromCompleted, 1);
   while (next.xp >= next.level * 100) {
     next.xp -= next.level * 100;
     next.level += 1;

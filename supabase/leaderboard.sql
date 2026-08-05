@@ -207,10 +207,14 @@ revoke all on function public.load_cloud_progress(text, text) from public;
 grant execute on function public.save_cloud_progress(uuid, text, text, text) to anon, authenticated;
 grant execute on function public.load_cloud_progress(text, text) to anon, authenticated;
 
+-- Drop old 3-arg version that updated every difficulty for the player.
+drop function if exists public.update_leaderboard_taunt(uuid, text, text);
+
 create or replace function public.update_leaderboard_taunt(
   p_player_id uuid,
   p_pin text,
-  p_taunt text
+  p_taunt text,
+  p_difficulty text
 )
 returns void
 language plpgsql
@@ -221,7 +225,8 @@ begin
   if char_length(p_pin) <> 4
     or p_pin ~ '[^0-9]'
     or char_length(trim(p_taunt)) > 48
-    or p_taunt ~ '[[:cntrl:]]' then
+    or p_taunt ~ '[[:cntrl:]]'
+    or p_difficulty not in ('easy', 'medium', 'hard', 'alin') then
     raise exception 'Invalid leaderboard taunt';
   end if;
 
@@ -234,14 +239,18 @@ begin
     raise exception 'Invalid cloud PIN';
   end if;
 
+  -- Taunts are per difficulty (player_id, difficulty) so trash-talk on easy
+  -- does not appear when you're behind on hard.
   update public.leaderboard_scores
-  set taunt = trim(p_taunt)
-  where player_id = p_player_id;
+  set taunt = trim(p_taunt),
+      updated_at = now()
+  where player_id = p_player_id
+    and difficulty = p_difficulty;
 end;
 $$;
 
-revoke all on function public.update_leaderboard_taunt(uuid, text, text) from public;
-grant execute on function public.update_leaderboard_taunt(uuid, text, text) to anon, authenticated;
+revoke all on function public.update_leaderboard_taunt(uuid, text, text, text) from public;
+grant execute on function public.update_leaderboard_taunt(uuid, text, text, text) to anon, authenticated;
 
 create or replace function public.update_leaderboard_avatar(
   p_player_id uuid,

@@ -134,13 +134,19 @@ export async function fetchLeaderboard(difficulty = "easy") {
   return response.json();
 }
 
-export async function updateLeaderboardTaunt({ playerId, pin, taunt }) {
+export async function updateLeaderboardTaunt({ playerId, pin, taunt, difficulty = "easy" }) {
   if (!leaderboardConfigured()) throw new Error("排行榜尚未連接資料庫");
+  if (!difficulties.has(difficulty)) throw new Error("排行榜難度不正確");
   const cleanTaunt = normalizeLeaderboardTaunt(taunt);
   const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/update_leaderboard_taunt`, {
     method: "POST",
     headers: headers(),
-    body: JSON.stringify({ p_player_id: playerId, p_pin: pin, p_taunt: cleanTaunt })
+    body: JSON.stringify({
+      p_player_id: playerId,
+      p_pin: pin,
+      p_taunt: cleanTaunt,
+      p_difficulty: difficulty
+    })
   });
   if (!response.ok) throw new Error(response.status === 400 ? "家庭 PIN 驗證失敗" : `嗆聲更新失敗 (${response.status})`);
   return cleanTaunt;
