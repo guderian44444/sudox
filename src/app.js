@@ -4,7 +4,7 @@ import { ACHIEVEMENTS, achievementValue, recordAchievementGame } from "./game/ac
 import { chooseFriendPair, chooseGardenEel } from "./game/friends.js";
 import { cloudConfigured, loadCloudPin, loadCloudProgress, normalizePlayerName, renameCloudPlayer, saveCloudPin, saveCloudProgress, validCloudPin } from "./state/cloud.js";
 import { buildScore, fetchLeaderboard, flushPendingScores, leaderboardConfigured, normalizeLeaderboardTaunt, pendingScoreCount, queueLeaderboardScore, updateLeaderboardAvatar, updateLeaderboardTaunt } from "./state/leaderboard.js";
-import { addCard, clearSession, consumeCard, exportSaveCode, importSaveCode, loadProgress, loadSession, rewardProgress, saveProgress, saveSession, spendCoins } from "./state/store.js";
+import { addCard, clearSession, consumeCard, exportSaveCode, importSaveCode, loadProgress, loadSession, parseSaveCode, preferSaveSide, rewardProgress, saveProgress, saveSession, saveTimestampMs, spendCoins } from "./state/store.js";
 
 const app = document.querySelector("#app");
 let progress = loadProgress();
@@ -564,14 +564,20 @@ function achievementModal() {
 }
 
 function nameSetupModal() {
+  const rememberedPin = validCloudPin(loadCloudPin()) ? loadCloudPin() : "";
+  const defaultStatus = rememberedPin
+    ? "本機已記住家庭 PIN，已自動填入；同一台裝置的舊玩家不必重設。"
+    : cloudConfigured()
+      ? "第一次玩請建立玩家；換裝置才需要輸入名稱與 PIN 載入雲端。"
+      : "資料庫尚未設定，目前可先建立本機玩家。";
   return `<div class="modal-backdrop"><section class="modal name-modal" role="dialog" aria-modal="true" aria-labelledby="name-title">
     <div class="celebrate">🏝️</div><p class="eyebrow">WELCOME</p><h2 id="name-title">冒險家叫什麼名字？</h2>
-    <p>名稱會顯示在家庭排行榜。4 位數家庭 PIN 用來在其他裝置找回雲端存檔。</p>
+    <p>名稱會顯示在家庭排行榜。4 位數家庭 PIN 用來在其他裝置找回雲端存檔；同一台裝置會記住，不必每次重輸。</p>
     <label class="field-label" for="player-name">玩家名稱</label>
     <input id="player-name" class="name-input" maxlength="16" autocomplete="nickname" value="${escapeHtml(progress.playerName || "")}" placeholder="例如：阿霖">
-    <label class="field-label" for="family-pin">家庭 PIN</label>
-    <input id="family-pin" class="name-input pin-input" type="text" maxlength="4" inputmode="numeric" pattern="[0-9]*" enterkeyhint="done" autocomplete="off" placeholder="4 位數字">
-    <p class="name-status" role="status">${escapeHtml(nameSetupStatus || (cloudConfigured() ? "第一次玩請建立玩家；換裝置請載入雲端進度。" : "資料庫尚未設定，目前可先建立本機玩家。"))}</p>
+    <label class="field-label" for="family-pin">家庭 PIN${rememberedPin ? "（本機已記住）" : ""}</label>
+    <input id="family-pin" class="name-input pin-input" type="text" maxlength="4" inputmode="numeric" pattern="[0-9]*" enterkeyhint="done" autocomplete="off" placeholder="4 位數字" value="${escapeHtml(rememberedPin)}">
+    <p class="name-status" role="status">${escapeHtml(nameSetupStatus || defaultStatus)}</p>
     <div class="save-actions"><button id="create-player">✨ 建立新玩家</button><button id="load-cloud-player" ${cloudConfigured() ? "" : "disabled"}>☁️ 載入雲端進度</button></div>
   </section></div>`;
 }
@@ -593,11 +599,28 @@ function leaderboardModal() {
 function saveCenterModal() {
   const configured = cloudConfigured();
   const pinReady = validCloudPin(loadCloudPin());
+  const pinStatusTitle = !configured
+    ? "等待設定 Supabase"
+    : pinReady
+      ? "雲端同步已就緒・本機已記住 PIN"
+      : progress.playerName
+        ? "輸入一次家庭 PIN 即可繼續同步"
+        : "需要先建立玩家與家庭 PIN";
+  const pinStatusDetail = cloudSyncStatus || (
+    !configured
+      ? "設定完成前仍會安全保存在這台裝置"
+      : pinReady
+        ? `玩家：${progress.playerName}・舊玩家不必重新設定 PIN`
+        : progress.playerName
+          ? "這台裝置還沒記住 PIN（可能清過瀏覽器資料）。輸入原本的 4 位數即可，不用重建角色。"
+          : "建立玩家後會記住 PIN，之後同一台裝置都不用重輸"
+  );
   return `<div class="modal-backdrop"><section class="modal save-modal" role="dialog" aria-modal="true" aria-labelledby="save-title">
     <div class="celebrate">☁️</div><h2 id="save-title">雲端存檔</h2>
-    <p>本機會隨時自動保存；連上網路後，玩家資料、裝備、XP、層數和目前盤面也會同步到家庭雲端。</p>
-    <div class="cloud-card ${configured && pinReady ? "ready" : "waiting"}"><span>${configured && pinReady ? "✅" : "⚙️"}</span><div><strong>${configured ? (pinReady ? "雲端同步已就緒" : "需要設定家庭 PIN") : "等待設定 Supabase"}</strong><small>${escapeHtml(cloudSyncStatus || (configured ? `玩家：${progress.playerName}` : "設定完成前仍會安全保存在這台裝置"))}</small></div></div>
-    <div class="rename-player"><label for="rename-player-name">✏️ 修改玩家名稱</label><div><input id="rename-player-name" maxlength="16" value="${escapeHtml(progress.playerName || "")}" placeholder="新的玩家名稱"><button id="rename-cloud-player" ${configured && pinReady && progress.playerName ? "" : "disabled"}>改名</button></div><small>使用目前的家庭 PIN 驗證，排行榜名稱也會一起更新。</small></div>
+    <p>本機會隨時自動保存；連上網路後，玩家資料、裝備、XP、層數和目前盤面也會同步到家庭雲端。已存在玩家的 PIN 不會因這次更新作廢。</p>
+    <div class="cloud-card ${configured && pinReady ? "ready" : "waiting"}"><span>${configured && pinReady ? "✅" : "⚙️"}</span><div><strong>${pinStatusTitle}</strong><small>${escapeHtml(pinStatusDetail)}</small></div></div>
+    ${configured && progress.playerName && !pinReady ? `<div class="pin-unlock"><label class="field-label" for="unlock-family-pin">家庭 PIN（輸入一次，本機會記住）</label><div><input id="unlock-family-pin" class="name-input pin-input" type="text" maxlength="4" inputmode="numeric" pattern="[0-9]*" enterkeyhint="done" autocomplete="off" placeholder="4 位數字"><button id="unlock-family-pin-btn">記住並啟用同步</button></div></div>` : ""}
+    <div class="rename-player"><label for="rename-player-name">✏️ 修改玩家名稱</label><div><input id="rename-player-name" maxlength="16" value="${escapeHtml(progress.playerName || "")}" placeholder="新的玩家名稱"><button id="rename-cloud-player" ${configured && pinReady && progress.playerName ? "" : "disabled"}>改名</button></div><small>${pinReady ? "使用本機已記住的家庭 PIN 驗證，不必重輸。" : "啟用 PIN 後才能改名並同步雲端。"}</small></div>
     <div class="save-actions"><button id="sync-cloud-now" ${configured && pinReady ? "" : "disabled"}>☁️ 立即同步</button><button id="switch-cloud-player">👤 更換／載入玩家</button></div>
     <button id="close-save-center" class="primary-button">回到遊戲</button>
   </section></div>`;
@@ -696,6 +719,10 @@ function bindEvents() {
   document.querySelector("#family-pin")?.addEventListener("input", (event) => {
     event.currentTarget.value = normalizePinInput(event.currentTarget.value);
   });
+  document.querySelector("#unlock-family-pin")?.addEventListener("input", (event) => {
+    event.currentTarget.value = normalizePinInput(event.currentTarget.value);
+  });
+  document.querySelector("#unlock-family-pin-btn")?.addEventListener("click", unlockFamilyPin);
   document.querySelector("#create-player")?.addEventListener("click", createPlayer);
   document.querySelector("#load-cloud-player")?.addEventListener("click", loadExistingPlayer);
   document.querySelector("#close-backpack")?.addEventListener("click", () => { showBackpack = false; game.equippedCards = [...equippedCards]; render(); });
@@ -732,6 +759,48 @@ function playerSetupValues() {
   if (!playerName) throw new Error("請輸入玩家名稱");
   if (!validCloudPin(pin)) throw new Error("家庭 PIN 必須是 4 位數字");
   return { playerName, pin };
+}
+
+async function unlockFamilyPin() {
+  const pin = normalizePinInput(document.querySelector("#unlock-family-pin")?.value || "");
+  if (!validCloudPin(pin)) {
+    cloudSyncStatus = "家庭 PIN 必須是 4 位數字";
+    render();
+    return;
+  }
+  if (!progress.playerName) {
+    cloudSyncStatus = "請先建立或載入玩家";
+    render();
+    return;
+  }
+  cloudSyncStatus = "正在用原本的 PIN 啟用同步…";
+  render();
+  try {
+    if (cloudConfigured() && navigator.onLine) {
+      try {
+        // Existing cloud account: verify name + PIN (do not apply cloud save here).
+        await loadCloudProgress(progress.playerName, pin);
+      } catch {
+        // No cloud row yet, or this device is first-time online: create/update with local progress.
+        await saveCloudProgress({
+          playerId: progress.playerId,
+          playerName: progress.playerName,
+          pin,
+          saveCode: exportSaveCode(progress, sessionSnapshot())
+        });
+      }
+    }
+    saveCloudPin(pin);
+    cloudSyncStatus = "已記住家庭 PIN・舊玩家可直接同步，不必重建角色";
+    showCelebration("🔐", "PIN 已記住", "這台裝置之後都不用重新輸入");
+    scheduleCloudSync();
+    flushPendingScores().catch(() => {});
+    render();
+  } catch (error) {
+    // Wrong PIN / name taken: never wipe local progress.
+    cloudSyncStatus = error.message || "PIN 不正確，本機進度仍保留";
+    if (showSaveCenter) render();
+  }
 }
 
 async function renamePlayer() {
@@ -825,14 +894,33 @@ async function hydrateCloudProgress() {
   const pin = loadCloudPin();
   try {
     const saveCode = await loadCloudProgress(progress.playerName, pin);
-    const imported = importSaveCode(saveCode);
-    clearInterval(timerId);
-    applyImportedSave(imported);
-    if (imported.session?.game) startTimer();
-    cloudSyncStatus = "已載入雲端的最新進度";
+    // Parse only — never write localStorage until we know cloud is actually newer.
+    const cloud = parseSaveCode(saveCode);
+    const localHasSession = Boolean(sessionSnapshot() || loadSession());
+    const winner = preferSaveSide(progress, cloud.progress, {
+      cloudExportedAt: cloud.exportedAt,
+      localHasSession,
+      cloudHasSession: Boolean(cloud.session)
+    });
+
+    if (winner === "cloud") {
+      const imported = importSaveCode(saveCode, { touch: false });
+      clearInterval(timerId);
+      applyImportedSave(imported);
+      if (imported.session?.game) startTimer();
+      cloudSyncStatus = "已載入雲端的較新進度";
+      cloudHydrationPending = false;
+      if (!progress.playerAvatar) showAvatarPicker = true;
+      render();
+      return;
+    }
+
+    // Local is newer or equivalent: keep playing here and push upward when needed.
+    cloudSyncStatus = localHasSession || saveTimestampMs(progress)
+      ? "本機進度較新或相同，已保留本機並準備同步"
+      : "已核對雲端進度，繼續使用本機存檔";
     cloudHydrationPending = false;
-    if (!progress.playerAvatar) showAvatarPicker = true;
-    render();
+    scheduleCloudSync();
   } catch {
     // Keep the local save when cloud loading is unavailable; never overwrite a remote save blindly.
     cloudHydrationPending = false;

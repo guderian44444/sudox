@@ -38,7 +38,23 @@ on public.leaderboard_scores for select
 to anon, authenticated
 using (true);
 
+create extension if not exists pgcrypto with schema extensions;
+
+create table if not exists public.cloud_saves (
+  player_id uuid primary key,
+  player_name varchar(16) not null,
+  pin_hash text not null,
+  save_code text not null,
+  updated_at timestamptz not null default now()
+);
+
+create unique index if not exists cloud_saves_player_name_lower_idx on public.cloud_saves (lower(player_name));
+alter table public.cloud_saves enable row level security;
+revoke all on public.cloud_saves from anon, authenticated;
+
 drop function if exists public.submit_leaderboard_score(uuid, text, text, integer, integer, integer, integer, integer);
+drop function if exists public.submit_leaderboard_score(uuid, text, text, integer, integer, integer, integer, integer, text, integer);
+drop function if exists public.submit_leaderboard_score(uuid, text, text, integer, integer, integer, integer, integer, text, integer, text);
 
 create or replace function public.submit_leaderboard_score(
   p_player_id uuid,
@@ -50,7 +66,8 @@ create or replace function public.submit_leaderboard_score(
   p_mistakes integer,
   p_stars integer,
   p_player_avatar text,
-  p_avatar_color integer
+  p_avatar_color integer,
+  p_pin text
 )
 returns void
 language plpgsql
@@ -66,8 +83,20 @@ begin
     or p_mistakes < 0
     or p_stars not between 1 and 3
     or (p_player_avatar is not null and (char_length(p_player_avatar) > 32 or p_player_avatar !~ '^[a-z_]+$'))
-    or coalesce(p_avatar_color, 0) not between 0 and 7 then
+    or coalesce(p_avatar_color, 0) not between 0 and 7
+    or p_pin is null
+    or p_pin !~ '^\d{4}$' then
     raise exception 'Invalid leaderboard score';
+  end if;
+
+  -- Scores may only be written by a player who already owns a cloud save with this PIN.
+  if not exists (
+    select 1
+    from public.cloud_saves
+    where player_id = p_player_id
+      and pin_hash = extensions.crypt(p_pin, pin_hash)
+  ) then
+    raise exception 'Invalid cloud PIN';
   end if;
 
   insert into public.leaderboard_scores (
@@ -90,22 +119,8 @@ begin
 end;
 $$;
 
-revoke all on function public.submit_leaderboard_score(uuid, text, text, integer, integer, integer, integer, integer, text, integer) from public;
-grant execute on function public.submit_leaderboard_score(uuid, text, text, integer, integer, integer, integer, integer, text, integer) to anon, authenticated;
-
-create extension if not exists pgcrypto with schema extensions;
-
-create table if not exists public.cloud_saves (
-  player_id uuid primary key,
-  player_name varchar(16) not null,
-  pin_hash text not null,
-  save_code text not null,
-  updated_at timestamptz not null default now()
-);
-
-create unique index if not exists cloud_saves_player_name_lower_idx on public.cloud_saves (lower(player_name));
-alter table public.cloud_saves enable row level security;
-revoke all on public.cloud_saves from anon, authenticated;
+revoke all on function public.submit_leaderboard_score(uuid, text, text, integer, integer, integer, integer, integer, text, integer, text) from public;
+grant execute on function public.submit_leaderboard_score(uuid, text, text, integer, integer, integer, integer, integer, text, integer, text) to anon, authenticated;
 
 create or replace function public.save_cloud_progress(
   p_player_id uuid,
@@ -118,6 +133,9 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+declare
+  existing_hash text;
+  existing_name text;
 begin
   if char_length(trim(p_player_name)) not between 1 and 16
     or p_pin !~ '^\d{4}$'
@@ -125,13 +143,42 @@ begin
     raise exception 'Invalid cloud save';
   end if;
 
-  insert into public.cloud_saves (player_id, player_name, pin_hash, save_code)
-  values (p_player_id, trim(p_player_name), extensions.crypt(p_pin, extensions.gen_salt('bf')), p_save_code)
-  on conflict (player_id) do update set
-    player_name = excluded.player_name,
-    pin_hash = excluded.pin_hash,
-    save_code = excluded.save_code,
-    updated_at = now();
+  select pin_hash, player_name
+  into existing_hash, existing_name
+  from public.cloud_saves
+  where player_id = p_player_id;
+
+  if found then
+    -- Updates require the existing PIN; never allow overwriting pin_hash without proof.
+    if existing_hash is null
+      or existing_hash <> extensions.crypt(p_pin, existing_hash) then
+      raise exception 'Invalid cloud PIN';
+    end if;
+
+    if lower(existing_name) is distinct from lower(trim(p_player_name))
+      and exists (
+        select 1
+        from public.cloud_saves
+        where lower(player_name) = lower(trim(p_player_name))
+          and player_id is distinct from p_player_id
+      ) then
+      raise exception 'duplicate key';
+    end if;
+
+    update public.cloud_saves
+    set player_name = trim(p_player_name),
+        save_code = p_save_code,
+        updated_at = now()
+    where player_id = p_player_id;
+  else
+    insert into public.cloud_saves (player_id, player_name, pin_hash, save_code)
+    values (
+      p_player_id,
+      trim(p_player_name),
+      extensions.crypt(p_pin, extensions.gen_salt('bf')),
+      p_save_code
+    );
+  end if;
 end;
 $$;
 

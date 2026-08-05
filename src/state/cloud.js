@@ -33,7 +33,9 @@ async function callRpc(name, body) {
   if (!response.ok) {
     const detail = await response.text();
     if (/duplicate key|unique/i.test(detail)) throw new Error("這個玩家名稱已經存在，請改名或選擇載入雲端進度");
-    if (/Invalid cloud PIN|P0001/i.test(detail)) throw new Error("玩家名稱或家庭 PIN 不正確");
+    if (/Invalid cloud PIN/i.test(detail)) throw new Error("玩家名稱或家庭 PIN 不正確");
+    if (/Invalid cloud save/i.test(detail)) throw new Error("雲端存檔格式不正確");
+    if (/P0001/i.test(detail)) throw new Error("玩家名稱或家庭 PIN 不正確");
     throw new Error(`雲端連線失敗 (${response.status})`);
   }
   if (response.status === 204) return null;

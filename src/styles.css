@@ -330,6 +330,11 @@ button:focus-visible { outline: 3px solid #4f9dd9; outline-offset: 2px; }
 .field-label { display: block; margin: 13px 2px 5px; color: #6b625b; font-size: 12px; font-weight: 900; text-align: left; }
 .name-input { width: 100%; padding: 13px 14px; border: 1px solid #dfd4c8; border-radius: 14px; background: #fffdf9; color: var(--navy); font-size: 17px; font-weight: 800; }
 .pin-input { letter-spacing: .35em; font-variant-numeric: tabular-nums; }
+.pin-unlock { margin: 0 0 16px; padding: 14px; border: 1px dashed #e2c48a; border-radius: 16px; background: #fff8e8; text-align: left; }
+.pin-unlock .field-label { margin-bottom: 8px; }
+.pin-unlock > div { display: flex; gap: 8px; flex-wrap: wrap; }
+.pin-unlock input { flex: 1 1 120px; min-width: 0; }
+.pin-unlock button { flex: 0 0 auto; padding: 10px 14px; border: 0; border-radius: 12px; background: #ff9b73; color: #fff; font-weight: 700; cursor: pointer; }
 .name-status { min-height: 32px; margin: 10px 0 !important; color: #8a7564 !important; font-size: 11px; }
 .cloud-card { margin: 18px 0; padding: 14px; display: flex; align-items: center; gap: 12px; border: 1px solid #eadfd3; border-radius: 17px; text-align: left; }
 .cloud-card.ready { border-color: #abd8c8; background: #effaf5; }

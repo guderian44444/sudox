@@ -5,7 +5,7 @@ import { ACHIEVEMENTS, achievementValue, recordAchievementGame } from "../src/ga
 import { chooseFriendPair, chooseGardenEel, FRIEND_ROSTER, friendPairKey, GARDEN_EEL_VARIANTS } from "../src/game/friends.js";
 import { normalizePlayerName, validCloudPin } from "../src/state/cloud.js";
 import { buildScore, leaderboardConfigured, normalizeLeaderboardTaunt } from "../src/state/leaderboard.js";
-import { exportSaveCode, importSaveCode } from "../src/state/store.js";
+import { exportSaveCode, importSaveCode, parseSaveCode, preferSaveSide, saveProgress as writeProgress, saveTimestampMs } from "../src/state/store.js";
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -35,6 +35,13 @@ assert(/player_avatar text/i.test(leaderboardSql) && /avatar_color integer/i.tes
 assert(/p_player_avatar text/i.test(leaderboardSql) && /p_avatar_color integer/i.test(leaderboardSql), "leaderboard RPC should accept avatar parameters");
 assert(/p_player_avatar/.test(leaderboardSource) && /p_avatar_color/.test(leaderboardSource), "score submission should include avatar parameters");
 assert(/update_leaderboard_avatar/.test(leaderboardSource) && /update_leaderboard_avatar/.test(leaderboardSql), "avatar changes should sync to existing leaderboard rows");
+assert(/p_pin text/.test(leaderboardSql) && /Invalid cloud PIN/.test(leaderboardSql), "leaderboard score submission must require a family PIN");
+assert(/existing_hash <> extensions\.crypt\(p_pin, existing_hash\)/.test(leaderboardSql), "cloud save updates must verify the existing PIN");
+assert(/pin_hash = excluded\.pin_hash/.test(leaderboardSql) === false, "cloud save updates must not overwrite pin_hash without auth");
+assert(/loadCloudPin\(\)/.test(leaderboardSource) && /p_pin: pin/.test(leaderboardSource), "score upload should attach PIN at send time only");
+assert(/sanitizeQueuedScore|p_pin/.test(leaderboardSource) && !/p_pin: progress/.test(leaderboardSource), "offline score queue should not embed PIN in buildScore payload");
+const pinGuardSql = readFileSync(new URL("../supabase/pin-guard-migration.sql", import.meta.url), "utf8");
+assert(/submit_leaderboard_score/.test(pinGuardSql) && /save_cloud_progress/.test(pinGuardSql), "existing projects need a PIN guard migration");
 assert(/a-z_/.test(storeSource) && /Math\.min\(7/.test(storeSource), "avatar persistence should support avatar IDs and all eight colors");
 assert(/hasLeaderboardRow \? row\.player_avatar : progress\.playerAvatar/.test(appSource), "leaderboard rows should use each player's own avatar");
 assert(/leaderboard-placeholder/.test(appSource) && /avatar-placeholder-mark/.test(appSource), "leaderboard rows without avatars should keep a question-mark placeholder");
@@ -52,7 +59,10 @@ assert(/if \(!progress\.playerAvatar\) \{\s*showAvatarPicker = true/.test(appSou
 assert(appSource.indexOf('<div class="number-pad"') < appSource.indexOf('<div class="tools">'), "number pad should sit immediately before the tool buttons");
 assert(/\.notes i \{[^}]*font-size:\s*clamp\(7px, 1\.2vw, 10px\)/.test(stylesheet) && /\.notes i \{ font-size: clamp\(8px, 2\.5vw, 10px\); \}/.test(stylesheet), "note digits should be larger on desktop and mobile");
 assert(/let cloudHydrationPending = cloudConfigured\(\) && Boolean\(progress\.playerName\) && validCloudPin\(loadCloudPin\(\)\)/.test(appSource), "cloud progress hydration should start when local cloud credentials exist");
-assert(/function scheduleCloudSync\(\) \{\s*if \(cloudHydrationPending\) return;/.test(appSource) && /async function hydrateCloudProgress\(\)[\s\S]*loadCloudProgress\(progress\.playerName, pin\)[\s\S]*applyImportedSave\(imported\)/.test(appSource), "startup cloud hydration should finish before automatic upload");
+assert(/function scheduleCloudSync\(\) \{\s*if \(cloudHydrationPending\) return;/.test(appSource), "startup cloud hydration should block automatic upload until finished");
+assert(/parseSaveCode\(saveCode\)/.test(appSource) && /preferSaveSide\(/.test(appSource), "cloud hydration should compare local and cloud saves before writing");
+assert(/importSaveCode\(saveCode, \{ touch: false \}\)/.test(appSource), "cloud hydration should preserve cloud updatedAt when cloud wins");
+assert(/winner === "cloud"/.test(appSource) && /scheduleCloudSync\(\)/.test(appSource), "cloud hydration should keep newer local progress and sync upward");
 
 function validSolution(solution) {
   const target = "123456789";
@@ -221,18 +231,44 @@ globalThis.localStorage = {
   setItem: (key, value) => memory.set(key, String(value)),
   removeItem: (key) => memory.delete(key)
 };
-const saveProgress = { playerId: "5e2b1c42-fc62-4f58-9f01-29ded0bab4d2", playerName: "阿霖", level: 7, xp: 42, coins: 88, floors: { easy: 9, medium: 4, hard: 2 }, inventory: { dragonElixir: 1 }, cardCollection: ["dragonElixir"] };
+const saveProgress = { playerId: "5e2b1c42-fc62-4f58-9f01-29ded0bab4d2", playerName: "阿霖", level: 7, xp: 42, coins: 88, floors: { easy: 9, medium: 4, hard: 2 }, inventory: { dragonElixir: 1 }, cardCollection: ["dragonElixir"], updatedAt: "2026-01-01T00:00:00.000Z" };
 const saveSession = { game: { ...createGame("easy"), floor: 9 }, equippedCards: ["dragonElixir"], alinMode: false };
 const saveCode = exportSaveCode(saveProgress, saveSession);
-const imported = importSaveCode(saveCode);
+const parsedOnly = parseSaveCode(saveCode);
+assert(parsedOnly.progress.level === 7 && memory.size === 0, "parseSaveCode 不可寫入 localStorage");
+assert(parsedOnly.exportedAt === "2026-01-01T00:00:00.000Z", "存檔碼應保留 updatedAt 作為 exportedAt");
+const imported = importSaveCode(saveCode, { touch: false });
 assert(imported.progress.level === 7 && imported.progress.floors.easy === 9, "存檔碼應還原等級與層數");
 assert(imported.progress.playerName === "阿霖" && imported.progress.playerId === saveProgress.playerId, "存檔碼應還原玩家名稱與匿名 ID");
 assert(imported.session.game.floor === 9 && imported.session.equippedCards[0] === "dragonElixir", "存檔碼應還原目前關卡與裝備");
+assert(imported.progress.updatedAt === "2026-01-01T00:00:00.000Z", "touch:false 應保留原存檔時間戳");
+assert(preferSaveSide(
+  { ...imported.progress, updatedAt: "2026-02-01T00:00:00.000Z", completedGames: 3 },
+  { ...imported.progress, updatedAt: "2026-01-01T00:00:00.000Z", completedGames: 9 }
+) === "local", "較新的本機進度必須勝過較舊的雲端進度");
+assert(preferSaveSide(
+  { ...imported.progress, updatedAt: "2026-01-01T00:00:00.000Z", completedGames: 9 },
+  { ...imported.progress, updatedAt: "2026-02-01T00:00:00.000Z", completedGames: 3 }
+) === "cloud", "較新的雲端進度應覆蓋較舊的本機進度");
+assert(preferSaveSide(
+  { completedGames: 1, totalStars: 1, level: 1, floors: { easy: 1, medium: 1, hard: 1 } },
+  { completedGames: 5, totalStars: 10, level: 4, floors: { easy: 6, medium: 2, hard: 1 } },
+  { localHasSession: true, cloudHasSession: false }
+) === "local", "缺時間戳時，進行中的本機關卡不可被雲端靜默覆蓋");
+assert(preferSaveSide(
+  { completedGames: 1, totalStars: 0, level: 1, floors: { easy: 1, medium: 1, hard: 1 } },
+  { completedGames: 8, totalStars: 20, level: 5, floors: { easy: 9, medium: 3, hard: 2 } },
+  { localHasSession: false, cloudHasSession: false }
+) === "cloud", "缺時間戳且無進行中關卡時，可依進度內容採用較完整的雲端存檔");
+assert(saveTimestampMs({ updatedAt: "2026-03-01T12:00:00.000Z" }) > 0, "saveTimestampMs 應解析 ISO 時間");
+writeProgress({ ...imported.progress, coins: 99 }, { touch: true });
+assert(saveTimestampMs(JSON.parse(memory.get("sudox-progress-v3"))) > Date.parse("2026-01-01T00:00:00.000Z"), "saveProgress 預設應更新 updatedAt");
 assert(validCloudPin("0428") && !validCloudPin("123") && !validCloudPin("12a4"), "家庭 PIN 必須是 4 位數字");
 assert(normalizePlayerName("  新阿霖\n") === "新阿霖" && normalizePlayerName("島".repeat(20)).length === 16, "雲端玩家名稱應清理控制字元並限制為 16 字");
 assert(leaderboardConfigured(), "Supabase 專案設定後排行榜應啟用雲端模式");
 const score = buildScore(imported.progress, { difficulty: "easy", floor: 9, stars: 3, elapsed: 120, mistakes: 0 });
 assert(score.p_player_name === "阿霖" && score.p_floor === 9 && score.p_score > 90000, "排行榜成績應包含玩家、層數與計算分數");
+assert(!("p_pin" in score), "成績佇列物件不可內嵌家庭 PIN");
 assert(buildScore(imported.progress, { difficulty: "hard", floor: 3, stars: 2, elapsed: 300, mistakes: 4 }, true).p_difficulty === "alin", "阿霖模式成績應送往獨立排行榜");
 assert(normalizeLeaderboardTaunt("  榜首是我的！\n  ") === "榜首是我的！", "排行榜嗆聲應移除控制字元與前後空白");
 assert(normalizeLeaderboardTaunt("哈".repeat(60)).length === 48, "排行榜嗆聲應限制為 48 字");

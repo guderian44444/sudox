@@ -39,8 +39,62 @@ const defaultProgress = {
   achievementStats: { perfectGames: 0, speedGames: 0, alinGames: 0 },
   floors: { easy: 1, medium: 1, hard: 1 },
   playerAvatar: "",
-  avatarColor: 0
+  avatarColor: 0,
+  updatedAt: ""
 };
+
+function normalizeUpdatedAt(value) {
+  if (typeof value !== "string" || !value.trim()) return "";
+  const ms = Date.parse(value);
+  return Number.isFinite(ms) ? new Date(ms).toISOString() : "";
+}
+
+export function saveTimestampMs(progress, fallbackExportedAt = "") {
+  const primary = normalizeUpdatedAt(progress?.updatedAt);
+  if (primary) return Date.parse(primary);
+  const fallback = normalizeUpdatedAt(fallbackExportedAt);
+  return fallback ? Date.parse(fallback) : 0;
+}
+
+function progressRank(progress = {}) {
+  const floors = progress.floors || {};
+  const floorTotal = ["easy", "medium", "hard"]
+    .reduce((total, difficulty) => total + Math.max(0, Number(floors[difficulty]) || 0), 0);
+  return Math.max(0, Number(progress.completedGames) || 0) * 1000
+    + Math.max(0, Number(progress.totalStars) || 0) * 10
+    + Math.max(0, Number(progress.level) || 0)
+    + floorTotal;
+}
+
+/**
+ * Decide which save should win when hydrating cloud over local.
+ * Returns "cloud" | "local". Equal or unknown timestamps keep local to avoid clobbering.
+ */
+export function preferSaveSide(localProgress, cloudProgress, {
+  localExportedAt = "",
+  cloudExportedAt = "",
+  localHasSession = false,
+  cloudHasSession = false
+} = {}) {
+  const localMs = saveTimestampMs(localProgress, localExportedAt);
+  const cloudMs = saveTimestampMs(cloudProgress, cloudExportedAt);
+
+  if (localMs && cloudMs) {
+    if (cloudMs > localMs) return "cloud";
+    return "local";
+  }
+
+  if (localHasSession && !cloudHasSession) return "local";
+  if (cloudHasSession && !localHasSession) return "cloud";
+
+  const localScore = progressRank(localProgress);
+  const cloudScore = progressRank(cloudProgress);
+  if (cloudScore > localScore) return "cloud";
+  if (localScore > cloudScore) return "local";
+
+  if (cloudMs && !localMs) return "cloud";
+  return "local";
+}
 
 const safeNumber = (value, fallback = 0) => Number.isFinite(Number(value)) ? Math.max(0, Number(value)) : fallback;
 
@@ -77,7 +131,8 @@ function normalizedProgress(saved = {}) {
     },
     floors: Object.fromEntries(Object.keys(defaultProgress.floors).map((difficulty) => [difficulty, Math.max(1, Math.floor(safeNumber(saved.floors?.[difficulty], 1))) ])),
     playerAvatar: typeof saved.playerAvatar === "string" && /^[a-z_]+$/.test(saved.playerAvatar) ? saved.playerAvatar : "",
-    avatarColor: Math.max(0, Math.min(7, Math.floor(safeNumber(saved.avatarColor))))
+    avatarColor: Math.max(0, Math.min(7, Math.floor(safeNumber(saved.avatarColor)))),
+    updatedAt: normalizeUpdatedAt(saved.updatedAt)
   };
   return progress;
 }
@@ -108,8 +163,12 @@ export function loadProgress() {
   }
 }
 
-export function saveProgress(progress) {
+export function saveProgress(progress, { touch = true } = {}) {
+  if (touch || !normalizeUpdatedAt(progress.updatedAt)) {
+    progress.updatedAt = new Date().toISOString();
+  }
   localStorage.setItem(STORAGE_KEY, JSON.stringify(progress));
+  return progress;
 }
 
 export function saveSession(session) {
@@ -193,21 +252,42 @@ function decodeText(encoded) {
 }
 
 export function exportSaveCode(progress, session = null) {
-  const data = JSON.stringify({ version: 3, progress, session, exportedAt: new Date().toISOString() });
+  if (!normalizeUpdatedAt(progress?.updatedAt)) {
+    progress.updatedAt = new Date().toISOString();
+  }
+  const exportedAt = progress.updatedAt;
+  const data = JSON.stringify({ version: 3, progress, session, exportedAt });
   return `SUDOX3.${checksum(data)}.${encodeText(data)}`;
 }
 
-export function importSaveCode(code) {
-  const [prefix, expectedChecksum, encoded] = code.trim().split(".");
+/** Parse a save code without writing localStorage (safe for cloud comparison). */
+export function parseSaveCode(code) {
+  const [prefix, expectedChecksum, encoded] = String(code ?? "").trim().split(".");
   if (prefix !== "SUDOX3" || !expectedChecksum || !encoded || encoded.length > 300000) throw new Error("存檔碼格式不正確");
   const data = decodeText(encoded);
   if (checksum(data) !== expectedChecksum) throw new Error("存檔碼已損壞或不完整");
   const payload = JSON.parse(data);
   if (payload.version !== 3 || !payload.progress) throw new Error("不支援這個存檔版本");
   const progress = normalizedProgress(payload.progress);
-  saveProgress(progress);
+  if (!progress.updatedAt) progress.updatedAt = normalizeUpdatedAt(payload.exportedAt);
   if (payload.session?.game && !validSession(payload.session)) throw new Error("存檔中的關卡資料不完整");
-  if (payload.session?.game) saveSession(payload.session);
+  const session = payload.session?.game && validSession(payload.session) ? payload.session : null;
+  return {
+    progress,
+    session,
+    exportedAt: normalizeUpdatedAt(payload.exportedAt) || progress.updatedAt || ""
+  };
+}
+
+/**
+ * Apply a save code to localStorage.
+ * @param {string} code
+ * @param {{ touch?: boolean }} [options] touch=true marks this device as newest (manual import / explicit cloud load).
+ */
+export function importSaveCode(code, { touch = true } = {}) {
+  const parsed = parseSaveCode(code);
+  saveProgress(parsed.progress, { touch });
+  if (parsed.session) saveSession(parsed.session);
   else clearSession();
-  return { progress, session: loadSession() };
+  return { progress: parsed.progress, session: loadSession(), exportedAt: parsed.exportedAt };
 }

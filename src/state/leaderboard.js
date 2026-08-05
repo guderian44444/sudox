@@ -1,4 +1,5 @@
 import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "../config.js";
+import { loadCloudPin, validCloudPin } from "./cloud.js";
 
 const QUEUE_KEY = "sudox-score-queue-v1";
 const difficulties = new Set(["easy", "medium", "hard", "alin"]);
@@ -24,6 +25,34 @@ function saveQueue(queue) {
   localStorage.setItem(QUEUE_KEY, JSON.stringify(queue.slice(-30)));
 }
 
+/** Strip any legacy PIN field so the offline queue never stores credentials. */
+function sanitizeQueuedScore(score) {
+  const {
+    p_player_id,
+    p_player_name,
+    p_difficulty,
+    p_floor,
+    p_score,
+    p_elapsed_seconds,
+    p_mistakes,
+    p_stars,
+    p_player_avatar,
+    p_avatar_color
+  } = score || {};
+  return {
+    p_player_id,
+    p_player_name,
+    p_difficulty,
+    p_floor,
+    p_score,
+    p_elapsed_seconds,
+    p_mistakes,
+    p_stars,
+    p_player_avatar: p_player_avatar || null,
+    p_avatar_color: p_avatar_color != null ? p_avatar_color : 0
+  };
+}
+
 export function pendingScoreCount() {
   return loadQueue().length;
 }
@@ -34,7 +63,7 @@ export function normalizeLeaderboardTaunt(value) {
 
 export function buildScore(progress, game, alinMode = false) {
   const score = game.floor * 10000 + game.stars * 1000 + Math.max(0, 2000 - game.elapsed) - game.mistakes * 100;
-  return {
+  return sanitizeQueuedScore({
     p_player_id: progress.playerId,
     p_player_name: progress.playerName,
     p_difficulty: alinMode ? "alin" : game.difficulty,
@@ -45,16 +74,22 @@ export function buildScore(progress, game, alinMode = false) {
     p_stars: Math.max(1, Math.min(3, Math.round(game.stars))),
     p_player_avatar: progress.playerAvatar || null,
     p_avatar_color: progress.avatarColor != null ? progress.avatarColor : 0
-  };
+  });
 }
 
 async function sendScore(score) {
+  const pin = loadCloudPin();
+  if (!validCloudPin(pin)) throw new Error("需要 4 位數家庭 PIN 才能上傳成績");
   const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/submit_leaderboard_score`, {
     method: "POST",
     headers: headers(),
-    body: JSON.stringify(score)
+    body: JSON.stringify({ ...sanitizeQueuedScore(score), p_pin: pin })
   });
-  if (!response.ok) throw new Error(`排行榜寫入失敗 (${response.status})`);
+  if (!response.ok) {
+    const detail = await response.text();
+    if (/Invalid cloud PIN|P0001/i.test(detail)) throw new Error("家庭 PIN 驗證失敗，無法上傳成績");
+    throw new Error(`排行榜寫入失敗 (${response.status})`);
+  }
 }
 
 export async function flushPendingScores() {
@@ -75,11 +110,12 @@ export async function flushPendingScores() {
 }
 
 export async function queueLeaderboardScore(score) {
+  const clean = sanitizeQueuedScore(score);
   const queue = loadQueue();
-  const existing = queue.findIndex((item) => item.p_player_id === score.p_player_id && item.p_difficulty === score.p_difficulty);
+  const existing = queue.findIndex((item) => item.p_player_id === clean.p_player_id && item.p_difficulty === clean.p_difficulty);
   if (existing >= 0) {
-    if (score.p_floor > queue[existing].p_floor || score.p_score > queue[existing].p_score) queue[existing] = score;
-  } else queue.push(score);
+    if (clean.p_floor > queue[existing].p_floor || clean.p_score > queue[existing].p_score) queue[existing] = clean;
+  } else queue.push(clean);
   saveQueue(queue);
   return flushPendingScores();
 }
@@ -120,5 +156,9 @@ export async function updateLeaderboardAvatar({ playerId, pin, avatar, color }) 
     headers: headers(),
     body: JSON.stringify({ p_player_id: playerId, p_pin: pin, p_player_avatar: cleanAvatar, p_avatar_color: cleanColor })
   });
-  if (!response.ok) throw new Error(`??摰? (${response.status})`);
+  if (!response.ok) {
+    const detail = await response.text();
+    if (/Invalid cloud PIN|P0001/i.test(detail)) throw new Error("家庭 PIN 驗證失敗");
+    throw new Error(`頭像同步失敗 (${response.status})`);
+  }
 }
