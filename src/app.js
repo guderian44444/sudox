@@ -16,7 +16,7 @@ import { ACHIEVEMENTS, achievementValue, recordAchievementGame } from "./game/ac
 import { chooseFriendPair, chooseGardenEel, choosePartyFriends, nextDanceVariants } from "./game/friends.js";
 import { cloudConfigured, loadCloudPin, loadCloudProgress, normalizePlayerName, renameCloudPlayer, saveCloudPin, saveCloudProgress, validCloudPin } from "./state/cloud.js";
 import { buildScore, fetchLeaderboard, flushPendingScores, leaderboardConfigured, normalizeLeaderboardTaunt, pendingScoreCount, queueLeaderboardScore, updateLeaderboardAvatar, updateLeaderboardTaunt } from "./state/leaderboard.js";
-import { addCard, clearSession, consumeCard, exportSaveCode, importSaveCode, loadProgress, loadSession, mergeProgressHighWater, nextFloorFromCompleted, parseSaveCode, preferSaveSide, raiseFloorProgress, rewardProgress, saveProgress, saveSession, saveTimestampMs, spendCoins } from "./state/store.js";
+import { addCard, clearSession, consumeCard, exportSaveCode, importSaveCode, loadProgress, loadSession, mergeProgressHighWater, nextFloorFromCompleted, parseSaveCode, preferSaveSide, raiseFloorProgress, rewardProgress, saveProgress, saveSession, saveTimestampMs, sessionFloorBehindProgress, spendCoins } from "./state/store.js";
 
 const app = document.querySelector("#app");
 let progress = loadProgress();
@@ -934,13 +934,37 @@ function applyImportedSave(imported, { mergeWithLocal = null } = {}) {
     }
   } else {
     equippedCards = [];
+    const fallbackDifficulty = game?.difficulty && game.difficulty !== "alin" ? game.difficulty : "easy";
     game = createAdventureGame({
-      difficulty: "easy",
-      floor: progress.floors?.easy || 1,
+      difficulty: fallbackDifficulty,
+      floor: progress.floors?.[fallbackDifficulty] || 1,
       equippedCards
     });
     lastWaveVariants = { row: null, column: null, box: null };
   }
+}
+
+/** Keep an active run aligned with the saved next-floor record across devices. */
+function reconcileActiveSessionFloor() {
+  if (!game?.difficulty || game.completed || game.failed) return false;
+
+  if (!sessionFloorBehindProgress(progress, game)) {
+    const raised = raiseFloorProgress(progress, game.difficulty, game.floor);
+    if (raised !== progress) {
+      progress = raised;
+      saveProgress(progress, { touch: false });
+    }
+    return false;
+  }
+
+  const difficulty = game.difficulty;
+  const floor = Math.max(1, Math.floor(Number(progress.floors?.[difficulty]) || 1));
+  clearInterval(timerId);
+  equippedCards = equippedCards.filter((cardId) => progress.inventory[cardId] > 0).slice(0, 2);
+  game = createAdventureGame({ difficulty, floor, equippedCards });
+  clearSession();
+  lastWaveVariants = { row: null, column: null, box: null };
+  return true;
 }
 
 /** Leaderboard floor = highest completed; local floors = next to play. */
@@ -1005,6 +1029,7 @@ async function hydrateCloudProgress() {
       // Cloud wins base fields, but never drop higher local floors / lifetime counters.
       applyImportedSave(imported, { mergeWithLocal: progress });
       saveProgress(progress, { touch: false });
+      reconcileActiveSessionFloor();
       if (imported.session?.game) startTimer();
       cloudSyncStatus = "已載入雲端的較新進度";
       cloudHydrationPending = false;
@@ -1015,8 +1040,9 @@ async function hydrateCloudProgress() {
 
     // Local is newer or equivalent — still high-water floors from cloud so we don't lag behind another device.
     const mergedLocal = mergeProgressHighWater(progress, cloud.progress);
-    if (JSON.stringify(mergedLocal.floors) !== JSON.stringify(progress.floors)
-      || mergedLocal.completedGames !== progress.completedGames) {
+    const progressChanged = JSON.stringify(mergedLocal.floors) !== JSON.stringify(progress.floors)
+      || mergedLocal.completedGames !== progress.completedGames;
+    if (progressChanged) {
       progress = mergedLocal;
       saveProgress(progress);
     }
@@ -1024,7 +1050,9 @@ async function hydrateCloudProgress() {
       ? "本機進度較新或相同，已保留本機並準備同步"
       : "已核對雲端進度，繼續使用本機存檔";
     cloudHydrationPending = false;
-    scheduleCloudSync();
+    const sessionReset = reconcileActiveSessionFloor();
+    if (progressChanged || sessionReset) render();
+    else scheduleCloudSync();
   } catch {
     // Keep the local save when cloud loading is unavailable; never overwrite a remote save blindly.
     cloudHydrationPending = false;
@@ -1378,6 +1406,7 @@ if (restoredSession) {
   if (!progress.playerAvatar) showAvatarPicker = true;
   render();
 } else newGame("easy");
+if (reconcileActiveSessionFloor()) render();
 hydrateCloudProgress();
 
 window.addEventListener("online", () => {

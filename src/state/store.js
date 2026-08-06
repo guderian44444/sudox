@@ -145,6 +145,15 @@ export function raiseFloorProgress(progress, difficulty, nextFloor) {
   };
 }
 
+/** Return whether an active run is older than the saved next floor. */
+export function sessionFloorBehindProgress(progress, game) {
+  const difficulty = game?.difficulty;
+  if (!difficulty || difficulty === "alin" || defaultProgress.floors[difficulty] == null) return false;
+  const nextFloor = Math.max(1, Math.floor(Number(progress?.floors?.[difficulty]) || 1));
+  const activeFloor = Math.max(1, Math.floor(Number(game?.floor) || 1));
+  return activeFloor < nextFloor;
+}
+
 const safeNumber = (value, fallback = 0) => Number.isFinite(Number(value)) ? Math.max(0, Number(value)) : fallback;
 
 function normalizedInventory(inventory = {}) {

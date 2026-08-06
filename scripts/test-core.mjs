@@ -17,7 +17,7 @@ import { ACHIEVEMENTS, achievementValue, recordAchievementGame } from "../src/ga
 import { chooseFriendPair, chooseGardenEel, choosePartyFriends, nextDanceVariants, FRIEND_ROSTER, friendPairKey, GARDEN_EEL_VARIANTS, DANCE_VARIANT_COUNT } from "../src/game/friends.js";
 import { normalizePlayerName, validCloudPin } from "../src/state/cloud.js";
 import { buildScore, leaderboardConfigured, normalizeLeaderboardTaunt } from "../src/state/leaderboard.js";
-import { exportSaveCode, importSaveCode, mergeProgressHighWater, nextFloorFromCompleted, parseSaveCode, preferSaveSide, raiseFloorProgress, rewardProgress, saveProgress as writeProgress, saveTimestampMs } from "../src/state/store.js";
+import { exportSaveCode, importSaveCode, mergeProgressHighWater, nextFloorFromCompleted, parseSaveCode, preferSaveSide, raiseFloorProgress, rewardProgress, saveProgress as writeProgress, saveTimestampMs, sessionFloorBehindProgress } from "../src/state/store.js";
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -336,6 +336,9 @@ assert(afterRewards.floors.hard >= 2, "高手難度從第一局即可推進樓�
 assert(nextFloorFromCompleted(16) === 17, "排行榜已完成樓層應對應下一層 = 完成層 + 1");
 assert(raiseFloorProgress({ floors: { easy: 15, medium: 1, hard: 1 } }, "easy", 17).floors.easy === 17, "本機樓層落後時應被抬高");
 assert(raiseFloorProgress({ floors: { easy: 18, medium: 1, hard: 1 } }, "easy", 17).floors.easy === 18, "本機已較高時不可被排行榜拉低");
+assert(sessionFloorBehindProgress({ floors: { easy: 15, medium: 1, hard: 1 } }, { difficulty: "easy", floor: 12 }), "落後的中途局應被辨識為低於正式下一層");
+assert(!sessionFloorBehindProgress({ floors: { easy: 15, medium: 1, hard: 1 } }, { difficulty: "easy", floor: 15 }), "中途局已在正式下一層時不可被重置");
+assert(!sessionFloorBehindProgress({ floors: { easy: 15, medium: 1, hard: 1 } }, { difficulty: "alin", floor: 12 }), "阿霖模式不應污染三種正式樓層紀錄");
 const mergedFloors = mergeProgressHighWater(
   { floors: { easy: 12, medium: 2, hard: 1 }, completedGames: 4, totalStars: 8, level: 3, coins: 10 },
   { floors: { easy: 16, medium: 1, hard: 4 }, completedGames: 2, totalStars: 20, level: 2, coins: 40 }
@@ -346,6 +349,7 @@ const catchUp = rewardProgress({ floors: { easy: 15, medium: 1, hard: 1 }, compl
 assert(catchUp.floors.easy === 17, "完賽時若局內樓層高於存檔計數，下一層應對齊 completed+1");
 assert(/mergeProgressHighWater|raiseFloorProgress|reconcileFloorsFromLeaderboardRows/.test(appSource), "雲端與排行榜應能抬高落後的本機樓層");
 
+assert(/sessionFloorBehindProgress/.test(appSource) && /reconcileActiveSessionFloor/.test(appSource), "雲端抬高樓層後應重置落後的中途局");
 const flowGame = createAdventureGame({ difficulty: "easy", floor: 1 });
 flowGame.started = true;
 flowGame.health = 2;
