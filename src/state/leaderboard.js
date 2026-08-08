@@ -3,6 +3,7 @@ import { loadCloudPin, validCloudPin } from "./cloud.js";
 
 const QUEUE_KEY = "sudox-score-queue-v1";
 const difficulties = new Set(["easy", "medium", "hard", "alin"]);
+let flushPromise = null;
 
 export function leaderboardConfigured() {
   return /^https:\/\/[a-z0-9-]+\.supabase\.co$/i.test(SUPABASE_URL) && SUPABASE_PUBLISHABLE_KEY.startsWith("sb_publishable_");
@@ -57,6 +58,13 @@ export function pendingScoreCount() {
   return loadQueue().length;
 }
 
+function sameQueuedScore(left, right) {
+  return left?.p_player_id === right?.p_player_id
+    && left?.p_difficulty === right?.p_difficulty
+    && left?.p_floor === right?.p_floor
+    && left?.p_score === right?.p_score;
+}
+
 export function normalizeLeaderboardTaunt(value) {
   return String(value ?? "").replace(/[\u0000-\u001f\u007f]/g, "").trim().slice(0, 48);
 }
@@ -92,24 +100,41 @@ async function sendScore(score) {
   }
 }
 
-export async function flushPendingScores() {
-  if (!leaderboardConfigured() || !navigator.onLine) return { sent: 0, pending: pendingScoreCount() };
-  const queue = loadQueue();
-  let sent = 0;
-  while (queue.length) {
-    try {
-      await sendScore(queue[0]);
-      queue.shift();
-      sent += 1;
-      saveQueue(queue);
-    } catch {
-      break;
+export function flushPendingScores() {
+  if (flushPromise) return flushPromise;
+  flushPromise = (async () => {
+    if (!leaderboardConfigured() || !navigator.onLine) return { sent: 0, pending: pendingScoreCount(), failed: 0, error: "" };
+    const queue = loadQueue();
+    let sent = 0;
+    let failed = 0;
+    let error = "";
+
+    // Try every queued difficulty. One broken hard-mode submission must not block easy/medium.
+    for (const item of queue) {
+      try {
+        await sendScore(item);
+        const latestQueue = loadQueue();
+        const completedIndex = latestQueue.findIndex((candidate) => sameQueuedScore(candidate, item));
+        if (completedIndex >= 0) {
+          latestQueue.splice(completedIndex, 1);
+          saveQueue(latestQueue);
+        }
+        sent += 1;
+      } catch (caught) {
+        failed += 1;
+        if (!error) error = caught?.message || "排行榜同步失敗";
+      }
     }
-  }
-  return { sent, pending: queue.length };
+
+    return { sent, pending: pendingScoreCount(), failed, error };
+  })().finally(() => {
+    flushPromise = null;
+  });
+  return flushPromise;
 }
 
 export async function queueLeaderboardScore(score) {
+  if (flushPromise) await flushPromise;
   const clean = sanitizeQueuedScore(score);
   const queue = loadQueue();
   const existing = queue.findIndex((item) => item.p_player_id === clean.p_player_id && item.p_difficulty === clean.p_difficulty);

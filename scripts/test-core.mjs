@@ -16,7 +16,7 @@ import {
 import { ACHIEVEMENTS, achievementValue, recordAchievementGame } from "../src/game/achievements.js";
 import { chooseFriendPair, chooseGardenEel, choosePartyFriends, nextDanceVariants, FRIEND_ROSTER, friendPairKey, GARDEN_EEL_VARIANTS, DANCE_VARIANT_COUNT } from "../src/game/friends.js";
 import { normalizePlayerName, validCloudPin } from "../src/state/cloud.js";
-import { buildScore, leaderboardConfigured, normalizeLeaderboardTaunt } from "../src/state/leaderboard.js";
+import { buildScore, flushPendingScores, leaderboardConfigured, normalizeLeaderboardTaunt, pendingScoreCount } from "../src/state/leaderboard.js";
 import { exportSaveCode, importSaveCode, mergeProgressHighWater, nextFloorFromCompleted, parseSaveCode, preferSaveSide, raiseFloorProgress, rewardProgress, saveProgress as writeProgress, saveTimestampMs, sessionFloorBehindProgress } from "../src/state/store.js";
 
 function assert(condition, message) {
@@ -72,6 +72,9 @@ assert(/pin_hash = excluded\.pin_hash/.test(leaderboardSql) === false, "cloud sa
 assert(/loadCloudPin\(\)/.test(leaderboardSource) && /p_pin: pin/.test(leaderboardSource), "score upload should attach PIN at send time only");
 assert(/sanitizeQueuedScore|p_pin/.test(leaderboardSource) && !/p_pin: progress/.test(leaderboardSource), "offline score queue should not embed PIN in buildScore payload");
 const pinGuardSql = readFileSync(new URL("../supabase/pin-guard-migration.sql", import.meta.url), "utf8");
+assert(/updated_at/.test(leaderboardSource) && /formatLeaderboardUpdatedAt|最後更新/.test(appSource), "leaderboard rows should show their last update time");
+assert(/APP_VERSION/.test(appSource) && /APP_LAST_UPDATED/.test(appSource) && /app-footer/.test(appSource), "main page should show app version and last update time");
+assert(/sudox-shell-v38/.test(readFileSync(new URL("../sw.js", import.meta.url), "utf8")), "Service Worker cache version should match the visible app release");
 assert(/submit_leaderboard_score/.test(pinGuardSql) && /save_cloud_progress/.test(pinGuardSql), "existing projects need a PIN guard migration");
 assert(/a-z_/.test(storeSource) && /Math\.min\(7/.test(storeSource), "avatar persistence should support avatar IDs and all eight colors");
 assert(/hasLeaderboardRow \? row\.player_avatar : progress\.playerAvatar/.test(appSource), "leaderboard rows should use each player's own avatar");
@@ -398,6 +401,30 @@ assert(/p_difficulty text/.test(leaderboardSql) && /and difficulty = p_difficult
 assert(!/set taunt = trim\(p_taunt\)\s*where player_id = p_player_id;\s*end;/.test(leaderboardSql), "嗆聲不可再一次寫入該玩家所有難度");
 assert(/difficulty: leaderboardDifficulty|p_difficulty: difficulty/.test(appSource), "前端送出嗆聲應使用目前排行榜分頁難度");
 assert(/只套用在|嗆聲也依難度分開/.test(appSource), "UI 應提示嗆聲依難度分開");
+Object.defineProperty(globalThis, "navigator", { value: { onLine: true }, configurable: true });
+memory.set("sudox-cloud-pin-v1", "0428");
+const queuedHard = buildScore(imported.progress, { difficulty: "hard", floor: 11, stars: 3, elapsed: 60, mistakes: 0 });
+const queuedEasy = buildScore(imported.progress, { difficulty: "easy", floor: 12, stars: 3, elapsed: 60, mistakes: 0 });
+memory.set("sudox-score-queue-v1", JSON.stringify([queuedHard, queuedEasy]));
+const originalFetch = globalThis.fetch;
+const scoreRequests = [];
+let failHardOnce = true;
+globalThis.fetch = async (_url, options) => {
+  const body = JSON.parse(options.body);
+  scoreRequests.push(body);
+  if (body.p_difficulty === "hard" && failHardOnce) {
+    failHardOnce = false;
+    return { ok: false, status: 503, text: async () => "temporary failure" };
+  }
+  return { ok: true, status: 204, text: async () => "" };
+};
+const firstFlush = await flushPendingScores();
+assert(firstFlush.sent === 1 && firstFlush.pending === 1 && firstFlush.failed === 1 && pendingScoreCount() === 1, "單一難度上傳失敗不可阻塞其他難度");
+assert(scoreRequests.some((item) => item.p_difficulty === "easy"), "高手上傳失敗時仍應嘗試輕鬆難度");
+const secondFlush = await flushPendingScores();
+assert(secondFlush.sent === 1 && secondFlush.pending === 0 && pendingScoreCount() === 0, "排行榜佇列應能在重試後清空");
+globalThis.fetch = originalFetch;
+memory.delete("sudox-cloud-pin-v1");
 const achievementRun = recordAchievementGame({ ...imported.progress, completedGames: 5, totalStars: 20, coins: 0, achievements: [], achievementStats: {} }, { perfect: true, speed: true, alin: true });
 assert(achievementRun.unlocked.some((item) => item.id === "fiveClears") && achievementRun.unlocked.some((item) => item.id === "starCollector"), "累計局數與星星應解鎖永久成就");
 assert(achievementRun.progress.achievementStats.perfectGames === 1 && achievementRun.progress.coins > 0, "完賽統計與成就金幣應永久累積");

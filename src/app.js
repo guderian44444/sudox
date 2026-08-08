@@ -19,6 +19,8 @@ import { buildScore, fetchLeaderboard, flushPendingScores, leaderboardConfigured
 import { addCard, clearSession, consumeCard, exportSaveCode, importSaveCode, loadProgress, loadSession, mergeProgressHighWater, nextFloorFromCompleted, parseSaveCode, preferSaveSide, raiseFloorProgress, rewardProgress, saveProgress, saveSession, saveTimestampMs, sessionFloorBehindProgress, spendCoins } from "./state/store.js";
 
 const app = document.querySelector("#app");
+const APP_VERSION = "v38";
+const APP_LAST_UPDATED = "2026-08-08T21:36:49+08:00";
 let progress = loadProgress();
 const migratedAchievements = recordAchievementGame(progress);
 progress = migratedAchievements.progress;
@@ -37,6 +39,7 @@ let leaderboardDifficulty = game.difficulty;
 let leaderboardRows = [];
 let leaderboardStatus = "";
 let leaderboardTauntStatus = "";
+let leaderboardSyncStatus = "";
 let nameSetupStatus = "";
 let cloudSyncStatus = "";
 let cloudSyncTimer;
@@ -64,6 +67,20 @@ const friendDanceUrl = (id, variant) => friendAssetUrl("friends-dance", `${id}_$
 const friendFaintUrl = (id) => friendAssetUrl("friends-faint", `${id}.webp`);
 
 const formatTime = (seconds) => `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
+const formatDateTime = (value) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "時間未知";
+  return new Intl.DateTimeFormat("zh-TW", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: "Asia/Taipei"
+  }).format(date).replace(/\//g, "/");
+};
+const formatLeaderboardUpdatedAt = (value) => value ? formatDateTime(value) : "時間未知";
 const LEADERBOARD_MODES = Object.freeze({
   easy: { icon: DIFFICULTIES.easy.icon, label: DIFFICULTIES.easy.label },
   medium: { icon: DIFFICULTIES.medium.icon, label: DIFFICULTIES.medium.label },
@@ -563,10 +580,12 @@ function render() {
           <button id="open-backpack-side" class="daily-button">🎒 寶物背包・${inventoryTotal} 張</button>
         </aside>
       </section>
+      <footer class="app-footer" aria-label="版本資訊"><span>版次 ${APP_VERSION}</span><span>最後更新 ${formatDateTime(APP_LAST_UPDATED)}（台灣時間）</span></footer>
     </main>
     ${showNameSetup ? nameSetupModal() : showLeaderboard ? leaderboardModal() : showAchievements ? achievementModal() : showSaveCenter ? saveCenterModal() : showBackpack ? backpackModal() : showAvatarPicker ? avatarPickerModal() : !game.started ? startModal() : game.completed ? completionModal() : game.failed ? failureModal() : ""}
   `;
   bindEvents();
+  syncLeaderboardStatusUi();
   playNextCellWave();
 }
 
@@ -654,7 +673,7 @@ function leaderboardModal() {
     <div class="celebrate">🏆</div><h2 id="leaderboard-title">家庭全球排行</h2>
     <div class="leaderboard-tabs">${Object.entries(LEADERBOARD_MODES).map(([key, item]) => `<button data-rank-difficulty="${key}" class="${leaderboardDifficulty === key ? "active" : ""}">${item.icon} ${item.label}</button>`).join("")}</div>
     ${!configured ? `<div class="empty-ranking"><strong>尚未連接資料庫</strong><small>設定 Supabase 後，家人的成績會出現在這裡。</small></div>` : leaderboardStatus ? `<div class="empty-ranking"><span class="loading-orbit">☁️</span><small>${escapeHtml(leaderboardStatus)}</small></div>` : leaderboardRows.length ? `<div class="leaderboard-list">${leaderboardRows.map((row, index) => `
-      <div class="leaderboard-row ${row.player_id === progress.playerId ? "mine" : ""}"><b>${index + 1}</b>${avatarMarkup(index, row)}<span class="leaderboard-player"><strong>${escapeHtml(row.player_name)}</strong><small>${row.stars}⭐・${row.mistakes} 次失誤・${formatTime(row.elapsed_seconds)}</small>${row.taunt ? `<q>${escapeHtml(row.taunt)}</q>` : `<q class="quiet">還沒有留下嗆聲</q>`}</span><em>第 ${row.floor} 層</em></div>`).join("")}</div>` : `<div class="empty-ranking"><strong>還沒有成績</strong><small>完成第一層就能成為榜首！</small></div>`}
+      <div class="leaderboard-row ${row.player_id === progress.playerId ? "mine" : ""}"><b>${index + 1}</b>${avatarMarkup(index, row)}<span class="leaderboard-player"><strong>${escapeHtml(row.player_name)}</strong><small>${row.stars}⭐・${row.mistakes} 次失誤・${formatTime(row.elapsed_seconds)}</small>${row.taunt ? `<q>${escapeHtml(row.taunt)}</q>` : `<q class="quiet">還沒有留下嗆聲</q>`}</span><span class="leaderboard-result"><strong>第 ${row.floor} 層</strong><time datetime="${escapeHtml(row.updated_at || "")}">最後更新<br>${formatLeaderboardUpdatedAt(row.updated_at)}</time></span></div>`).join("")}</div>` : `<div class="empty-ranking"><strong>還沒有成績</strong><small>完成第一層就能成為榜首！</small></div>`}
     ${configured ? `<div class="taunt-editor"><label for="leaderboard-taunt">📣 ${escapeHtml(modeLabel)}・我的島主宣言</label><div><input id="leaderboard-taunt" maxlength="48" value="${escapeHtml(myRow?.taunt || "")}" placeholder="例如：這難度先借我坐一下！"><button id="save-leaderboard-taunt" ${myRow ? "" : "disabled"}>送出</button></div><small>${escapeHtml(leaderboardTauntStatus || tauntHint)}</small></div>` : ""}
     <p class="pending-scores">${pendingScoreCount() ? `尚有 ${pendingScoreCount()} 筆離線成績等待同步` : "每位玩家、每個難度只保留最佳成績；嗆聲也依難度分開"}</p>
     <button id="close-leaderboard" class="primary-button">回到遊戲</button>
@@ -743,6 +762,29 @@ function syncLeaderboardAvatar() {
   const pin = loadCloudPin();
   if (!leaderboardConfigured() || !validCloudPin(pin) || !progress.playerAvatar) return;
   updateLeaderboardAvatar({ playerId: progress.playerId, pin, avatar: progress.playerAvatar, color: progress.avatarColor }).catch(() => {});
+}
+
+function syncLeaderboardStatusUi() {
+  const pending = document.querySelector(".leaderboard-modal .pending-scores");
+  if (!pending) return;
+  pending.parentElement.querySelectorAll("[data-leaderboard-sync]").forEach((element) => element.remove());
+  const insertAfter = (element) => pending.parentElement.insertBefore(element, pending.nextSibling);
+  if (leaderboardSyncStatus) {
+    const status = document.createElement("p");
+    status.dataset.leaderboardSync = "status";
+    status.className = "leaderboard-sync-status";
+    status.setAttribute("role", "status");
+    status.textContent = leaderboardSyncStatus;
+    insertAfter(status);
+  }
+  if (leaderboardConfigured() && pendingScoreCount()) {
+    const retry = document.createElement("button");
+    retry.dataset.leaderboardSync = "retry";
+    retry.className = "secondary-button";
+    retry.textContent = "立即重試排行榜同步";
+    retry.addEventListener("click", retryLeaderboardSync);
+    insertAfter(retry);
+  }
 }
 
 function bindEvents() {
@@ -1090,6 +1132,7 @@ async function openLeaderboardModal() {
   leaderboardStatus = leaderboardConfigured() ? "正在讀取全球排行…" : "";
   leaderboardTauntStatus = "";
   render();
+  applyLeaderboardSyncResult(await flushPendingScores());
   await refreshLeaderboard();
 }
 
@@ -1105,6 +1148,33 @@ async function refreshLeaderboard() {
     leaderboardStatus = error.message || "排行榜暫時無法連線";
   }
   if (showLeaderboard) render();
+}
+
+function applyLeaderboardSyncResult(result) {
+  if (result?.error) {
+    leaderboardSyncStatus = `排行榜同步失敗：${result.error}（尚有 ${result.pending} 筆待同步）`;
+  } else if (result?.pending) {
+    leaderboardSyncStatus = `已同步 ${result.sent} 筆，尚有 ${result.pending} 筆待同步`;
+  } else if (result?.sent) {
+    leaderboardSyncStatus = `排行榜已同步 ${result.sent} 筆`;
+  } else {
+    leaderboardSyncStatus = "";
+  }
+  leaderboardTauntStatus = leaderboardSyncStatus;
+}
+
+async function retryLeaderboardSync() {
+  leaderboardSyncStatus = "正在重試排行榜同步…";
+  leaderboardTauntStatus = leaderboardSyncStatus;
+  render();
+  try {
+    applyLeaderboardSyncResult(await flushPendingScores());
+    await refreshLeaderboard();
+  } catch (error) {
+    leaderboardSyncStatus = error.message || "排行榜同步失敗，請稍後重試";
+    leaderboardTauntStatus = leaderboardSyncStatus;
+    if (showLeaderboard) render();
+  }
 }
 
 function changeLeaderboardDifficulty(difficulty) {
@@ -1325,7 +1395,16 @@ function checkCompletion() {
   });
   clearSession();
   // Upload the completed floor (game.floor), not the next-floor counter.
-  queueLeaderboardScore(buildScore(progress, game, alinMode)).catch(() => {});
+  queueLeaderboardScore(buildScore(progress, game, alinMode))
+    .then((result) => {
+      applyLeaderboardSyncResult(result);
+      if (game.completed) render();
+    })
+    .catch((error) => {
+      leaderboardSyncStatus = error.message || "排行榜同步失敗，請開啟排行榜重試";
+      leaderboardTauntStatus = leaderboardSyncStatus;
+      if (game.completed) render();
+    });
   syncCloudNow(false);
 }
 

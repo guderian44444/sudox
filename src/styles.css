@@ -22,6 +22,7 @@ button { font: inherit; color: inherit; -webkit-tap-highlight-color: transparent
 button:focus-visible { outline: 3px solid #4f9dd9; outline-offset: 2px; }
 
 .shell { max-width: 1440px; min-height: 100vh; margin: 0 auto; padding: max(20px, env(safe-area-inset-top)) max(22px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(22px, env(safe-area-inset-left)); }
+.app-footer { margin: 22px auto 0; padding: 12px 8px 2px; display: flex; justify-content: center; flex-wrap: wrap; gap: 5px 14px; color: #a18f7d; font-size: 11px; font-weight: 800; text-align: center; }
 .topbar { height: 58px; display: flex; justify-content: space-between; align-items: center; }
 .topbar-actions { display: flex; align-items: center; gap: 9px; }
 .save-button { padding: 9px 12px; border: 1px solid #e6dbce; border-radius: 13px; background: white; color: #6f665d; font-weight: 800; cursor: pointer; }
@@ -382,7 +383,9 @@ button:focus-visible { outline: 3px solid #4f9dd9; outline-offset: 2px; }
 .leaderboard-row > b { color: #dd7b59; font-size: 17px; text-align: center; }
 .leaderboard-row strong, .leaderboard-row small { display: block; }
 .leaderboard-row small { margin-top: 2px; color: #8a7e74; font-size: 10px; }
-.leaderboard-row em { color: #5c6d80; font-size: 13px; font-style: normal; font-weight: 900; }
+.leaderboard-result { min-width: 96px; display: flex; flex-direction: column; align-items: flex-end; gap: 3px; text-align: right; }
+.leaderboard-result strong { color: #5c6d80; font-size: 13px; font-weight: 900; }
+.leaderboard-result time { color: #a18f7d; font-size: 9px; font-style: normal; font-weight: 800; line-height: 1.25; white-space: nowrap; }
 .leaderboard-player { min-width: 0; }
 .leaderboard-player q { max-width: 100%; margin-top: 6px; padding: 5px 8px; display: block; overflow-wrap: anywhere; border-radius: 9px 9px 9px 3px; background: #fff; color: #765586; font-size: 11px; font-weight: 800; line-height: 1.35; }
 .leaderboard-player q::before, .leaderboard-player q::after { content: none; }
@@ -735,6 +738,9 @@ button:focus-visible { outline: 3px solid #4f9dd9; outline-offset: 2px; }
   .brand small { font-size: 8px; }
   .wallet { gap: 3px; }
   .wallet span { padding: 7px 8px; font-size: 12px; }
+  .app-footer { margin-top: 16px; font-size: 10px; }
+  .leaderboard-result { min-width: 88px; }
+  .leaderboard-result time { font-size: 8px; }
 }
 
 @media (max-height: 720px) and (max-width: 680px) {
