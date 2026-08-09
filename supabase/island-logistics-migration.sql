@@ -65,7 +65,11 @@ values
   ('dairyBatch', 'foodFactory', 'milk', 2, '{"dairyBox":1}', 10800, 18),
   ('jamBatch', 'foodFactory', 'fruit', 2, '{"jam":1}', 10800, 12),
   ('roastCoffee', 'roastery', 'coffeeBean', 2, '{"roastedCoffee":1}', 7200, 15),
-  ('weaveFabric', 'textileWorkshop', 'wool', 2, '{"fabric":1}', 10800, 20)
+  ('weaveFabric', 'textileWorkshop', 'wool', 2, '{"fabric":1}', 10800, 20),
+  ('flourBatch', 'mill', 'wheat', 2, '{"flour":1}', 7200, 7),
+  ('breadBatch', 'bakery', 'flour', 2, '{"bread":1}', 10800, 20),
+  ('grapeJuiceBatch', 'juiceStand', 'grape', 2, '{"grapeJuice":1}', 5400, 14),
+  ('sugarBatch', 'sugarMill', 'sugarcane', 2, '{"sugar":1}', 7200, 9)
 on conflict (recipe_id) do update set
   building_id = excluded.building_id,
   item_id = excluded.item_id,

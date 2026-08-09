@@ -97,6 +97,7 @@ export function shipmentQuote(state, { partner, offer, methodId, quantity } = {}
   if (!count || count > method.capacity || count % offer.inputPerBatch !== 0) {
     return { ok: false, error: `數量必須是 ${offer.inputPerBatch} 的倍數，且不可超過 ${method.capacity}` };
   }
+  if (safeInt(state.inventory?.[offer.itemId]) < count) return { ok: false, error: "小屋倉庫的貨物數量不足" };
   return {
     ok: true,
     quantity: count,
@@ -113,21 +114,21 @@ function shipmentId(prefix = "shipment") {
   return globalThis.crypto?.randomUUID ? globalThis.crypto.randomUUID() : `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 }
 
-export function recordDispatchedShipment(state, { shipment, ignoreInventory = false } = {}) {
+export function recordDispatchedShipment(state, { shipment } = {}) {
   const itemId = shipment?.itemId;
   const quantity = safeInt(shipment?.quantity);
   if (!ITEM_CATALOG[itemId] || !quantity) return { ok: false, state, error: "物流貨物資料不正確" };
-  if (!ignoreInventory && safeInt(state.inventory?.[itemId]) < quantity) return { ok: false, state, error: "小屋倉庫的貨物數量不足" };
+  if (safeInt(state.inventory?.[itemId]) < quantity) return { ok: false, state, error: "小屋倉庫的貨物數量不足" };
   const next = clone(state);
-  if (!ignoreInventory) next.inventory[itemId] -= quantity;
-  if (!ignoreInventory) next.inventoryUpdatedAt = Number(shipment.departedAt) || Date.now();
+  next.inventory[itemId] -= quantity;
+  next.inventoryUpdatedAt = Number(shipment.departedAt) || Date.now();
   next.outgoingShipments = next.outgoingShipments || {};
   next.outgoingShipments[shipment.id] = clone(shipment);
   next.updatedAt = Number(shipment.departedAt) || Date.now();
   return { ok: true, state: next, shipment: next.outgoingShipments[shipment.id] };
 }
 
-export function dispatchDemoShipment(state, { partner, offer, methodId, quantity, now = Date.now(), ignoreInventory = false } = {}) {
+export function dispatchDemoShipment(state, { partner, offer, methodId, quantity, now = Date.now() } = {}) {
   const quote = shipmentQuote(state, { partner, offer, methodId, quantity });
   if (!quote.ok) return { ...quote, state };
   const id = shipmentId();
@@ -150,7 +151,7 @@ export function dispatchDemoShipment(state, { partner, offer, methodId, quantity
     departedAt: now,
     arrivesAt: now + quote.durationSeconds * 1000
   };
-  const recorded = recordDispatchedShipment(state, { shipment, ignoreInventory });
+  const recorded = recordDispatchedShipment(state, { shipment });
   return recorded.ok ? { ...recorded, costCoins: quote.feeCoins, quote } : recorded;
 }
 

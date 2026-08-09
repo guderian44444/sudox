@@ -24,8 +24,8 @@ import { buildScore, fetchLeaderboard, flushPendingScores, leaderboardConfigured
 import { addCard, clearSession, consumeCard, exportSaveCode, importSaveCode, loadProgress, loadSession, mergeProgressHighWater, nextFloorFromCompleted, parseSaveCode, preferSaveSide, raiseFloorProgress, rewardProgress, saveProgress, saveSession, saveTimestampMs, sessionFloorBehindProgress, spendCoins } from "./state/store.js";
 
 const app = document.querySelector("#app");
-const APP_VERSION = "v45";
-const APP_LAST_UPDATED = "2026-08-09T18:30:00+08:00";
+const APP_VERSION = "v46";
+const APP_LAST_UPDATED = "2026-08-09T18:31:39+08:00";
 let progress = loadProgress();
 const migratedAchievements = recordAchievementGame(progress);
 progress = migratedAchievements.progress;
@@ -740,9 +740,7 @@ function updateIslandLogisticsQuote(form) {
   const quote = shipmentQuote(island, selection);
   const quoteElement = form.querySelector("[data-island-logistics-quote]");
   const stockElement = form.querySelector("[data-island-logistics-stock]");
-  if (stockElement) stockElement.textContent = ISLAND_TEST_MODE && selection.partner.isDemo
-    ? "測試無限"
-    : `${selection.offer.itemId ? "📦" : ""} ×${island.inventory[selection.offer.itemId] || 0}`;
+  if (stockElement) stockElement.textContent = `${selection.offer.itemId ? "📦" : ""} ×${island.inventory[selection.offer.itemId] || 0}`;
   if (quoteElement) quoteElement.textContent = quote.ok
     ? `${quote.method.icon} ${formatIslandDuration(quote.durationSeconds)}後送達・可收 🪙 ${quote.rewardCoins}${quote.feeCoins ? `・運費 🪙 ${quote.feeCoins}` : ""}`
     : quote.error;
@@ -770,7 +768,7 @@ async function submitIslandShipment(form) {
   try {
     let result;
     if (selection.partner.isDemo) {
-      result = dispatchDemoShipment(island, { ...selection, ignoreInventory: ISLAND_TEST_MODE });
+      result = dispatchDemoShipment(island, selection);
     } else {
       const operationId = islandOperationId();
       const cloudResult = await dispatchIslandShipment({
@@ -812,13 +810,11 @@ async function submitIslandShipment(form) {
 function refreshIslandClock() {
   if (activeScreen !== "island" || !island) return;
   const now = Date.now();
-  let reachedReadyAt = false;
   document.querySelectorAll("[data-island-ready-at]").forEach((element) => {
     const readyAt = Number(element.dataset.islandReadyAt) || 0;
     element.textContent = formatIslandDuration((readyAt - now) / 1000);
-    if (readyAt <= now) reachedReadyAt = true;
   });
-  if (reachedReadyAt && settleIslandNow(now)) renderIslandView();
+  if (settleIslandNow(now)) renderIslandView();
 }
 
 function affordIslandResult(result, successStatus) {
@@ -966,7 +962,7 @@ function bindIslandEvents() {
     commitIsland(result.state, { status: `已改為「${result.recipe.name}」，本批時間重新計算。` });
   }));
   document.querySelectorAll("[data-island-process]").forEach((button) => button.addEventListener("click", () => {
-    const result = startProcessing(island, { buildingInstanceId: button.dataset.islandBuilding, recipeId: button.dataset.islandProcess, ignoreInputs: ISLAND_TEST_MODE });
+    const result = startProcessing(island, { buildingInstanceId: button.dataset.islandBuilding, recipeId: button.dataset.islandProcess });
     if (!result.ok) {
       islandStatus = result.error;
       renderIslandView();

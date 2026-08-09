@@ -95,7 +95,7 @@
   height: 58px;
   padding: 0;
   border: 0;
-  clip-path: polygon(25% 3%, 75% 3%, 100% 50%, 75% 97%, 25% 97%, 0 50%);
+  clip-path: polygon(24% 0, 76% 0, 100% 50%, 76% 100%, 24% 100%, 0 50%);
   cursor: pointer;
   transition: filter .16s ease, transform .16s ease;
 }
@@ -110,13 +110,13 @@
 .island-ground-detail { position: absolute; inset: 0; display: grid; place-items: center; color: rgba(255,255,255,.28); font-size: 26px; }
 .island-wave { font-size: 20px; }
 .island-hex.is-footprint { filter: saturate(.92); }
-.island-shore-foam { position: absolute; z-index: 7; color: rgba(255,255,255,.96); font-size: 16px; font-weight: 950; line-height: 1; text-shadow: 0 1px 2px rgba(21,128,159,.25); pointer-events: none; }
-.island-shore-foam.dir-0 { right: -1px; top: 22px; transform: rotate(90deg); }
-.island-shore-foam.dir-1 { right: 8px; top: 4px; transform: rotate(30deg); }
-.island-shore-foam.dir-2 { left: 9px; top: 4px; transform: rotate(-30deg); }
-.island-shore-foam.dir-3 { left: -1px; top: 22px; transform: rotate(90deg); }
-.island-shore-foam.dir-4 { left: 9px; bottom: 3px; transform: rotate(30deg); }
-.island-shore-foam.dir-5 { right: 8px; bottom: 3px; transform: rotate(-30deg); }
+.island-shore-foam { position: absolute; z-index: 7; width: 34px; height: 14px; border-radius: 50%; background: radial-gradient(ellipse at center, rgba(255,255,255,.94) 0 15%, rgba(233,252,255,.72) 28%, rgba(151,224,235,.28) 51%, transparent 72%); filter: blur(.35px); pointer-events: none; }
+.island-shore-foam.dir-0 { right: -8px; bottom: 5px; transform: rotate(120deg); }
+.island-shore-foam.dir-1 { right: -8px; top: 5px; transform: rotate(60deg); }
+.island-shore-foam.dir-2 { left: 16px; top: -7px; }
+.island-shore-foam.dir-3 { left: -8px; top: 5px; transform: rotate(-60deg); }
+.island-shore-foam.dir-4 { left: -8px; bottom: 5px; transform: rotate(60deg); }
+.island-shore-foam.dir-5 { left: 16px; bottom: -7px; }
 .island-sprite { pointer-events: none; user-select: none; }
 .island-building-sprite { position: absolute; z-index: 2; left: 50%; bottom: 8px; width: 45px; height: 45px; object-fit: contain; transform: translateX(-50%); filter: drop-shadow(0 3px 2px rgba(25,74,52,.2)); }
 .island-sprite-placeholder { display: grid; place-items: center; font-size: 31px; line-height: 1; }
@@ -124,6 +124,9 @@
 .island-workers { z-index: 4; display: flex; justify-content: center; align-items: end; pointer-events: none; }
 .island-hex > .island-workers { position: absolute; left: 4px; right: 4px; bottom: 3px; }
 .island-workers img { width: 22px; height: 22px; margin-left: -5px; object-fit: contain; animation: island-worker-bob .7s ease-in-out calc(var(--worker-index) * -.12s) infinite alternate; }
+.island-attraction-visitors { position: absolute; z-index: 6; left: 50%; bottom: 1px; display: flex; align-items: end; transform: translateX(-50%); pointer-events: none; }
+.island-attraction-visitors img { width: 19px; height: 19px; margin-left: -4px; object-fit: contain; filter: drop-shadow(0 2px 1px rgba(25,74,52,.25)); animation: island-visitor-play .9s ease-in-out calc(var(--visitor-index) * -.18s) infinite alternate; }
+.island-attraction-visitors img:first-child { margin-left: 0; }
 .island-countdown { color: #2d7080; font-weight: 950; white-space: nowrap; }
 .island-ready-badge, .island-job-badge { position: absolute; z-index: 5; display: grid; place-items: center; border-radius: 999px; color: white; font-size: 11px; font-weight: 950; }
 .island-ready-badge { z-index: 30; top: 4px; left: 50%; width: 18px; height: 18px; background: #ff805c; transform: translateX(-50%); animation: island-ready-pop .7s ease-in-out infinite alternate; }
@@ -135,8 +138,9 @@
 .island-partner-node b { font-size: 10px; }
 .island-partner-node small { margin-top: 2px; color: #718f94; font-size: 8px; }
 .island-partner-node i { color: #55b87c; font-size: 9px; font-style: normal; }
-.island-transport { position: absolute; z-index: 36; width: 29px; height: 29px; display: grid; place-items: center; border-radius: 50%; background: rgba(255,255,255,.86); box-shadow: 0 4px 9px rgba(21,87,108,.2); font-size: 20px; pointer-events: none; animation: island-transport-trip 4.2s ease-in-out var(--travel-delay) infinite; }
-.island-transport.is-plane { background: rgba(231,248,255,.9); }
+.island-transport-route { position: absolute; z-index: 34; height: 5px; background: radial-gradient(circle, rgba(255,255,255,.96) 0 2px, transparent 2.4px) 0 50% / 12px 5px repeat-x; filter: drop-shadow(0 1px 1px rgba(28,112,139,.45)); transform: translateY(-2px) rotate(var(--route-angle)); transform-origin: 0 50%; pointer-events: none; animation: island-route-flow .8s linear var(--route-delay) infinite; }
+.island-transport-route.is-plane { background-image: radial-gradient(circle, rgba(229,249,255,.98) 0 2px, transparent 2.4px); }
+.island-transport { position: absolute; z-index: 36; width: 29px; height: 29px; display: grid; place-items: center; font-size: 23px; line-height: 1; filter: drop-shadow(0 3px 2px rgba(21,87,108,.36)); pointer-events: none; animation: island-transport-trip 4.2s ease-in-out var(--travel-delay) infinite; }
 .island-work-bar { padding: 8px 10px 10px; flex: 0 0 auto; border-top: 1px solid rgba(54,116,126,.14); background: rgba(255,255,255,.62); }
 .island-work-bar > header { margin-bottom: 6px; display: flex; justify-content: space-between; color: #4d727a; font-size: 11px; }
 .island-work-bar > div { display: flex; gap: 7px; overflow-x: auto; scrollbar-width: thin; }
@@ -201,6 +205,10 @@
 .island-done-note { padding: 9px; border-radius: 11px; background: #fff6d9; color: #7e6e49 !important; }
 .island-facility-box { display: grid; gap: 7px; padding: 10px; border-radius: 13px; background: #eef9f3; }
 .island-facility-box > small { color: #6e8980; font-size: 10px; }
+.island-attraction-box { margin-top: 10px; padding: 10px; display: grid; gap: 3px; border: 1px solid #d9e9c7; border-radius: 13px; color: #536b4d; background: linear-gradient(135deg, #f5f9df, #e8f6e8); }
+.island-attraction-box strong, .island-attraction-box small, .island-attraction-box span { display: block; }
+.island-attraction-box strong { font-size: 11px; }
+.island-attraction-box small, .island-attraction-box span { color: #73846d; font-size: 9px; line-height: 1.4; }
 .island-job-list { display: grid; gap: 4px; }
 .island-job-list > span { display: flex; justify-content: space-between; padding: 6px; border-radius: 8px; background: white; font-size: 9px; }
 .island-recipe-list { display: grid; gap: 5px; }
@@ -239,6 +247,7 @@
 .island-logistics-locked p { margin: 4px 0 0; font-size: 10px; line-height: 1.45; }
 .island-footer { padding: 5px 0 0; color: rgba(37,81,94,.66); font-size: 9px; font-weight: 800; text-align: center; flex: 0 0 auto; }
 @keyframes island-worker-bob { to { transform: translateY(-4px) rotate(4deg); } }
+@keyframes island-visitor-play { to { transform: translateY(-4px) rotate(-5deg) scale(1.05); } }
 @keyframes island-build-pulse { to { transform: translateX(-50%) scale(1.06); } }
 @keyframes island-ready-pop {
   from { transform: translateX(-50%) translateY(0) scale(1); }
@@ -250,6 +259,7 @@
   82% { opacity: 1; transform: translate(var(--travel-x), var(--travel-y)) scale(1); }
   100% { opacity: 0; transform: translate(var(--travel-x), var(--travel-y)) scale(.78); }
 }
+@keyframes island-route-flow { to { background-position: 12px 50%; } }
 
 @media (max-width: 900px) {
   .island-shell { height: auto; min-height: 100dvh; overflow: visible; }
@@ -273,5 +283,5 @@
   .island-control-panel { padding: 13px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .island-workers img, .island-under-construction, .island-ready-badge, .island-transport { animation: none; }
+  .island-workers img, .island-attraction-visitors img, .island-under-construction, .island-ready-badge, .island-transport-route, .island-transport { animation: none; }
 }

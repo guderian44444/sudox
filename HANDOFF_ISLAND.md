@@ -2,7 +2,7 @@
 
 更新日期：2026-08-09
 開發分支：`feature/island-building`
-目前版次：`v45`／Service Worker `sudox-shell-v45`
+目前版次：`v46`／Service Worker `sudox-shell-v46`
 
 ## 一句話狀態
 
@@ -11,9 +11,14 @@
 ## 本版完成內容
 
 - 工務小屋已從目錄與建造流程移除。
+- 六角陸地改為邊緣重疊裁切，島中央不再露出藍色海縫；岸線改成透明漸層海沫，不再以 `≈` 文字圍邊。
+- 在途物流會從實際合作碼頭的海面 footprint 或小島機場中心畫出點點航線，船／飛機沿線前往地圖邊緣玩家。
+- 花園、睡蓮池、伙伴遊樂場、燈塔、野餐公園、觀景台、摩天輪與溫泉會顯示隨機到訪伙伴，並依真實時間批次結算少量收入。
+- 新增南瓜、馬鈴薯、小麥、稻米、茶葉、葡萄與甘蔗等作物，以及磨坊、飯糰屋、茶屋、果汁攤、糖坊、冰淇淋屋等產業設施。
+- 測試模式仍保留建設資源不受限與「馬上完成」，但加工與物流不再跳過庫存；沒有配方原料就不能開工或出貨。
 - 合作碼頭占一格海岸土地與一格海面，會自動嘗試六方向合法朝向；小島機場占三格相連土地。
 - 多格建築與施工會完整占用 footprint，不會在每格重複繪製建築，也不能把碼頭海面再拿去填海。
-- 陸地和海面相接的每一條六角邊會依鄰接資料顯示白色浪花。
+- 陸地和海面相接的六角邊會依鄰接資料顯示半透明漸層海沫。
 - 相容玩家顯示在地圖邊緣，包含伙伴、玩家名稱與可接收物料；點擊後顯示目的設施、海運／空運、時間、數量、容量、運費與報酬。
 - 海運：需合作碼頭，60 分鐘，單次 20 件，無運費。空運：需小島機場，15 分鐘，單次 8 件，每件 2 金幣。
 - 確認出貨後立即扣倉庫物料並建立不可重複的 `operation_id`；地圖只依出發／抵達時間播放船或飛機，不逐秒寫資料庫。
@@ -25,7 +30,7 @@
 
 Migration：`supabase/island-logistics-migration.sql`
 
-安裝狀態（2026-08-09）：已套用至 Production project `riradorayjziystoalyj`。Table Editor 已確認三張表與 7 筆預設配方，Database Functions 已確認五個 RPC，並以遊戲 publishable key 實際呼叫 `list_compatible_island_players` 得到 HTTP 200 與相容玩家資料。
+安裝狀態（2026-08-09）：已套用至 Production project `riradorayjziystoalyj`。Table Editor 已確認三張表與 v46 共 11 筆預設配方，Database Functions 已確認五個 RPC，並以遊戲 publishable key 實際呼叫 `list_compatible_island_players` 得到 HTTP 200 與相容玩家資料；本版新增的磨粉、麵包、葡萄汁與製糖 4 筆單一原料物流配方也已同步。
 
 新增三張禁止 anon／authenticated 直接讀寫的表：
 
@@ -57,7 +62,7 @@ Publishable key 無法建立資料表或函式；若 migration 未安裝，前�
 - `src/island/catalog.js`：schema v2、建築、品項、配方、碼頭與機場 footprint。
 - `src/island/model.js`：施工／生產／多格占用／本機時間結算與物流狀態正規化。
 - `src/island/logistics.js`：相容設施、運輸方式、報價、防重合併與測試島友。
-- `src/island/renderer.js`：海岸浪花、地圖邊緣玩家、物流表單與船機動畫。
+- `src/island/renderer.js`：漸層海沫、遊憩訪客、地圖邊緣玩家、物流表單與港口／機場起點船機動畫。
 - `src/state/island-cloud.js`：五個物流 RPC 的前端 adapter。
 - `supabase/island-logistics-migration.sql`：正式雲端資料表與 security-definer RPC。
 - `scripts/test-island.mjs`：多格設施、物流扣貨／付款／匯入／防重、SQL 權限與 UI 接點回歸測試。

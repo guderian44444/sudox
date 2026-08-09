@@ -323,6 +323,7 @@ export function settleIsland(state, now = Date.now()) {
   const completed = [];
   let changed = false;
   let coinsEarned = 0;
+  const previousSettledAt = Math.min(now, safeTime(state.lastSettledAt, now));
 
   Object.entries(next.constructionJobs).forEach(([jobId, job]) => {
     if (safeTime(job.readyAt) > now) return;
@@ -382,6 +383,23 @@ export function settleIsland(state, now = Date.now()) {
     changed = true;
   });
 
+  let attractionCoins = 0;
+  Object.values(next.buildings).forEach((building) => {
+    const attraction = BUILDING_CATALOG[building.buildingId]?.attraction;
+    const intervalMs = safeInt(attraction?.intervalSeconds) * 1000;
+    if (!intervalMs || !safeInt(attraction?.incomeCoins)) return;
+    const completedAt = safeTime(building.completedAt);
+    const from = Math.max(previousSettledAt, completedAt);
+    const visitsBefore = Math.floor(Math.max(0, from - completedAt) / intervalMs);
+    const visitsNow = Math.floor(Math.max(0, now - completedAt) / intervalMs);
+    attractionCoins += Math.max(0, visitsNow - visitsBefore) * safeInt(attraction.incomeCoins);
+  });
+  if (attractionCoins) {
+    coinsEarned += attractionCoins;
+    completed.push({ kind: "attraction", name: `遊憩設施收入 🪙 ${attractionCoins}` });
+    changed = true;
+  }
+
   if (changed) next.updatedAt = now;
   next.lastSettledAt = now;
   return { state: next, changed, completed, coinsEarned };
@@ -426,19 +444,17 @@ export function collectFacility(state, { buildingInstanceId, now = Date.now() } 
 
 const hasInputs = (inventory, inputs) => Object.entries(inputs).every(([itemId, count]) => safeInt(inventory[itemId]) >= safeInt(count));
 
-export function startProcessing(state, { buildingInstanceId, recipeId, now = Date.now(), ignoreInputs = false } = {}) {
+export function startProcessing(state, { buildingInstanceId, recipeId, now = Date.now() } = {}) {
   const building = state.buildings[buildingInstanceId];
   const definition = BUILDING_CATALOG[building?.buildingId];
   const recipe = RECIPE_CATALOG[recipeId];
   if (!building || !recipe || recipe.kind !== "processor" || recipe.facilityId !== definition?.id) {
     return { ok: false, state, error: "這座設施不能使用該配方" };
   }
-  if (!ignoreInputs && !hasInputs(state.inventory, recipe.inputs)) return { ok: false, state, error: "倉庫原料不足" };
+  if (!hasInputs(state.inventory, recipe.inputs)) return { ok: false, state, error: "倉庫原料不足，單有加工設施不能生產" };
   const next = clone(state);
-  if (!ignoreInputs) {
-    Object.entries(recipe.inputs).forEach(([itemId, count]) => { next.inventory[itemId] -= count; });
-    next.inventoryUpdatedAt = now;
-  }
+  Object.entries(recipe.inputs).forEach(([itemId, count]) => { next.inventory[itemId] -= count; });
+  next.inventoryUpdatedAt = now;
   const job = {
     id: operationId("processing"),
     buildingInstanceId,

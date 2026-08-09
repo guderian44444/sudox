@@ -17,6 +17,7 @@ import {
   marketSale,
   normalizeIslandState,
   selectSourceRecipe,
+  settleIsland,
   startBuilding,
   startProcessing,
   startReclamation
@@ -180,8 +181,20 @@ for (const recipe of Object.values(RECIPE_CATALOG)) {
 
 const noInputState = structuredClone(state);
 noInputState.inventory.milk = 0;
-const unlimitedProcess = startProcessing(noInputState, { buildingInstanceId: factory.id, recipeId: "dairyBatch", now, ignoreInputs: true });
-assert(unlimitedProcess.ok && unlimitedProcess.state.inventory.milk === 0, "測試模式應能不受原料數量限制且不扣庫存");
+const blockedNoInputProcess = startProcessing(noInputState, { buildingInstanceId: factory.id, recipeId: "dairyBatch", now });
+assert(!blockedNoInputProcess.ok && /原料不足/.test(blockedNoInputProcess.error), "即使仍在測試模式，單有食品工房也不能無原料生產");
+
+assert(BUILDING_CATALOG.garden.recipeIds.includes("pumpkinHarvest") && BUILDING_CATALOG.garden.recipeIds.includes("potatoHarvest"), "百變菜園應新增南瓜與馬鈴薯");
+assert(BUILDING_CATALOG.grainField && BUILDING_CATALOG.paddy && BUILDING_CATALOG.teaGarden && BUILDING_CATALOG.vineyard && BUILDING_CATALOG.sugarcaneField, "農業目錄應新增麥田、水稻田、茶園、葡萄園與甘蔗田");
+assert(RECIPE_CATALOG.flourBatch.inputs.wheat === 2 && RECIPE_CATALOG.breadBatch.inputs.flour === 2, "小麥到麵粉再到麵包的三層產業鏈應完整");
+assert(RECIPE_CATALOG.iceCreamBatch.inputs.milk === 1 && RECIPE_CATALOG.iceCreamBatch.inputs.sugar === 1 && RECIPE_CATALOG.iceCreamBatch.inputs.strawberry === 1, "冰淇淋屋應同時需要牛奶、砂糖與草莓");
+
+const attractionState = createIslandState({ playerAvatar: "cat", now });
+attractionState.buildings["test-playground"] = { id: "test-playground", buildingId: "playground", q: 0, r: 1, orientation: 0, completedAt: now };
+attractionState.lastSettledAt = now;
+const attractionSettlement = settleIsland(attractionState, now + 40 * 60 * 1000);
+assert.equal(attractionSettlement.coinsEarned, 6, "伙伴遊樂場每 20 分鐘應產生 3 金幣，離線 40 分鐘結算兩批");
+assert(attractionSettlement.completed.some((entry) => entry.kind === "attraction"), "遊憩收入應進入真實時間結算結果");
 
 let logisticsState = createIslandState({ playerId: "sender", playerName: "寄件島", now });
 logisticsState.buildings["test-dock"] = { id: "test-dock", buildingId: "dock", q: 1, r: 0, orientation: 0, completedAt: now };
@@ -198,6 +211,14 @@ logisticsState = dispatched.state;
 const delivered = finishIslandWork(logisticsState, { kind: "shipment", id: dispatched.shipment.id, now: now + 1 });
 assert(delivered.ok && delivered.coinsEarned === quote.rewardCoins && delivered.state.outgoingShipments[dispatched.shipment.id].status === "arrived_paid", "測試馬上完成應讓船運抵達且只結算一次報酬");
 
+let airLogisticsState = createIslandState({ playerId: "air-sender", playerName: "空運島", now });
+airLogisticsState.tiles[axialKey(2, -1)] = { terrain: "reclaimed", reclaimedAt: now };
+airLogisticsState.buildings["test-airport"] = { id: "test-airport", buildingId: "airport", q: 1, r: -1, orientation: 0, completedAt: now };
+airLogisticsState.inventory.corn = 2;
+const airDispatched = dispatchDemoShipment(airLogisticsState, { partner: demoDad, offer: milkOffer, methodId: "plane", quantity: 2, now });
+assert(airDispatched.ok && airDispatched.shipment.methodId === "plane", "完工機場與足夠貨物應可建立空運事件");
+airLogisticsState = airDispatched.state;
+
 let receiverState = createIslandState({ playerId: "receiver", playerName: "收件島", now });
 receiverState.buildings["remote-ranch"] = { id: "remote-ranch", buildingId: "ranch", q: 1, r: 0, orientation: 0, completedAt: now };
 receiverState.facilities["remote-ranch"] = { buildingInstanceId: "remote-ranch", recipeId: "", state: "idle", startedAt: 0, readyAt: 0, readyOutput: {}, readyOutputs: {}, updatedAt: now };
@@ -213,6 +234,7 @@ assert(secondMerge.coinsEarned === 0 && Object.keys(secondMerge.state.processing
 assert(/create table if not exists public\.island_network_profiles/.test(logisticsSql) && /create table if not exists public\.island_shipments/.test(logisticsSql), "物流 migration 應建立公開設施快照與事件表");
 assert(/security definer/g.test(logisticsSql) && /dispatch_island_shipment/.test(logisticsSql) && /ack_island_logistics/.test(logisticsSql), "物流只能透過驗證 PIN 的安全 RPC 寫入與交接");
 assert(/revoke all on public\.island_network_profiles, public\.island_recipe_catalog, public\.island_shipments from anon, authenticated/.test(logisticsSql), "玩家不可直接讀取他人的私人庫存或物流資料表");
+assert(/'flourBatch', 'mill', 'wheat'/.test(logisticsSql) && /'sugarBatch', 'sugarMill', 'sugarcane'/.test(logisticsSql), "新增的單一原料加工鏈應同步到跨島物流配方目錄");
 
 const normalized = normalizeIslandState(JSON.parse(JSON.stringify(state)), { playerId: "test-player", now });
 assert.equal(normalized.inventory.dairyBox, 1, "小島資料序列化後應可完整還原");
@@ -256,6 +278,41 @@ const logisticsMarkup = renderIslandScreen({
   now,
   version: "test"
 });
+const attractionMarkup = renderIslandScreen({
+  state: attractionState,
+  coins: 0,
+  selectedKey: "0,1",
+  workers: [{ id: "cat", name: "貓" }],
+  selectedWorkerId: "cat",
+  playerAvatar: "cat",
+  testMode: true,
+  now: now + 40 * 60 * 1000,
+  version: "test"
+});
+const airLogisticsMarkup = renderIslandScreen({
+  state: airLogisticsState,
+  coins: 999,
+  selectedKey: "0,0",
+  partners: DEMO_ISLAND_PARTNERS,
+  selectedPartnerId: demoDad.id,
+  workers: [{ id: "cat", name: "貓" }],
+  selectedWorkerId: "cat",
+  playerAvatar: "cat",
+  testMode: true,
+  now,
+  version: "test"
+});
+const noInputFactoryMarkup = renderIslandScreen({
+  state: noInputState,
+  coins: 999,
+  selectedKey: `${factory.q},${factory.r}`,
+  workers: [{ id: "cat", name: "貓" }],
+  selectedWorkerId: "cat",
+  playerAvatar: "cat",
+  testMode: true,
+  now,
+  version: "test"
+});
 const hexButtons = markup.match(/<button class="island-hex[\s\S]*?<\/button>/g) || [];
 assert(hexButtons.length === 61 && hexButtons.every((button) => !button.includes("data-island-ready-at")), "施工倒數不可顯示在地圖六角格上");
 assert(/目前進行中的工作/.test(markup) && /data-island-ready-at/.test(markup), "底部欄應改為顯示目前進行中的工作與時間");
@@ -263,10 +320,16 @@ assert(/小屋倉庫・容量無上限/.test(markup) && !/class="island-inventor
 assert(/data-island-finish-kind/.test(markup) && /測試資源 ∞/.test(markup), "測試模式應顯示無限資源與馬上完成按鈕");
 assert(/data-island-zoom="out"/.test(markup) && /data-island-map-viewport/.test(markup), "縮放按鈕與滾輪事件接點應位於地圖區域");
 assert(/island-build-category/.test(catalogMarkup) && /農業與採集/.test(catalogMarkup) && /加工與畜產/.test(catalogMarkup), "建築目錄應依用途顯示為巢狀分類");
+assert(/金穗麥田/.test(catalogMarkup) && /星空溫泉/.test(catalogMarkup) && /冰淇淋屋/.test(catalogMarkup), "巢狀建築目錄應顯示新增的農業、景觀與加工設施");
 assert(/靈巧佈置|大力土木/.test(catalogMarkup), "施工伙伴選擇器應顯示伙伴能力");
 assert(/island-partner-node/.test(logisticsMarkup) && /data-island-logistics-form/.test(logisticsMarkup) && /可接收/.test(logisticsMarkup), "相容玩家應顯示在地圖邊緣，點選後提供物料、方式、數量、時間與報酬選單");
 assert(/island-shore-foam/.test(logisticsMarkup), "陸地與海洋交界的六角邊應顯示白色浪花");
-assert(/island-transport is-boat/.test(logisticsMarkup), "在途船運應出現在地圖上並朝合作玩家移動");
+assert(!/island-shore-foam[^>]*>≈/.test(logisticsMarkup) && /radial-gradient\(ellipse at center/.test(islandStyles), "岸線應使用漸層海沫，不再以重複的波浪文字描邊");
+assert(/clip-path:\s*polygon\(24% 0, 76% 0/.test(islandStyles), "陸地六角形應完整覆蓋格線，避免島中央露出藍色海縫");
+assert(/island-transport-route is-boat/.test(logisticsMarkup) && /island-transport is-boat/.test(logisticsMarkup) && /從合作碼頭出發/.test(logisticsMarkup), "在途船運應從合作碼頭畫出點點路線並朝合作玩家移動");
+assert(/island-transport-route is-plane/.test(airLogisticsMarkup) && /island-transport is-plane/.test(airLogisticsMarkup) && /從小島機場出發/.test(airLogisticsMarkup), "在途空運應從小島機場中心畫出點點路線並朝合作玩家移動");
+assert(/island-attraction-visitors/.test(attractionMarkup) && /每 20 分鐘帶來 🪙 3/.test(attractionMarkup), "遊樂場應顯示隨機伙伴與定期門票收入說明");
+assert(/data-island-process="dairyBatch"[^>]*disabled/.test(noInputFactoryMarkup) && /原料不足/.test(noInputFactoryMarkup), "食品工房沒有牛奶時，即使測試模式也必須停用加工按鈕");
 assert(/pointerdown/.test(appSource) && /pointermove/.test(appSource) && /islandDragged/.test(appSource), "地圖應支援滑鼠與手機 Pointer Events 拖曳並防止拖後誤觸");
 assert(!/setPointerCapture/.test(pointerDownSource) && /setPointerCapture/.test(pointerMoveSource), "一般點擊不可在 pointerdown 時被地圖接管，只有超過拖曳門檻後才能 capture");
 assert(/touch-action:\s*none/.test(islandStyles) && /cursor:\s*grab/.test(islandStyles), "地圖拖曳應關閉瀏覽器手勢衝突並顯示拖曳游標");
