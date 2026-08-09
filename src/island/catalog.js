@@ -1,5 +1,5 @@
-export const ISLAND_SCHEMA_VERSION = 2;
-export const ISLAND_RADIUS = 4;
+export const ISLAND_SCHEMA_VERSION = 3;
+export const ISLAND_RADIUS = 8;
 export const STARTER_LAND_RADIUS = 1;
 // DEVELOPMENT ONLY: must be false before this branch is pushed or deployed.
 export const ISLAND_TEST_MODE = true;
@@ -8,6 +8,14 @@ const minutes = (value) => value * 60;
 const hours = (value) => minutes(value * 60);
 
 export const RECLAMATION_WORK_TAGS = Object.freeze(["civil", "heavy", "waterfront"]);
+
+export const HOME_LEVELS = Object.freeze([
+  Object.freeze({ level: 1, name: "島主小屋", icon: "🏠", capacity: 80, costCoins: 0, durationSeconds: 0, workTags: Object.freeze(["craft", "utility"]), assetKey: "buildings/island-home-level-1" }),
+  Object.freeze({ level: 2, name: "擴建小屋", icon: "🏡", capacity: 180, costCoins: 180, durationSeconds: hours(2), workTags: Object.freeze(["craft", "utility"]), assetKey: "buildings/island-home-level-2" }),
+  Object.freeze({ level: 3, name: "海島莊園", icon: "🏘️", capacity: 360, costCoins: 420, durationSeconds: hours(6), workTags: Object.freeze(["craft", "civil", "utility"]), assetKey: "buildings/island-home-level-3" }),
+  Object.freeze({ level: 4, name: "島主宮殿", icon: "🏛️", capacity: 720, costCoins: 900, durationSeconds: hours(12), workTags: Object.freeze(["civil", "heavy", "utility"]), assetKey: "buildings/island-home-level-4" }),
+  Object.freeze({ level: 5, name: "海島城堡", icon: "🏰", capacity: 1500, costCoins: 1800, durationSeconds: hours(24), workTags: Object.freeze(["civil", "heavy", "utility"]), assetKey: "buildings/island-home-level-5" })
+]);
 
 export const BUILDING_CATEGORIES = Object.freeze([
   Object.freeze({ id: "source", name: "農業與採集", icon: "🌱" }),
@@ -51,7 +59,14 @@ export const ITEM_CATALOG = Object.freeze({
   honey: Object.freeze({ id: "honey", name: "蜂蜜", icon: "🍯", marketCoins: 18, assetKey: "items/honey" }),
   jam: Object.freeze({ id: "jam", name: "水果果醬", icon: "🫙", marketCoins: 36, assetKey: "items/jam" }),
   cake: Object.freeze({ id: "cake", name: "蜂蜜蛋糕", icon: "🍰", marketCoins: 90, assetKey: "items/cake" }),
-  dairyBox: Object.freeze({ id: "dairyBox", name: "乳製品箱", icon: "🧀", marketCoins: 50, assetKey: "items/dairy-box" })
+  dairyBox: Object.freeze({ id: "dairyBox", name: "乳製品箱", icon: "🧀", marketCoins: 50, assetKey: "items/dairy-box" }),
+  sapling: Object.freeze({ id: "sapling", name: "樹苗", icon: "🌱", marketCoins: 3, assetKey: "items/sapling" }),
+  log: Object.freeze({ id: "log", name: "原木", icon: "🪵", marketCoins: 9, assetKey: "items/log" }),
+  lumber: Object.freeze({ id: "lumber", name: "木材", icon: "🪚", marketCoins: 24, assetKey: "items/lumber" }),
+  metalOre: Object.freeze({ id: "metalOre", name: "金屬礦", icon: "🪨", marketCoins: 11, assetKey: "items/metal-ore" }),
+  metalPlate: Object.freeze({ id: "metalPlate", name: "輕金屬板", icon: "🔩", marketCoins: 38, assetKey: "items/metal-plate" }),
+  boat: Object.freeze({ id: "boat", name: "物流船", icon: "⛵", marketCoins: 650, vehicleMethodId: "boat", assetKey: "items/boat" }),
+  plane: Object.freeze({ id: "plane", name: "物流飛機", icon: "✈️", marketCoins: 1400, vehicleMethodId: "plane", assetKey: "items/plane" })
 });
 
 export const RECIPE_CATALOG = Object.freeze({
@@ -87,7 +102,14 @@ export const RECIPE_CATALOG = Object.freeze({
   teaBatch: Object.freeze({ id: "teaBatch", name: "沖泡蜂蜜島茶", kind: "processor", facilityId: "teaHouse", inputs: Object.freeze({ teaLeaf: 2, honey: 1 }), outputs: Object.freeze({ teaCup: 1 }), durationSeconds: hours(2) }),
   grapeJuiceBatch: Object.freeze({ id: "grapeJuiceBatch", name: "鮮榨葡萄果汁", kind: "processor", facilityId: "juiceStand", inputs: Object.freeze({ grape: 2 }), outputs: Object.freeze({ grapeJuice: 1 }), durationSeconds: minutes(90) }),
   sugarBatch: Object.freeze({ id: "sugarBatch", name: "熬製砂糖", kind: "processor", facilityId: "sugarMill", inputs: Object.freeze({ sugarcane: 2 }), outputs: Object.freeze({ sugar: 1 }), durationSeconds: hours(2) }),
-  iceCreamBatch: Object.freeze({ id: "iceCreamBatch", name: "製作草莓冰淇淋", kind: "processor", facilityId: "iceCreamShop", inputs: Object.freeze({ milk: 1, sugar: 1, strawberry: 1 }), outputs: Object.freeze({ iceCream: 1 }), durationSeconds: hours(3) })
+  iceCreamBatch: Object.freeze({ id: "iceCreamBatch", name: "製作草莓冰淇淋", kind: "processor", facilityId: "iceCreamShop", inputs: Object.freeze({ milk: 1, sugar: 1, strawberry: 1 }), outputs: Object.freeze({ iceCream: 1 }), durationSeconds: hours(3) }),
+  saplingHarvest: Object.freeze({ id: "saplingHarvest", name: "培育樹苗", kind: "source", facilityId: "treeNursery", inputs: Object.freeze({}), outputs: Object.freeze({ sapling: 3 }), durationSeconds: hours(1) }),
+  forestGrowth: Object.freeze({ id: "forestGrowth", name: "造林與選擇性伐木", kind: "processor", facilityId: "forest", inputs: Object.freeze({ sapling: 2 }), outputs: Object.freeze({ log: 3 }), durationSeconds: hours(3) }),
+  lumberBatch: Object.freeze({ id: "lumberBatch", name: "原木製材", kind: "processor", facilityId: "sawmill", inputs: Object.freeze({ log: 2 }), outputs: Object.freeze({ lumber: 2 }), durationSeconds: hours(2) }),
+  boatBuild: Object.freeze({ id: "boatBuild", name: "建造物流船", kind: "processor", facilityId: "shipyard", inputs: Object.freeze({ lumber: 6, fabric: 1 }), outputs: Object.freeze({ boat: 1 }), durationSeconds: hours(8) }),
+  oreMining: Object.freeze({ id: "oreMining", name: "開採金屬礦", kind: "source", facilityId: "mine", inputs: Object.freeze({}), outputs: Object.freeze({ metalOre: 3 }), durationSeconds: hours(2) }),
+  metalPlateBatch: Object.freeze({ id: "metalPlateBatch", name: "冶煉輕金屬板", kind: "processor", facilityId: "smelter", inputs: Object.freeze({ metalOre: 3 }), outputs: Object.freeze({ metalPlate: 2 }), durationSeconds: hours(4) }),
+  planeBuild: Object.freeze({ id: "planeBuild", name: "組裝物流飛機", kind: "processor", facilityId: "aircraftWorkshop", inputs: Object.freeze({ metalPlate: 6, fabric: 2 }), outputs: Object.freeze({ plane: 1 }), durationSeconds: hours(12) })
 });
 
 const oneHex = Object.freeze([{ q: 0, r: 0 }]);
@@ -98,7 +120,7 @@ export const BUILDING_CATALOG = Object.freeze({
   islandHome: Object.freeze({
     id: "islandHome", name: "島主小屋與倉庫", icon: "🏠", category: "starter", buildable: false,
     footprint: oneHex, costCoins: 0, durationSeconds: 0, workTags: tags("craft", "utility"),
-    description: "小島的中心、伙伴休息處，也兼作無上限倉庫。", assetKey: "buildings/island-home"
+    description: "小島的中心與倉庫，可逐級擴建；第五級會成為海島城堡。", assetKey: "buildings/island-home-level-1"
   }),
   garden: Object.freeze({
     id: "garden", name: "百變菜園", icon: "🥬", category: "source", buildable: true,
@@ -216,6 +238,48 @@ export const BUILDING_CATALOG = Object.freeze({
     footprint: oneHex, costCoins: 300, durationSeconds: hours(7), workTags: tags("food", "commerce", "craft"),
     recipeIds: Object.freeze(["iceCreamBatch"]), description: "需要牛奶、砂糖與草莓，製作高價草莓冰淇淋。", assetKey: "buildings/ice-cream-shop"
   }),
+  treeNursery: Object.freeze({
+    id: "treeNursery", name: "育苗園", icon: "🌱", category: "source", buildable: true,
+    footprint: oneHex, costCoins: 90, durationSeconds: hours(2), workTags: tags("farming", "orchard"),
+    defaultRecipeId: "saplingHarvest", recipeIds: Object.freeze(["saplingHarvest"]),
+    description: "培育可供森林造林的樹苗，是木業與造船產業鏈的起點。", assetKey: "buildings/tree-nursery"
+  }),
+  forest: Object.freeze({
+    id: "forest", name: "永續森林", icon: "🌲", category: "processor", buildable: true,
+    footprint: oneHex, costCoins: 160, durationSeconds: hours(4), workTags: tags("farming", "orchard", "heavy"),
+    recipeIds: Object.freeze(["forestGrowth"]),
+    description: "投入樹苗造林，成熟後由伙伴選擇性伐木取得原木。", assetKey: "buildings/forest"
+  }),
+  sawmill: Object.freeze({
+    id: "sawmill", name: "製材所", icon: "🪚", category: "processor", buildable: true,
+    footprint: oneHex, costCoins: 260, durationSeconds: hours(6), workTags: tags("heavy", "craft", "factory"),
+    recipeIds: Object.freeze(["lumberBatch"]),
+    description: "把原木切割成建造船隻需要的木材。", assetKey: "buildings/sawmill"
+  }),
+  shipyard: Object.freeze({
+    id: "shipyard", name: "造船廠", icon: "🛳️", category: "logistics", buildable: true,
+    footprint: oneHex, costCoins: 520, durationSeconds: hours(10), workTags: tags("heavy", "craft", "waterfront"),
+    recipeIds: Object.freeze(["boatBuild"]),
+    description: "使用木材與島花布建造物流船；每艘船同時只能執行一趟海運。", assetKey: "buildings/shipyard"
+  }),
+  mine: Object.freeze({
+    id: "mine", name: "小島礦場", icon: "⛏️", category: "source", buildable: true,
+    footprint: oneHex, costCoins: 220, durationSeconds: hours(5), workTags: tags("heavy", "civil"),
+    defaultRecipeId: "oreMining", recipeIds: Object.freeze(["oreMining"]),
+    description: "開採飛機工業需要的金屬礦。", assetKey: "buildings/mine"
+  }),
+  smelter: Object.freeze({
+    id: "smelter", name: "輕金屬冶煉廠", icon: "🔥", category: "processor", buildable: true,
+    footprint: oneHex, costCoins: 430, durationSeconds: hours(9), workTags: tags("heavy", "factory"),
+    recipeIds: Object.freeze(["metalPlateBatch"]),
+    description: "把金屬礦冶煉成飛機骨架使用的輕金屬板。", assetKey: "buildings/smelter"
+  }),
+  aircraftWorkshop: Object.freeze({
+    id: "aircraftWorkshop", name: "飛機工坊", icon: "🛩️", category: "logistics", buildable: true,
+    footprint: oneHex, costCoins: 980, durationSeconds: hours(18), workTags: tags("heavy", "craft", "utility"),
+    recipeIds: Object.freeze(["planeBuild"]),
+    description: "使用輕金屬板與島花布組裝物流飛機；每架飛機同時只能執行一趟空運。", assetKey: "buildings/aircraft-workshop"
+  }),
   market: Object.freeze({
     id: "market", name: "小島市場", icon: "🏪", category: "market", buildable: true,
     footprint: oneHex, costCoins: 60, durationSeconds: hours(1), workTags: tags("commerce", "craft"),
@@ -277,8 +341,8 @@ export const BUILDING_CATALOG = Object.freeze({
   }),
   airport: Object.freeze({
     id: "airport", name: "小島機場", icon: "✈️", category: "logistics", buildable: true,
-    footprint: Object.freeze([{ q: 0, r: 0 }, { q: 1, r: 0 }, { q: 0, r: 1 }]), costCoins: 900, durationSeconds: hours(24), workTags: tags("civil", "heavy", "utility"),
-    description: "占用三格相連陸地，解鎖快速但單次載量較小的空運。", assetKey: "buildings/airport"
+    footprint: oneHex, costCoins: 900, durationSeconds: hours(24), workTags: tags("civil", "heavy", "utility"),
+    description: "占用一格陸地，搭配飛機工坊製造的物流飛機進行快速空運。", assetKey: "buildings/airport"
   })
 });
 

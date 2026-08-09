@@ -138,9 +138,10 @@
 .island-partner-node b { font-size: 10px; }
 .island-partner-node small { margin-top: 2px; color: #718f94; font-size: 8px; }
 .island-partner-node i { color: #55b87c; font-size: 9px; font-style: normal; }
-.island-transport-route { position: absolute; z-index: 34; height: 5px; background: radial-gradient(circle, rgba(255,255,255,.96) 0 2px, transparent 2.4px) 0 50% / 12px 5px repeat-x; filter: drop-shadow(0 1px 1px rgba(28,112,139,.45)); transform: translateY(-2px) rotate(var(--route-angle)); transform-origin: 0 50%; pointer-events: none; animation: island-route-flow .8s linear var(--route-delay) infinite; }
-.island-transport-route.is-plane { background-image: radial-gradient(circle, rgba(229,249,255,.98) 0 2px, transparent 2.4px); }
-.island-transport { position: absolute; z-index: 36; width: 29px; height: 29px; display: grid; place-items: center; font-size: 23px; line-height: 1; filter: drop-shadow(0 3px 2px rgba(21,87,108,.36)); pointer-events: none; animation: island-transport-trip 4.2s ease-in-out var(--travel-delay) infinite; }
+.island-transport-routes { position: absolute; z-index: 34; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+.island-transport-route { fill: none; stroke: rgba(255,255,255,.96); stroke-width: 4px; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 1 11; filter: drop-shadow(0 1px 1px rgba(28,112,139,.45)); animation: island-route-flow .8s linear infinite; }
+.island-transport-route.is-plane { stroke: rgba(229,249,255,.98); }
+.island-transport { position: absolute; z-index: 36; left: 0; top: 0; width: 29px; height: 29px; display: grid; place-items: center; font-size: 23px; line-height: 1; filter: drop-shadow(0 3px 2px rgba(21,87,108,.36)); offset-anchor: center; offset-rotate: 0deg; pointer-events: none; animation: island-transport-trip 4.2s ease-in-out var(--travel-delay) infinite; }
 .island-work-bar { padding: 8px 10px 10px; flex: 0 0 auto; border-top: 1px solid rgba(54,116,126,.14); background: rgba(255,255,255,.62); }
 .island-work-bar > header { margin-bottom: 6px; display: flex; justify-content: space-between; color: #4d727a; font-size: 11px; }
 .island-work-bar > div { display: flex; gap: 7px; overflow-x: auto; scrollbar-width: thin; }
@@ -156,6 +157,7 @@
 .island-control-panel { padding: 15px; overflow: auto; }
 .island-status { margin: 0 0 10px; padding: 9px 11px; border-radius: 12px; color: #426d5d; background: #dff6e9; font-size: 11px; font-weight: 850; }
 .island-network-strip { margin-bottom: 10px; padding: 7px 8px; display: flex; justify-content: space-between; align-items: center; gap: 7px; border-radius: 11px; color: #4c6e78; background: #e5f3f6; font-size: 9px; font-weight: 900; }
+.island-network-strip > div { display: flex; gap: 4px; }
 .island-network-strip button { padding: 5px 7px; border: 1px solid #c5dfe3; border-radius: 8px; color: #47707a; background: white; font-size: 8px; font-weight: 900; cursor: pointer; }
 .island-panel-kicker { margin: 0; color: #7ca0a8; font-size: 9px; font-weight: 950; letter-spacing: .1em; text-transform: uppercase; }
 .island-selection-card h3 { margin: 5px 0 7px; color: #2c4d58; font-size: 19px; }
@@ -223,10 +225,20 @@
 .island-source-recipes button small { margin-top: 2px; color: #7b928a; font-size: 8px; }
 .island-home-inventory { padding: 10px; border-radius: 13px; background: #eef8f4; }
 .island-home-inventory > strong { display: block; margin-bottom: 7px; font-size: 11px; }
-.island-home-inventory > div { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
+.island-capacity-bar, .island-shipment-progress { height: 7px; margin: 0 0 9px; border-radius: 999px; background: #d7e8e2; overflow: hidden; }
+.island-capacity-bar i, .island-shipment-progress i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #69c88e, #f3c95e); }
+.island-inventory-items { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
 .island-home-inventory article { padding: 7px; display: grid; grid-template-columns: auto 1fr; column-gap: 7px; border-radius: 10px; background: white; }
 .island-home-inventory article span { grid-row: 1 / span 2; font-size: 21px; }
 .island-home-inventory article small { color: #7b9295; font-size: 8px; }
+.island-home-upgrade { margin-top: 9px; padding: 10px; border: 1px solid #d9e7c7; border-radius: 13px; background: #f7f9e6; }
+.island-home-upgrade > strong, .island-home-upgrade > small { display: block; }
+.island-home-upgrade > small { margin-top: 3px; color: #738476; font-size: 9px; }
+.island-home-upgrade.is-max { background: linear-gradient(135deg, #fff4c8, #eef7dd); }
+.island-demolition { margin-top: 12px; border-top: 1px dashed #d8dfdc; }
+.island-demolition > summary { padding: 10px 2px 4px; color: #8b6962; font-size: 10px; font-weight: 900; cursor: pointer; }
+.island-demolition > p { margin: 3px 0 7px; color: #8a7b77; font-size: 9px; line-height: 1.4; }
+.island-demolition > button { width: 100%; padding: 8px; border: 1px solid #e4c9c0; border-radius: 10px; color: #885f56; background: #fff0eb; font-weight: 900; cursor: pointer; }
 .island-market-list { display: grid; gap: 6px; }
 .island-market-list > div { padding: 8px; border-radius: 11px; background: #fff7dd; }
 .island-market-list > div > span:first-child { display: block; margin-bottom: 5px; font-size: 11px; font-weight: 850; }
@@ -245,6 +257,37 @@
 .island-logistics-quote { color: #6d5a2d; background: #fff2bd; font-weight: 900; line-height: 1.4; }
 .island-logistics-locked { padding: 10px; border-radius: 12px; color: #687d82; background: #f2f6f5; }
 .island-logistics-locked p { margin: 4px 0 0; font-size: 10px; line-height: 1.45; }
+.island-readonly-banner { margin: 7px 0 10px; padding: 8px; border-radius: 10px; color: #675b72; background: #eee9f5; font-size: 10px; font-weight: 900; }
+.island-shipment-card dl { margin: 0 0 10px; display: grid; grid-template-columns: repeat(2, 1fr); gap: 5px; }
+.island-shipment-card dl div { padding: 7px; border-radius: 9px; background: #f3f8f7; }
+.island-shipment-card dt { color: #8aa0a2; font-size: 8px; }
+.island-shipment-card dd { margin: 2px 0 0; color: #41646b; font-size: 10px; font-weight: 850; }
+.island-shipment-card > strong { display: block; color: #52757d; font-size: 10px; text-align: center; }
+.island-stat-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; }
+.island-stat-cards article { padding: 8px 3px; border-radius: 11px; color: #466872; background: #eaf5f4; text-align: center; }
+.island-stat-cards b, .island-stat-cards small { display: block; }
+.island-stat-cards b { font-size: 17px; }.island-stat-cards small { font-size: 8px; }
+.island-stat-summary { margin-top: 8px; display: grid; grid-template-columns: repeat(2, 1fr); gap: 5px; }
+.island-stat-summary span { padding: 7px; border-radius: 9px; background: #fff6d9; color: #6f674c; font-size: 8px; }
+.island-stat-summary b { display: block; margin-top: 2px; font-size: 9px; }
+.island-statistics h4 { margin: 12px 0 5px; color: #496b72; font-size: 10px; }
+.island-stat-table { overflow-x: auto; }
+.island-stat-table table { width: 100%; border-collapse: collapse; font-size: 8px; white-space: nowrap; }
+.island-stat-table th, .island-stat-table td { padding: 5px; border-bottom: 1px solid #e2ece9; text-align: right; }
+.island-stat-table th:first-child, .island-stat-table td:first-child { text-align: left; }
+.island-visitor-ranking, .island-stat-shipments { display: grid; gap: 4px; }
+.island-visitor-ranking > span { padding: 5px 7px; display: grid; grid-template-columns: 18px 25px 1fr auto; align-items: center; gap: 5px; border-radius: 9px; background: #f1f7ee; }
+.island-visitor-ranking img { width: 25px; height: 25px; object-fit: contain; }.island-visitor-ranking em { font-size: 9px; font-style: normal; }.island-visitor-ranking strong { font-size: 8px; }
+.island-stat-shipments button { padding: 7px; display: flex; justify-content: space-between; border: 1px solid #dce9e5; border-radius: 9px; background: white; color: #48676d; text-align: left; cursor: pointer; }
+.island-stat-shipments span, .island-stat-shipments small { font-size: 8px; }
+.island-letter-backdrop { position: fixed; z-index: 500; inset: 0; padding: 18px; display: grid; place-items: center; background: rgba(34,65,73,.48); backdrop-filter: blur(3px); }
+.island-letter { position: relative; width: min(440px, 94vw); padding: 28px; border: 9px solid transparent; border-image: repeating-linear-gradient(135deg, #e76d67 0 10px, #fff 10px 20px, #5f9dca 20px 30px, #fff 30px 40px) 9; color: #4d5960; background: linear-gradient(160deg, #fffef7, #f8f2df); box-shadow: 0 24px 60px rgba(23,50,58,.35); transform: rotate(-1deg); }
+.island-letter-postmark { display: flex; justify-content: space-between; color: #5f86a0; font-family: ui-monospace, monospace; font-size: 10px; letter-spacing: .08em; }
+.island-letter-address { margin: 15px 70px 16px 0; display: grid; grid-template-columns: 36px 1fr; gap: 4px 7px; border-bottom: 1px solid #d8cfb7; }
+.island-letter-address small { color: #9a927f; font-size: 8px; }.island-letter-address strong { font-size: 11px; }
+.island-letter-sender { position: absolute; top: 49px; right: 24px; width: 55px; height: 55px; object-fit: contain; filter: drop-shadow(0 3px 2px rgba(66,78,80,.15)); }
+.island-letter p { margin: 0; font-size: 13px; line-height: 1.8; }.island-letter footer { margin-top: 15px; display: flex; justify-content: space-between; color: #7d7667; font-size: 9px; }
+.island-letter > button { width: 100%; margin-top: 17px; padding: 10px; border: 0; border-radius: 10px; color: white; background: #65a9a0; font-weight: 900; cursor: pointer; }
 .island-footer { padding: 5px 0 0; color: rgba(37,81,94,.66); font-size: 9px; font-weight: 800; text-align: center; flex: 0 0 auto; }
 @keyframes island-worker-bob { to { transform: translateY(-4px) rotate(4deg); } }
 @keyframes island-visitor-play { to { transform: translateY(-4px) rotate(-5deg) scale(1.05); } }
@@ -254,12 +297,12 @@
   to { transform: translateX(-50%) translateY(-3px) scale(1.1); }
 }
 @keyframes island-transport-trip {
-  0% { opacity: 0; transform: translate(0, 0) scale(.75); }
+  0% { opacity: 0; offset-distance: 0%; transform: scale(.75); }
   12% { opacity: 1; }
-  82% { opacity: 1; transform: translate(var(--travel-x), var(--travel-y)) scale(1); }
-  100% { opacity: 0; transform: translate(var(--travel-x), var(--travel-y)) scale(.78); }
+  82% { opacity: 1; offset-distance: 100%; transform: scale(1); }
+  100% { opacity: 0; offset-distance: 100%; transform: scale(.78); }
 }
-@keyframes island-route-flow { to { background-position: 12px 50%; } }
+@keyframes island-route-flow { to { stroke-dashoffset: -12; } }
 
 @media (max-width: 900px) {
   .island-shell { height: auto; min-height: 100dvh; overflow: visible; }

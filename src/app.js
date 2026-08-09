@@ -15,8 +15,8 @@ import {
 import { ACHIEVEMENTS, achievementValue, recordAchievementGame } from "./game/achievements.js";
 import { chooseFriendPair, chooseGardenEel, choosePartyFriends, FRIEND_ROSTER, nextDanceVariants } from "./game/friends.js";
 import { ISLAND_TEST_MODE } from "./island/catalog.js";
-import { DEMO_ISLAND_PARTNERS, dispatchDemoShipment, LOGISTICS_METHODS, mergeCloudLogistics, networkProfileSnapshot, normalizeIslandPartner, recordDispatchedShipment, shipmentQuote } from "./island/logistics.js";
-import { availableConstructionWorkerIds, availableHelperIds, collectFacility, createIslandState, finishIslandWork, hireConstructionHelper, marketSale, normalizeIslandState, selectSourceRecipe, settleIsland, startBuilding, startProcessing, startReclamation } from "./island/model.js";
+import { availableInventoryQuantity, dismissIslandLetter, availableConstructionWorkerIds, availableHelperIds, collectFacility, createIslandState, finishIslandWork, hireConstructionHelper, marketSale, normalizeIslandState, selectSourceRecipe, settleIsland, startBuilding, startDemolition, startHomeUpgrade, startProcessing, startReclamation } from "./island/model.js";
+import { DEMO_ISLAND_PARTNERS, dispatchDemoShipment, LOGISTICS_METHODS, mergeCloudLogistics, networkProfileSnapshot, normalizeIslandPartner, partnerLogisticsOffers, recordDispatchedShipment, shipmentQuote } from "./island/logistics.js";
 import { formatIslandDuration, renderIslandScreen } from "./island/renderer.js";
 import { cloudConfigured, loadCloudPin, loadCloudProgress, normalizePlayerName, renameCloudPlayer, saveCloudPin, saveCloudProgress, validCloudPin } from "./state/cloud.js";
 import { acknowledgeIslandLogistics, dispatchIslandShipment, getIslandLogistics, listIslandPartners, publishIslandNetwork } from "./state/island-cloud.js";
@@ -24,8 +24,8 @@ import { buildScore, fetchLeaderboard, flushPendingScores, leaderboardConfigured
 import { addCard, clearSession, consumeCard, exportSaveCode, importSaveCode, loadProgress, loadSession, mergeProgressHighWater, nextFloorFromCompleted, parseSaveCode, preferSaveSide, raiseFloorProgress, rewardProgress, saveProgress, saveSession, saveTimestampMs, sessionFloorBehindProgress, spendCoins } from "./state/store.js";
 
 const app = document.querySelector("#app");
-const APP_VERSION = "v46";
-const APP_LAST_UPDATED = "2026-08-09T18:31:39+08:00";
+const APP_VERSION = "v47";
+const APP_LAST_UPDATED = "2026-08-09T22:00:00+08:00";
 let progress = loadProgress();
 const migratedAchievements = recordAchievementGame(progress);
 progress = migratedAchievements.progress;
@@ -77,6 +77,8 @@ let islandStatus = "";
 let islandClockId;
 let islandPartners = [];
 let islandSelectedPartnerId = "";
+let islandSelectedShipmentId = "";
+let islandShowStats = false;
 let islandNetworkStatus = "";
 let islandNetworkBusy = false;
 
@@ -591,6 +593,8 @@ function renderIslandView() {
     status: islandStatus,
     partners: islandPartners,
     selectedPartnerId: islandSelectedPartnerId,
+    selectedShipmentId: islandSelectedShipmentId,
+    showStats: islandShowStats,
     networkStatus: islandNetworkStatus,
     networkBusy: islandNetworkBusy,
     helpers: islandHelpers(),
@@ -709,7 +713,7 @@ async function refreshIslandNetwork() {
 
 function logisticsFormSelection(form) {
   const partner = islandPartners.find((entry) => entry.id === form.dataset.islandPartnerId);
-  const offer = partner?.offers.find((entry) => entry.id === form.elements.offer?.value);
+  const offer = partnerLogisticsOffers(island, partner).find((entry) => entry.id === form.elements.offer?.value);
   return { partner, offer, methodId: form.elements.method?.value || "", quantity: Number(form.elements.quantity?.value) || 0 };
 }
 
@@ -740,9 +744,9 @@ function updateIslandLogisticsQuote(form) {
   const quote = shipmentQuote(island, selection);
   const quoteElement = form.querySelector("[data-island-logistics-quote]");
   const stockElement = form.querySelector("[data-island-logistics-stock]");
-  if (stockElement) stockElement.textContent = `${selection.offer.itemId ? "📦" : ""} ×${island.inventory[selection.offer.itemId] || 0}`;
+  if (stockElement) stockElement.textContent = `${selection.offer.itemId ? "📦" : ""} ×${availableInventoryQuantity(island, selection.offer.itemId)} 可用`;
   if (quoteElement) quoteElement.textContent = quote.ok
-    ? `${quote.method.icon} ${formatIslandDuration(quote.durationSeconds)}後送達・可收 🪙 ${quote.rewardCoins}${quote.feeCoins ? `・運費 🪙 ${quote.feeCoins}` : ""}`
+    ? `${quote.method.icon} ${formatIslandDuration(quote.durationSeconds)}後送達・可收 🪙 ${quote.rewardCoins}（本島市場僅 🪙 ${quote.localMarketCoins}）${quote.feeCoins ? `・運費 🪙 ${quote.feeCoins}` : ""}`
     : quote.error;
   form.querySelector('button[type="submit"]')?.toggleAttribute("disabled", islandNetworkBusy || !quote.ok);
 }
@@ -892,6 +896,8 @@ function bindIslandEvents() {
     if (button.closest("[data-island-map-viewport]")?.dataset.islandDragged === "true") return;
     islandSelectedKey = button.dataset.islandCell;
     islandSelectedPartnerId = "";
+    islandSelectedShipmentId = "";
+    islandShowStats = false;
     islandStatus = "";
     renderIslandView();
   }));
@@ -913,15 +919,33 @@ function bindIslandEvents() {
   document.querySelectorAll("[data-island-jump]").forEach((button) => button.addEventListener("click", () => {
     islandSelectedKey = button.dataset.islandJump;
     islandSelectedPartnerId = "";
+    islandSelectedShipmentId = "";
+    islandShowStats = false;
     islandStatus = "";
     renderIslandView();
   }));
   document.querySelectorAll("[data-island-partner]").forEach((button) => button.addEventListener("click", () => {
     if (button.closest("[data-island-map-viewport]")?.dataset.islandDragged === "true") return;
     islandSelectedPartnerId = button.dataset.islandPartner;
+    islandSelectedShipmentId = "";
+    islandShowStats = false;
     islandStatus = "";
     renderIslandView();
   }));
+  document.querySelectorAll("[data-island-shipment]").forEach((button) => button.addEventListener("click", () => {
+    islandSelectedShipmentId = button.dataset.islandShipment;
+    islandSelectedPartnerId = "";
+    islandShowStats = false;
+    islandStatus = "";
+    renderIslandView();
+  }));
+  document.querySelector("[data-island-open-stats]")?.addEventListener("click", () => {
+    islandShowStats = true;
+    islandSelectedPartnerId = "";
+    islandSelectedShipmentId = "";
+    islandStatus = "";
+    renderIslandView();
+  });
   document.querySelector("[data-island-refresh-network]")?.addEventListener("click", refreshIslandNetwork);
   document.querySelectorAll("[data-island-logistics-form]").forEach((form) => {
     form.addEventListener("change", () => updateIslandLogisticsQuote(form));
@@ -940,6 +964,12 @@ function bindIslandEvents() {
     const buildingName = button.querySelector("strong")?.textContent || "設施";
     affordIslandResult(startBuilding(island, { buildingId: button.dataset.islandBuild, q, r, workerId: islandSelectedWorkerId, playerAvatar: progress.playerAvatar || "cat" }), `${buildingName} 已開始施工！`);
   }));
+  document.querySelector("[data-island-upgrade-home]")?.addEventListener("click", () => {
+    affordIslandResult(startHomeUpgrade(island, { workerId: islandSelectedWorkerId, playerAvatar: progress.playerAvatar || "cat" }), "島主小屋已開始擴建，完工後倉庫容量會提高！");
+  });
+  document.querySelectorAll("[data-island-demolish]").forEach((button) => button.addEventListener("click", () => {
+    affordIslandResult(startDemolition(island, { buildingInstanceId: button.dataset.islandDemolish, workerId: islandSelectedWorkerId, playerAvatar: progress.playerAvatar || "cat" }), "伙伴已開始拆除設施；完工前該格仍會保留施工狀態。");
+  }));
   document.querySelectorAll("[data-island-hire]").forEach((button) => button.addEventListener("click", () => {
     affordIslandResult(hireConstructionHelper(island, { jobId: button.dataset.islandHire, helperId: button.dataset.islandHelper }), "新伙伴加入，完工時間已提前！");
   }));
@@ -950,7 +980,7 @@ function bindIslandEvents() {
       renderIslandView();
       return;
     }
-    commitIsland(result.state, { status: "產品已領取到無上限倉庫。" });
+    commitIsland(result.state, { status: "產品已領取到島主小屋倉庫。" });
   }));
   document.querySelectorAll("[data-island-source-recipe]").forEach((button) => button.addEventListener("click", () => {
     const result = selectSourceRecipe(island, { buildingInstanceId: button.dataset.islandBuilding, recipeId: button.dataset.islandSourceRecipe });
@@ -989,6 +1019,10 @@ function bindIslandEvents() {
     }
     commitIsland(result.state, { coinDelta: ISLAND_TEST_MODE ? 0 : result.coinsEarned, status: result.coinsEarned ? `測試物流已送達，獲得 🪙 ${result.coinsEarned}。` : "測試模式：工作已馬上完成。" });
   }));
+  document.querySelector("[data-island-dismiss-letter]")?.addEventListener("click", (event) => {
+    const result = dismissIslandLetter(island, event.currentTarget.dataset.islandDismissLetter);
+    if (result.ok) commitIsland(result.state, { status: "跨島感謝函已收進物流紀錄。" });
+  });
 }
 
 function render() {

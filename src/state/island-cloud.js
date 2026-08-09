@@ -19,6 +19,7 @@ function shipmentFromCloud(raw) {
     facilityInstanceId: String(raw.facility_instance_id || raw.facilityInstanceId || ""),
     buildingId: String(raw.building_id || raw.buildingId || ""),
     recipeId: String(raw.recipe_id || raw.recipeId || ""),
+    offerKind: String(raw.offer_kind || raw.offerKind || (raw.building_id === "market" ? "market" : "processing")),
     itemId: String(raw.item_id || raw.itemId || ""),
     inputPerBatch: Number(raw.input_per_batch ?? raw.inputPerBatch) || 1,
     quantity: Number(raw.quantity) || 0,
@@ -59,6 +60,7 @@ export async function listIslandPartners(playerId) {
     avatar: String(row.player_avatar || row.avatar || "cat"),
     updatedAt: timestampMs(row.updated_at || row.updatedAt),
     online: timestampMs(row.updated_at || row.updatedAt) > Date.now() - 15 * 60 * 1000,
+    marketFacilityId: String(row.market_facility_id || row.marketFacilityId || ""),
     offers: Array.isArray(row.offers) ? row.offers.map((offer) => ({
       id: String(offer.id || ""),
       facilityInstanceId: String(offer.facility_instance_id || offer.facilityInstanceId || ""),

@@ -1,12 +1,44 @@
 import { BUILDING_CATALOG, ITEM_CATALOG, RECIPE_CATALOG } from "./catalog.js";
+import { activeVehicleCount, availableInventoryQuantity } from "./model.js";
 
 const clone = (value) => JSON.parse(JSON.stringify(value));
 const safeInt = (value, fallback = 0) => Number.isFinite(Number(value)) ? Math.max(0, Math.floor(Number(value))) : fallback;
 
 export const LOGISTICS_METHODS = Object.freeze({
-  boat: Object.freeze({ id: "boat", name: "海運", icon: "⛵", buildingId: "dock", durationSeconds: 60 * 60, capacity: 20, feePerItem: 0 }),
-  plane: Object.freeze({ id: "plane", name: "空運", icon: "✈️", buildingId: "airport", durationSeconds: 15 * 60, capacity: 8, feePerItem: 2 })
+  boat: Object.freeze({ id: "boat", name: "海運", icon: "⛵", buildingId: "dock", vehicleItemId: "boat", durationSeconds: 60 * 60, capacity: 20, feePerItem: 0 }),
+  plane: Object.freeze({ id: "plane", name: "空運", icon: "✈️", buildingId: "airport", vehicleItemId: "plane", durationSeconds: 15 * 60, capacity: 8, feePerItem: 2 })
 });
+
+export const PARTNER_MARKET_MULTIPLIER = 1.75;
+
+function partnerMarketOffer(partner, itemId) {
+  const item = ITEM_CATALOG[itemId];
+  if (!partner?.marketFacilityId || !item) return null;
+  return {
+    id: `${partner.marketFacilityId}:market:${itemId}`,
+    kind: "market",
+    facilityInstanceId: partner.marketFacilityId,
+    buildingId: "market",
+    recipeId: `marketSale:${itemId}`,
+    itemId,
+    inputPerBatch: 1,
+    outputs: {},
+    processingSeconds: 1,
+    rewardPerItem: Math.ceil(item.marketCoins * PARTNER_MARKET_MULTIPLIER)
+  };
+}
+
+export function partnerLogisticsOffers(state, partner) {
+  const processing = Array.isArray(partner?.offers) ? partner.offers : [];
+  const market = partner?.marketFacilityId
+    ? Object.keys(ITEM_CATALOG).map((itemId) => partnerMarketOffer(partner, itemId)).filter(Boolean)
+    : [];
+  return [...processing, ...market].sort((left, right) => {
+    const leftStock = availableInventoryQuantity(state, left.itemId) > 0 ? 0 : 1;
+    const rightStock = availableInventoryQuantity(state, right.itemId) > 0 ? 0 : 1;
+    return leftStock - rightStock || Number(left.kind === "market") - Number(right.kind === "market") || left.itemId.localeCompare(right.itemId);
+  });
+}
 
 function singleInputOffer(recipeId, facilityInstanceId = `demo-${recipeId}`) {
   const recipe = RECIPE_CATALOG[recipeId];
@@ -32,6 +64,7 @@ const demoPartner = (id, name, avatar, recipeIds) => Object.freeze({
   avatar,
   online: false,
   isDemo: true,
+  marketFacilityId: `demo-market-${id}`,
   offers: Object.freeze(recipeIds.map((recipeId) => singleInputOffer(recipeId)).filter(Boolean))
 });
 
@@ -43,7 +76,11 @@ export const DEMO_ISLAND_PARTNERS = Object.freeze([
 
 export function availableTransportMethods(state) {
   const buildingIds = new Set(Object.values(state?.buildings || {}).map((building) => building.buildingId));
-  return Object.values(LOGISTICS_METHODS).filter((method) => buildingIds.has(method.buildingId));
+  return Object.values(LOGISTICS_METHODS).filter((method) => buildingIds.has(method.buildingId)).map((method) => {
+    const vehicleCount = safeInt(state?.inventory?.[method.vehicleItemId]);
+    const busyVehicles = activeVehicleCount(state, method.id);
+    return { ...method, vehicleCount, busyVehicles, availableVehicles: Math.max(0, vehicleCount - busyVehicles) };
+  });
 }
 
 export function normalizeIslandPartner(raw) {
@@ -56,6 +93,7 @@ export function normalizeIslandPartner(raw) {
     if (!inputPerBatch) return null;
     return {
       id: String(offer.id || `${offer.facilityInstanceId}:${recipe.id}:${item.id}`),
+      kind: String(offer.kind || (recipe.facilityId === "market" ? "market" : "processing")),
       facilityInstanceId: String(offer.facilityInstanceId || ""),
       buildingId: recipe.facilityId,
       recipeId: recipe.id,
@@ -66,7 +104,8 @@ export function normalizeIslandPartner(raw) {
       rewardPerItem: Math.max(1, safeInt(offer.rewardPerItem, Math.ceil(item.marketCoins * 1.25)))
     };
   }).filter(Boolean);
-  if (!offers.length) return null;
+  const marketFacilityId = String(raw.marketFacilityId || raw.market_facility_id || "").slice(0, 100);
+  if (!offers.length && !marketFacilityId) return null;
   return {
     id: String(raw.id || raw.playerId || ""),
     name: String(raw.name || raw.playerName || "島友").slice(0, 16),
@@ -74,6 +113,7 @@ export function normalizeIslandPartner(raw) {
     updatedAt: Number(raw.updatedAt) || 0,
     online: Boolean(raw.online),
     isDemo: Boolean(raw.isDemo),
+    marketFacilityId,
     offers
   };
 }
@@ -92,17 +132,21 @@ export function networkProfileSnapshot(state, owner = {}) {
 export function shipmentQuote(state, { partner, offer, methodId, quantity } = {}) {
   const method = LOGISTICS_METHODS[methodId];
   const count = safeInt(quantity);
-  const available = availableTransportMethods(state).some((entry) => entry.id === methodId);
-  if (!partner || !offer || !method || !available) return { ok: false, error: "請先建造對應的碼頭或機場" };
+  const availableMethod = availableTransportMethods(state).find((entry) => entry.id === methodId);
+  if (!partner || !offer || !method || !availableMethod) return { ok: false, error: "請先建造對應的碼頭或機場" };
+  if (!availableMethod.vehicleCount) return { ok: false, error: `先在${methodId === "boat" ? "造船廠建造物流船" : "飛機工坊組裝物流飛機"}` };
+  if (!availableMethod.availableVehicles) return { ok: false, error: `所有${methodId === "boat" ? "物流船" : "物流飛機"}都在運送中，請等一趟抵達` };
   if (!count || count > method.capacity || count % offer.inputPerBatch !== 0) {
     return { ok: false, error: `數量必須是 ${offer.inputPerBatch} 的倍數，且不可超過 ${method.capacity}` };
   }
-  if (safeInt(state.inventory?.[offer.itemId]) < count) return { ok: false, error: "小屋倉庫的貨物數量不足" };
+  const cargoAvailable = availableInventoryQuantity(state, offer.itemId) - (offer.itemId === method.vehicleItemId ? 1 : 0);
+  if (cargoAvailable < count) return { ok: false, error: "小屋倉庫可用的貨物數量不足" };
   return {
     ok: true,
     quantity: count,
     durationSeconds: method.durationSeconds,
     rewardCoins: offer.rewardPerItem * count,
+    localMarketCoins: (ITEM_CATALOG[offer.itemId]?.marketCoins || 0) * count,
     feeCoins: method.feePerItem * count,
     method,
     partner,
@@ -118,9 +162,15 @@ export function recordDispatchedShipment(state, { shipment } = {}) {
   const itemId = shipment?.itemId;
   const quantity = safeInt(shipment?.quantity);
   if (!ITEM_CATALOG[itemId] || !quantity) return { ok: false, state, error: "物流貨物資料不正確" };
-  if (safeInt(state.inventory?.[itemId]) < quantity) return { ok: false, state, error: "小屋倉庫的貨物數量不足" };
+  if (shipment?.id && state.outgoingShipments?.[shipment.id]) return { ok: true, state, shipment: state.outgoingShipments[shipment.id], replayed: true };
+  if (availableInventoryQuantity(state, itemId) < quantity) return { ok: false, state, error: "小屋倉庫的貨物數量不足" };
   const next = clone(state);
+  next.statistics = next.statistics || {};
+  next.statistics.shipped = next.statistics.shipped || {};
+  next.statistics.partnerSold = next.statistics.partnerSold || {};
   next.inventory[itemId] -= quantity;
+  next.statistics.shipped[itemId] = safeInt(next.statistics.shipped[itemId]) + quantity;
+  if (shipment.buildingId === "market" || shipment.offerKind === "market") next.statistics.partnerSold[itemId] = safeInt(next.statistics.partnerSold[itemId]) + quantity;
   next.inventoryUpdatedAt = Number(shipment.departedAt) || Date.now();
   next.outgoingShipments = next.outgoingShipments || {};
   next.outgoingShipments[shipment.id] = clone(shipment);
@@ -143,6 +193,7 @@ export function dispatchDemoShipment(state, { partner, offer, methodId, quantity
     facilityInstanceId: offer.facilityInstanceId,
     buildingId: offer.buildingId,
     recipeId: offer.recipeId,
+    offerKind: offer.kind || (offer.buildingId === "market" ? "market" : "processing"),
     itemId: offer.itemId,
     quantity: quote.quantity,
     methodId,
@@ -162,6 +213,10 @@ export function mergeCloudLogistics(state, payload = {}, now = Date.now()) {
   next.rewardedShipmentIds = Array.isArray(next.rewardedShipmentIds) ? next.rewardedShipmentIds : [];
   const imported = new Set(next.importedShipmentIds);
   const rewarded = new Set(next.rewardedShipmentIds);
+  next.statistics = next.statistics || {};
+  next.statistics.coins = next.statistics.coins || {};
+  next.statistics.coins.logistics = safeInt(next.statistics.coins.logistics);
+  next.thankYouLetters = Array.isArray(next.thankYouLetters) ? next.thankYouLetters : [];
   const ackInboundIds = [];
   const ackRewardIds = [];
   let coinsEarned = 0;
@@ -183,11 +238,30 @@ export function mergeCloudLogistics(state, payload = {}, now = Date.now()) {
     if (rewarded.has(shipment.id)) return;
     rewarded.add(shipment.id);
     coinsEarned += safeInt(shipment.rewardCoins);
+    next.statistics.coins.logistics += safeInt(shipment.rewardCoins);
+    if (!next.thankYouLetters.some((letter) => letter.shipmentId === shipment.id)) {
+      next.thankYouLetters.push({
+        id: `letter-${shipment.id}`,
+        shipmentId: shipment.id,
+        fromName: shipment.partnerName || "合作島友",
+        fromAvatar: shipment.partnerAvatar || "cat",
+        itemId: ITEM_CATALOG[shipment.itemId] ? shipment.itemId : "",
+        quantity: safeInt(shipment.quantity),
+        receivedAt: now,
+        read: false
+      });
+      next.thankYouLetters = next.thankYouLetters.slice(-50);
+    }
   });
 
   (payload.inboundShipments || []).forEach((shipment) => {
     if (!shipment?.id) return;
     if (imported.has(shipment.id)) {
+      ackInboundIds.push(shipment.id);
+      return;
+    }
+    if (shipment.buildingId === "market" || String(shipment.recipeId).startsWith("marketSale:")) {
+      imported.add(shipment.id);
       ackInboundIds.push(shipment.id);
       return;
     }

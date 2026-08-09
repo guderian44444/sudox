@@ -1,5 +1,6 @@
 import {
   BUILDING_CATALOG,
+  HOME_LEVELS,
   ISLAND_RADIUS,
   ISLAND_SCHEMA_VERSION,
   ITEM_CATALOG,
@@ -8,6 +9,7 @@ import {
   STARTER_LAND_RADIUS,
   reclamationQuote
 } from "./catalog.js";
+import { attractionVisitorIds } from "./attractions.js";
 import { constructionTeamRate } from "./companions.js";
 import { axialDistance, axialKey, axialNeighbors, footprintCells, hexRange, parseAxialKey } from "./hex.js";
 
@@ -26,6 +28,51 @@ const normalizeInventory = (inventory = {}) => Object.fromEntries(Object.keys(IT
   safeInt(inventory[itemId])
 ]));
 
+const normalizeItemCounts = (counts = {}) => Object.fromEntries(Object.keys(ITEM_CATALOG).map((itemId) => [
+  itemId,
+  safeInt(counts[itemId])
+]));
+
+function emptyStatistics() {
+  return {
+    produced: normalizeItemCounts(),
+    shipped: normalizeItemCounts(),
+    sold: normalizeItemCounts(),
+    partnerSold: normalizeItemCounts(),
+    visitors: {},
+    coins: { market: 0, logistics: 0, attractions: 0 },
+    demolished: 0
+  };
+}
+
+function normalizeStatistics(raw = {}) {
+  const stats = safeObject(raw);
+  const visitors = Object.fromEntries(Object.entries(safeObject(stats.visitors))
+    .filter(([id]) => /^[a-z_][a-z0-9_-]{0,31}$/i.test(id))
+    .slice(0, 100)
+    .map(([id, count]) => [id, safeInt(count)]));
+  return {
+    produced: normalizeItemCounts(stats.produced),
+    shipped: normalizeItemCounts(stats.shipped),
+    sold: normalizeItemCounts(stats.sold),
+    partnerSold: normalizeItemCounts(stats.partnerSold),
+    visitors,
+    coins: {
+      market: safeInt(stats.coins?.market),
+      logistics: safeInt(stats.coins?.logistics),
+      attractions: safeInt(stats.coins?.attractions)
+    },
+    demolished: safeInt(stats.demolished)
+  };
+}
+
+function addStatisticItems(stats, field, items) {
+  stats[field] = normalizeItemCounts(stats[field]);
+  Object.entries(safeObject(items)).forEach(([itemId, count]) => {
+    if (ITEM_CATALOG[itemId]) stats[field][itemId] = safeInt(stats[field][itemId]) + safeInt(count);
+  });
+}
+
 function starterTiles() {
   return Object.fromEntries(hexRange(STARTER_LAND_RADIUS).map(({ q, r }) => [
     axialKey(q, r),
@@ -35,7 +82,7 @@ function starterTiles() {
 
 function starterBuildings() {
   return {
-    "starter-home": { id: "starter-home", buildingId: "islandHome", q: 0, r: 0, orientation: 0, completedAt: 0 }
+    "starter-home": { id: "starter-home", buildingId: "islandHome", q: 0, r: 0, orientation: 0, level: 1, completedAt: 0 }
   };
 }
 
@@ -55,6 +102,8 @@ export function createIslandState({ playerId = "", playerName = "", playerAvatar
     importedShipmentIds: [],
     rewardedShipmentIds: [],
     inventory: normalizeInventory(),
+    statistics: emptyStatistics(),
+    thankYouLetters: [],
     inventoryUpdatedAt: now,
     reclaimedCount: 0,
     starterGrantApplied: true,
@@ -65,11 +114,11 @@ export function createIslandState({ playerId = "", playerName = "", playerAvatar
 }
 
 export function normalizeIslandState(raw, owner = {}) {
-  if (!raw || typeof raw !== "object" || ![1, ISLAND_SCHEMA_VERSION].includes(Number(raw.schemaVersion))) {
+  if (!raw || typeof raw !== "object" || ![1, 2, ISLAND_SCHEMA_VERSION].includes(Number(raw.schemaVersion))) {
     return createIslandState({ ...owner, now: owner.now || Date.now() });
   }
   const base = createIslandState({ ...owner, now: owner.now || Date.now() });
-  const radius = Math.max(STARTER_LAND_RADIUS, Math.min(ISLAND_RADIUS, safeInt(raw.radius, ISLAND_RADIUS)));
+  const radius = ISLAND_RADIUS;
   const tiles = {};
   Object.entries(safeObject(raw.tiles)).forEach(([key, tile]) => {
     const cell = parseAxialKey(key);
@@ -88,6 +137,7 @@ export function normalizeIslandState(raw, owner = {}) {
       q: Math.trunc(Number(building.q) || 0),
       r: Math.trunc(Number(building.r) || 0),
       orientation: safeInt(building.orientation) % 6,
+      level: building.buildingId === "islandHome" ? Math.max(1, Math.min(HOME_LEVELS.length, safeInt(building.level, 1))) : 1,
       completedAt: safeTime(building.completedAt)
     };
     const waterIndexes = new Set(definition.waterFootprintIndexes || []);
@@ -116,6 +166,17 @@ export function normalizeIslandState(raw, owner = {}) {
     importedShipmentIds: [...new Set(Array.isArray(raw.importedShipmentIds) ? raw.importedShipmentIds.filter((id) => typeof id === "string").slice(-200) : [])],
     rewardedShipmentIds: [...new Set(Array.isArray(raw.rewardedShipmentIds) ? raw.rewardedShipmentIds.filter((id) => typeof id === "string").slice(-200) : [])],
     inventory: normalizeInventory(raw.inventory),
+    statistics: normalizeStatistics(raw.statistics),
+    thankYouLetters: (Array.isArray(raw.thankYouLetters) ? raw.thankYouLetters : []).filter((letter) => letter?.id).slice(-50).map((letter) => ({
+      id: String(letter.id).slice(0, 80),
+      shipmentId: String(letter.shipmentId || letter.id).slice(0, 80),
+      fromName: String(letter.fromName || "合作島友").slice(0, 24),
+      fromAvatar: String(letter.fromAvatar || "cat").slice(0, 32),
+      itemId: ITEM_CATALOG[letter.itemId] ? letter.itemId : "",
+      quantity: safeInt(letter.quantity),
+      receivedAt: safeTime(letter.receivedAt),
+      read: Boolean(letter.read)
+    })),
     inventoryUpdatedAt: safeTime(raw.inventoryUpdatedAt) || safeTime(raw.updatedAt) || base.inventoryUpdatedAt,
     reclaimedCount: safeInt(raw.reclaimedCount),
     starterGrantApplied: raw.starterGrantApplied !== false,
@@ -123,6 +184,34 @@ export function normalizeIslandState(raw, owner = {}) {
     lastSettledAt: safeTime(raw.lastSettledAt, owner.now || Date.now()),
     updatedAt: safeTime(raw.updatedAt, owner.now || Date.now())
   };
+}
+
+export function islandHomeBuilding(state) {
+  return Object.values(state?.buildings || {}).find((building) => building.buildingId === "islandHome") || null;
+}
+
+export function islandHomeLevel(state) {
+  const building = islandHomeBuilding(state);
+  const level = Math.max(1, Math.min(HOME_LEVELS.length, safeInt(building?.level, 1)));
+  return HOME_LEVELS[level - 1];
+}
+
+export function islandInventoryCapacity(state) {
+  return islandHomeLevel(state).capacity;
+}
+
+export function islandInventoryUsed(state) {
+  return Object.keys(ITEM_CATALOG).reduce((total, itemId) => total + safeInt(state?.inventory?.[itemId]), 0);
+}
+
+export function activeVehicleCount(state, methodId) {
+  return Object.values(state?.outgoingShipments || {}).filter((shipment) => shipment.methodId === methodId && shipment.status === "in_transit").length;
+}
+
+export function availableInventoryQuantity(state, itemId) {
+  const owned = safeInt(state?.inventory?.[itemId]);
+  const methodId = ITEM_CATALOG[itemId]?.vehicleMethodId;
+  return methodId ? Math.max(0, owned - activeVehicleCount(state, methodId)) : owned;
 }
 
 export function buildingAnchorAt(state, q, r) {
@@ -142,7 +231,7 @@ export function constructionAnchorAt(state, q, r) {
 
 export function constructionAt(state, q, r) {
   return Object.values(state.constructionJobs).find((job) => {
-    if (job.kind !== "building") return job.q === q && job.r === r;
+    if (!["building", "demolition"].includes(job.kind)) return job.q === q && job.r === r;
     const definition = BUILDING_CATALOG[job.buildingId];
     return footprintCells(job, definition?.footprint, job.orientation).some((cell) => cell.q === q && cell.r === r);
   }) || null;
@@ -212,6 +301,10 @@ function workerBusy(state, workerId) {
   return !workerId || busyConstructionWorkerIds(state).includes(workerId);
 }
 
+function buildingUnderStructuralWork(state, buildingInstanceId) {
+  return Object.values(state?.constructionJobs || {}).some((job) => job.buildingInstanceId === buildingInstanceId);
+}
+
 export function startReclamation(state, { q, r, workerId = "cat", playerAvatar = "cat", now = Date.now() } = {}) {
   if (!isReclaimable(state, q, r)) return { ok: false, state, error: "這格海域目前不能填海" };
   if (workerBusy(state, workerId)) return { ok: false, state, error: "這位伙伴已經在忙，請另外聘一位伙伴" };
@@ -242,6 +335,56 @@ export function startBuilding(state, { buildingId, q, r, orientation = null, wor
   next.constructionJobs[job.id] = job;
   next.updatedAt = now;
   return { ok: true, state: next, costCoins: definition.costCoins + workerHireCost, workerHireCost, job };
+}
+
+export function startHomeUpgrade(state, { workerId = "cat", playerAvatar = "cat", now = Date.now() } = {}) {
+  const home = islandHomeBuilding(state);
+  const current = islandHomeLevel(state);
+  const target = HOME_LEVELS[current.level];
+  if (!home || !target) return { ok: false, state, error: "島主小屋已經是最高等級的海島城堡" };
+  if (Object.values(state.constructionJobs).some((job) => job.buildingInstanceId === home.id)) return { ok: false, state, error: "島主小屋目前已有工程進行中" };
+  if (workerBusy(state, workerId)) return { ok: false, state, error: "這位伙伴已經在忙，請另外聘一位伙伴" };
+  const workerHireCost = initialWorkerHireCost(workerId, playerAvatar, target.costCoins);
+  const next = clone(state);
+  const job = {
+    ...baseJob({ kind: "homeUpgrade", q: home.q, r: home.r, costCoins: target.costCoins, durationSeconds: target.durationSeconds, workerId, workTags: target.workTags, now }),
+    buildingInstanceId: home.id,
+    buildingId: "islandHome",
+    targetLevel: target.level,
+    workerHireCost
+  };
+  next.constructionJobs[job.id] = job;
+  next.updatedAt = now;
+  return { ok: true, state: next, costCoins: target.costCoins + workerHireCost, workerHireCost, job, target };
+}
+
+export function startDemolition(state, { buildingInstanceId, workerId = "cat", playerAvatar = "cat", now = Date.now() } = {}) {
+  const building = state.buildings[buildingInstanceId];
+  const definition = BUILDING_CATALOG[building?.buildingId];
+  if (!building || !definition) return { ok: false, state, error: "找不到要拆除的設施" };
+  if (building.buildingId === "islandHome") return { ok: false, state, error: "島主小屋兼作倉庫，不能拆除，只能升級擴建" };
+  if (Object.values(state.constructionJobs).some((job) => job.buildingInstanceId === building.id)) return { ok: false, state, error: "這座設施目前已有工程進行中" };
+  if (Object.values(state.processingJobs).some((job) => job.buildingInstanceId === building.id)) return { ok: false, state, error: "請先等這座設施的加工批次完成並領取" };
+  const facility = state.facilities[building.id];
+  if (facility?.state === "ready" || Object.values(facility?.readyOutputs || {}).some((count) => safeInt(count) > 0)) {
+    return { ok: false, state, error: "請先領取這座設施中已完成的產品" };
+  }
+  const methodId = building.buildingId === "dock" ? "boat" : building.buildingId === "airport" ? "plane" : "";
+  if (methodId && activeVehicleCount(state, methodId)) return { ok: false, state, error: "仍有載具從這座物流設施出發，抵達後才能拆除" };
+  if (workerBusy(state, workerId)) return { ok: false, state, error: "這位伙伴已經在忙，請另外聘一位伙伴" };
+  const durationSeconds = Math.min(4 * 60 * 60, Math.max(10 * 60, Math.ceil(definition.durationSeconds * 0.25)));
+  const workerHireCost = initialWorkerHireCost(workerId, playerAvatar, Math.max(40, Math.ceil(definition.costCoins * 0.25)));
+  const next = clone(state);
+  const job = {
+    ...baseJob({ kind: "demolition", q: building.q, r: building.r, costCoins: 0, durationSeconds, workerId, workTags: definition.workTags, now }),
+    buildingInstanceId: building.id,
+    buildingId: building.buildingId,
+    orientation: building.orientation,
+    workerHireCost
+  };
+  next.constructionJobs[job.id] = job;
+  next.updatedAt = now;
+  return { ok: true, state: next, costCoins: workerHireCost, workerHireCost, job };
 }
 
 export function constructionJobWorkTags(job) {
@@ -296,6 +439,7 @@ function createFacility(building, completedAt) {
 
 export function selectSourceRecipe(state, { buildingInstanceId, recipeId, now = Date.now() } = {}) {
   const settled = settleIsland(state, now).state;
+  if (buildingUnderStructuralWork(settled, buildingInstanceId)) return { ok: false, state: settled, error: "這座設施正在施工，暫時不能切換生產" };
   const building = settled.buildings[buildingInstanceId];
   const definition = BUILDING_CATALOG[building?.buildingId];
   const facility = settled.facilities[buildingInstanceId];
@@ -318,8 +462,26 @@ export function selectSourceRecipe(state, { buildingInstanceId, recipeId, now = 
   return { ok: true, state: next, recipe };
 }
 
+function appendThankYouLetter(state, shipment, receivedAt) {
+  state.thankYouLetters = Array.isArray(state.thankYouLetters) ? state.thankYouLetters : [];
+  if (!shipment?.id || state.thankYouLetters.some((letter) => letter.shipmentId === shipment.id)) return;
+  state.thankYouLetters.push({
+    id: `letter-${shipment.id}`,
+    shipmentId: shipment.id,
+    fromName: shipment.partnerName || "合作島友",
+    fromAvatar: shipment.partnerAvatar || "cat",
+    itemId: ITEM_CATALOG[shipment.itemId] ? shipment.itemId : "",
+    quantity: safeInt(shipment.quantity),
+    receivedAt,
+    read: false
+  });
+  state.thankYouLetters = state.thankYouLetters.slice(-50);
+}
+
 export function settleIsland(state, now = Date.now()) {
   const next = clone(state);
+  next.statistics = normalizeStatistics(next.statistics);
+  next.thankYouLetters = Array.isArray(next.thankYouLetters) ? next.thankYouLetters : [];
   const completed = [];
   let changed = false;
   let coinsEarned = 0;
@@ -338,12 +500,29 @@ export function settleIsland(state, now = Date.now()) {
         q: job.q,
         r: job.r,
         orientation: safeInt(job.orientation) % 6,
+        level: 1,
         completedAt: job.readyAt
       };
       next.buildings[building.id] = building;
       const definition = BUILDING_CATALOG[building.buildingId];
       if (definition.defaultRecipeId || definition.recipeIds?.length) next.facilities[building.id] = createFacility(building, job.readyAt);
       completed.push({ kind: "building", name: definition.name, q: job.q, r: job.r });
+    } else if (job.kind === "homeUpgrade" && HOME_LEVELS[safeInt(job.targetLevel) - 1]) {
+      const home = next.buildings[job.buildingInstanceId];
+      const target = HOME_LEVELS[safeInt(job.targetLevel) - 1];
+      if (home?.buildingId === "islandHome") {
+        home.level = target.level;
+        completed.push({ kind: "homeUpgrade", name: `${target.name}升級`, q: home.q, r: home.r });
+      }
+    } else if (job.kind === "demolition") {
+      const building = next.buildings[job.buildingInstanceId];
+      const definition = BUILDING_CATALOG[building?.buildingId];
+      if (building && building.buildingId !== "islandHome") {
+        delete next.facilities[building.id];
+        delete next.buildings[building.id];
+        next.statistics.demolished = safeInt(next.statistics.demolished) + 1;
+        completed.push({ kind: "demolition", name: `拆除${definition?.name || "設施"}`, q: building.q, r: building.r });
+      }
     }
     delete next.constructionJobs[jobId];
     changed = true;
@@ -354,6 +533,7 @@ export function settleIsland(state, now = Date.now()) {
     if (recipe?.kind !== "source" || facility.state !== "running" || safeTime(facility.readyAt) > now) return;
     facility.state = "ready";
     facility.readyOutput = clone(recipe.outputs);
+    addStatisticItems(next.statistics, "produced", recipe.outputs);
     facility.updatedAt = now;
     changed = true;
   });
@@ -367,6 +547,7 @@ export function settleIsland(state, now = Date.now()) {
         if (!ITEM_CATALOG[itemId]) return;
         facility.readyOutputs[itemId] = safeInt(facility.readyOutputs[itemId]) + safeInt(count);
       });
+      addStatisticItems(next.statistics, "produced", job.outputs);
       facility.updatedAt = now;
       completed.push({ kind: "processing", name: RECIPE_CATALOG[job.recipeId]?.name || "加工", buildingInstanceId: job.buildingInstanceId });
     }
@@ -379,6 +560,8 @@ export function settleIsland(state, now = Date.now()) {
     shipment.status = "arrived_paid";
     shipment.completedAt = now;
     coinsEarned += safeInt(shipment.rewardCoins);
+    next.statistics.coins.logistics += safeInt(shipment.rewardCoins);
+    appendThankYouLetter(next, shipment, now);
     completed.push({ kind: "shipment", name: `送達 ${shipment.partnerName || "合作小島"}` });
     changed = true;
   });
@@ -392,10 +575,17 @@ export function settleIsland(state, now = Date.now()) {
     const from = Math.max(previousSettledAt, completedAt);
     const visitsBefore = Math.floor(Math.max(0, from - completedAt) / intervalMs);
     const visitsNow = Math.floor(Math.max(0, now - completedAt) / intervalMs);
-    attractionCoins += Math.max(0, visitsNow - visitsBefore) * safeInt(attraction.incomeCoins);
+    const visitCount = Math.max(0, visitsNow - visitsBefore);
+    attractionCoins += visitCount * safeInt(attraction.incomeCoins);
+    for (let visitIndex = visitsBefore + 1; visitIndex <= visitsNow; visitIndex += 1) {
+      attractionVisitorIds(building, BUILDING_CATALOG[building.buildingId], visitIndex).forEach((visitorId) => {
+        next.statistics.visitors[visitorId] = safeInt(next.statistics.visitors[visitorId]) + 1;
+      });
+    }
   });
   if (attractionCoins) {
     coinsEarned += attractionCoins;
+    next.statistics.coins.attractions += attractionCoins;
     completed.push({ kind: "attraction", name: `遊憩設施收入 🪙 ${attractionCoins}` });
     changed = true;
   }
@@ -416,26 +606,33 @@ export function collectFacility(state, { buildingInstanceId, now = Date.now() } 
   const settled = settleIsland(state, now).state;
   const facility = settled.facilities[buildingInstanceId];
   if (!facility) return { ok: false, state: settled, error: "這座設施目前沒有產品" };
+  const collected = {};
+  if (facility.state === "ready" && Object.keys(facility.readyOutput || {}).length) {
+    Object.assign(collected, facility.readyOutput);
+  }
+  if (Object.keys(facility.readyOutputs || {}).length) {
+    Object.entries(facility.readyOutputs).forEach(([itemId, count]) => {
+      collected[itemId] = safeInt(collected[itemId]) + safeInt(count);
+    });
+  }
+  if (!Object.keys(collected).length) return { ok: false, state: settled, error: "產品還在準備中" };
+  const itemCount = Object.values(collected).reduce((total, count) => total + safeInt(count), 0);
+  const used = islandInventoryUsed(settled);
+  const capacity = islandInventoryCapacity(settled);
+  if (used + itemCount > capacity) {
+    return { ok: false, state: settled, error: `倉庫容量不足（已用 ${used} / ${capacity}），請先出售、出貨或升級島主小屋` };
+  }
   const next = clone(settled);
   const target = next.facilities[buildingInstanceId];
-  const collected = {};
+  addInventory(next.inventory, collected);
   if (target.state === "ready" && Object.keys(target.readyOutput || {}).length) {
-    Object.assign(collected, target.readyOutput);
-    addInventory(next.inventory, target.readyOutput);
     const recipe = RECIPE_CATALOG[target.recipeId];
     target.state = "running";
     target.startedAt = now;
     target.readyAt = now + recipe.durationSeconds * 1000;
     target.readyOutput = {};
   }
-  if (Object.keys(target.readyOutputs || {}).length) {
-    Object.entries(target.readyOutputs).forEach(([itemId, count]) => {
-      collected[itemId] = safeInt(collected[itemId]) + safeInt(count);
-    });
-    addInventory(next.inventory, target.readyOutputs);
-    target.readyOutputs = {};
-  }
-  if (!Object.keys(collected).length) return { ok: false, state: settled, error: "產品還在準備中" };
+  if (Object.keys(target.readyOutputs || {}).length) target.readyOutputs = {};
   next.inventoryUpdatedAt = now;
   target.updatedAt = now;
   next.updatedAt = now;
@@ -451,6 +648,7 @@ export function startProcessing(state, { buildingInstanceId, recipeId, now = Dat
   if (!building || !recipe || recipe.kind !== "processor" || recipe.facilityId !== definition?.id) {
     return { ok: false, state, error: "這座設施不能使用該配方" };
   }
+  if (buildingUnderStructuralWork(state, buildingInstanceId)) return { ok: false, state, error: "這座設施正在施工，暫時不能開始加工" };
   if (!hasInputs(state.inventory, recipe.inputs)) return { ok: false, state, error: "倉庫原料不足，單有加工設施不能生產" };
   const next = clone(state);
   Object.entries(recipe.inputs).forEach(([itemId, count]) => { next.inventory[itemId] -= count; });
@@ -475,12 +673,24 @@ export function marketSale(state, { itemId, quantity = 1, now = Date.now() } = {
   const count = Math.max(1, safeInt(quantity, 1));
   const hasMarket = Object.values(state.buildings).some((building) => building.buildingId === "market");
   if (!hasMarket) return { ok: false, state, error: "先建造小島市場才能出售產品" };
-  if (!item || safeInt(state.inventory[itemId]) < count) return { ok: false, state, error: "倉庫數量不足" };
+  if (!item || availableInventoryQuantity(state, itemId) < count) return { ok: false, state, error: item?.vehicleMethodId ? "部分載具仍在運送中，不能出售" : "倉庫數量不足" };
   const next = clone(state);
+  next.statistics = normalizeStatistics(next.statistics);
   next.inventory[itemId] -= count;
+  next.statistics.sold[itemId] += count;
+  next.statistics.coins.market += item.marketCoins * count;
   next.inventoryUpdatedAt = now;
   next.updatedAt = now;
   return { ok: true, state: next, coinsEarned: item.marketCoins * count, sold: { itemId, quantity: count } };
+}
+
+export function dismissIslandLetter(state, letterId, now = Date.now()) {
+  const next = clone(state);
+  const letter = (next.thankYouLetters || []).find((entry) => entry.id === letterId);
+  if (!letter) return { ok: false, state, error: "找不到這封感謝函" };
+  letter.read = true;
+  next.updatedAt = now;
+  return { ok: true, state: next };
 }
 
 export function availableHelperIds(state, rosterIds = [], playerAvatar = "") {

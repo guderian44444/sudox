@@ -69,7 +69,50 @@ values
   ('flourBatch', 'mill', 'wheat', 2, '{"flour":1}', 7200, 7),
   ('breadBatch', 'bakery', 'flour', 2, '{"bread":1}', 10800, 20),
   ('grapeJuiceBatch', 'juiceStand', 'grape', 2, '{"grapeJuice":1}', 5400, 14),
-  ('sugarBatch', 'sugarMill', 'sugarcane', 2, '{"sugar":1}', 7200, 9)
+  ('sugarBatch', 'sugarMill', 'sugarcane', 2, '{"sugar":1}', 7200, 9),
+  ('forestGrowth', 'forest', 'sapling', 2, '{"log":3}', 10800, 4),
+  ('lumberBatch', 'sawmill', 'log', 2, '{"lumber":2}', 7200, 12),
+  ('metalPlateBatch', 'smelter', 'metalOre', 3, '{"metalPlate":2}', 14400, 14),
+  ('marketSale:vegetable', 'market', 'vegetable', 1, '{}', 1, 11),
+  ('marketSale:carrot', 'market', 'carrot', 1, '{}', 1, 9),
+  ('marketSale:tomato', 'market', 'tomato', 1, '{}', 1, 13),
+  ('marketSale:strawberry', 'market', 'strawberry', 1, '{}', 1, 18),
+  ('marketSale:pumpkin', 'market', 'pumpkin', 1, '{}', 1, 16),
+  ('marketSale:potato', 'market', 'potato', 1, '{}', 1, 11),
+  ('marketSale:corn', 'market', 'corn', 1, '{}', 1, 7),
+  ('marketSale:wheat', 'market', 'wheat', 1, '{}', 1, 9),
+  ('marketSale:flour', 'market', 'flour', 1, '{}', 1, 27),
+  ('marketSale:bread', 'market', 'bread', 1, '{}', 1, 67),
+  ('marketSale:rice', 'market', 'rice', 1, '{}', 1, 13),
+  ('marketSale:riceBall', 'market', 'riceBall', 1, '{}', 1, 74),
+  ('marketSale:teaLeaf', 'market', 'teaLeaf', 1, '{}', 1, 21),
+  ('marketSale:teaCup', 'market', 'teaCup', 1, '{}', 1, 81),
+  ('marketSale:grape', 'market', 'grape', 1, '{}', 1, 20),
+  ('marketSale:grapeJuice', 'market', 'grapeJuice', 1, '{}', 1, 60),
+  ('marketSale:sugarcane', 'market', 'sugarcane', 1, '{}', 1, 13),
+  ('marketSale:sugar', 'market', 'sugar', 1, '{}', 1, 32),
+  ('marketSale:iceCream', 'market', 'iceCream', 1, '{}', 1, 126),
+  ('marketSale:fruit', 'market', 'fruit', 1, '{}', 1, 16),
+  ('marketSale:coffeeBean', 'market', 'coffeeBean', 1, '{}', 1, 21),
+  ('marketSale:roastedCoffee', 'market', 'roastedCoffee', 1, '{}', 1, 49),
+  ('marketSale:coffeeCup', 'market', 'coffeeCup', 1, '{}', 1, 114),
+  ('marketSale:cocoaBean', 'market', 'cocoaBean', 1, '{}', 1, 25),
+  ('marketSale:chocolate', 'market', 'chocolate', 1, '{}', 1, 79),
+  ('marketSale:milk', 'market', 'milk', 1, '{}', 1, 25),
+  ('marketSale:egg', 'market', 'egg', 1, '{}', 1, 14),
+  ('marketSale:wool', 'market', 'wool', 1, '{}', 1, 28),
+  ('marketSale:fabric', 'market', 'fabric', 1, '{}', 1, 88),
+  ('marketSale:honey', 'market', 'honey', 1, '{}', 1, 32),
+  ('marketSale:jam', 'market', 'jam', 1, '{}', 1, 63),
+  ('marketSale:cake', 'market', 'cake', 1, '{}', 1, 158),
+  ('marketSale:dairyBox', 'market', 'dairyBox', 1, '{}', 1, 88),
+  ('marketSale:sapling', 'market', 'sapling', 1, '{}', 1, 6),
+  ('marketSale:log', 'market', 'log', 1, '{}', 1, 16),
+  ('marketSale:lumber', 'market', 'lumber', 1, '{}', 1, 42),
+  ('marketSale:metalOre', 'market', 'metalOre', 1, '{}', 1, 20),
+  ('marketSale:metalPlate', 'market', 'metalPlate', 1, '{}', 1, 67),
+  ('marketSale:boat', 'market', 'boat', 1, '{}', 1, 1138),
+  ('marketSale:plane', 'market', 'plane', 1, '{}', 1, 2450)
 on conflict (recipe_id) do update set
   building_id = excluded.building_id,
   item_id = excluded.item_id,
@@ -103,9 +146,9 @@ begin
     or char_length(p_player_avatar) > 32
     or jsonb_typeof(p_inventory) is distinct from 'object'
     or jsonb_typeof(p_buildings) is distinct from 'array'
-    or jsonb_array_length(p_buildings) > 100
+    or jsonb_array_length(p_buildings) > 250
     or pg_column_size(p_inventory) > 20000
-    or pg_column_size(p_buildings) > 30000 then
+    or pg_column_size(p_buildings) > 100000 then
     raise exception 'Invalid island network profile';
   end if;
 
@@ -154,6 +197,7 @@ as $$
       'player_name', profile.player_name,
       'player_avatar', profile.player_avatar,
       'updated_at', profile.updated_at,
+      'market_facility_id', market.facility_instance_id,
       'offers', offers.items
     ) as player_row
     from public.island_network_profiles profile
@@ -172,10 +216,17 @@ as $$
       from jsonb_array_elements(profile.buildings) building
       join public.island_recipe_catalog recipe on recipe.building_id = building->>'buildingId'
       where nullif(building->>'id', '') is not null
+        and recipe.building_id <> 'market'
     ) offers
+    cross join lateral (
+      select min(building->>'id') as facility_instance_id
+      from jsonb_array_elements(profile.buildings) building
+      where building->>'buildingId' = 'market'
+        and nullif(building->>'id', '') is not null
+    ) market
     where profile.player_id <> p_player_id
       and profile.updated_at > now() - interval '30 days'
-      and jsonb_array_length(offers.items) > 0
+      and (jsonb_array_length(offers.items) > 0 or market.facility_instance_id is not null)
     limit 24
   ) compatible;
 $$;
@@ -206,6 +257,9 @@ declare
   method_seconds integer;
   method_capacity integer;
   method_fee integer;
+  vehicle_item text;
+  vehicle_count integer;
+  busy_vehicle_count integer;
 begin
   if p_sender_id = p_receiver_id or p_quantity is null or p_quantity <= 0 or p_method not in ('boat', 'plane') then
     raise exception 'Invalid island shipment';
@@ -239,9 +293,9 @@ begin
   end if;
 
   if p_method = 'boat' then
-    method_building := 'dock'; method_seconds := 3600; method_capacity := 20; method_fee := 0;
+    method_building := 'dock'; vehicle_item := 'boat'; method_seconds := 3600; method_capacity := 20; method_fee := 0;
   else
-    method_building := 'airport'; method_seconds := 900; method_capacity := 8; method_fee := 2;
+    method_building := 'airport'; vehicle_item := 'plane'; method_seconds := 900; method_capacity := 8; method_fee := 2;
   end if;
 
   if p_quantity > method_capacity or p_quantity % recipe.input_per_batch <> 0
@@ -257,11 +311,32 @@ begin
     raise exception 'Invalid island shipment route';
   end if;
 
+  vehicle_count := case
+    when coalesce(sender_profile.inventory->>vehicle_item, '') ~ '^\d+$' then (sender_profile.inventory->>vehicle_item)::integer
+    else 0
+  end;
+  update public.island_shipments pending
+  set status = 'arrived',
+      processing_ready_at = pending.arrives_at + make_interval(secs => pending_recipe.processing_seconds),
+      updated_at = now()
+  from public.island_recipe_catalog pending_recipe
+  where pending.recipe_id = pending_recipe.recipe_id
+    and pending.sender_id = p_sender_id
+    and pending.status = 'in_transit'
+    and pending.arrives_at <= now();
+  select count(*)::integer into busy_vehicle_count
+  from public.island_shipments
+  where sender_id = p_sender_id and method_id = p_method and status = 'in_transit';
+  if vehicle_count <= busy_vehicle_count then
+    raise exception 'No available island logistics vehicle';
+  end if;
+
   available_count := case
     when coalesce(sender_profile.inventory->>p_item_id, '') ~ '^\d+$' then (sender_profile.inventory->>p_item_id)::integer
     else 0
   end;
-  if available_count < p_quantity then
+  if available_count < p_quantity
+    or (p_item_id = vehicle_item and available_count < busy_vehicle_count + 1 + p_quantity) then
     raise exception 'Insufficient island inventory';
   end if;
 
