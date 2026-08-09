@@ -25,6 +25,8 @@ import { renderIslandScreen } from "../src/island/renderer.js";
 const T0 = Date.parse("2026-08-09T00:00:00.000Z");
 const appSource = readFileSync(new URL("../src/app.js", import.meta.url), "utf8");
 const islandStyles = readFileSync(new URL("../src/island/island.css", import.meta.url), "utf8");
+const pointerDownSource = appSource.slice(appSource.indexOf('viewport.addEventListener("pointerdown"'), appSource.indexOf('viewport.addEventListener("pointermove"'));
+const pointerMoveSource = appSource.slice(appSource.indexOf('viewport.addEventListener("pointermove"'), appSource.indexOf("const finishDrag"));
 let now = T0;
 let state = createIslandState({ playerId: "test-player", playerName: "測試員", playerAvatar: "cat", now });
 
@@ -205,6 +207,7 @@ assert(/data-island-zoom="out"/.test(markup) && /data-island-map-viewport/.test(
 assert(/island-build-category/.test(catalogMarkup) && /農業與採集/.test(catalogMarkup) && /加工與畜產/.test(catalogMarkup), "建築目錄應依用途顯示為巢狀分類");
 assert(/靈巧佈置|大力土木/.test(catalogMarkup), "施工伙伴選擇器應顯示伙伴能力");
 assert(/pointerdown/.test(appSource) && /pointermove/.test(appSource) && /islandDragged/.test(appSource), "地圖應支援滑鼠與手機 Pointer Events 拖曳並防止拖後誤觸");
+assert(!/setPointerCapture/.test(pointerDownSource) && /setPointerCapture/.test(pointerMoveSource), "一般點擊不可在 pointerdown 時被地圖接管，只有超過拖曳門檻後才能 capture");
 assert(/touch-action:\s*none/.test(islandStyles) && /cursor:\s*grab/.test(islandStyles), "地圖拖曳應關閉瀏覽器手勢衝突並顯示拖曳游標");
 assert.equal(RECIPE_CATALOG.dairyBatch.outputs.dairyBox, 1, "配方目錄應保留可擴充的資料驅動輸出");
 

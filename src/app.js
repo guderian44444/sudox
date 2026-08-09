@@ -22,8 +22,8 @@ import { buildScore, fetchLeaderboard, flushPendingScores, leaderboardConfigured
 import { addCard, clearSession, consumeCard, exportSaveCode, importSaveCode, loadProgress, loadSession, mergeProgressHighWater, nextFloorFromCompleted, parseSaveCode, preferSaveSide, raiseFloorProgress, rewardProgress, saveProgress, saveSession, saveTimestampMs, sessionFloorBehindProgress, spendCoins } from "./state/store.js";
 
 const app = document.querySelector("#app");
-const APP_VERSION = "v42";
-const APP_LAST_UPDATED = "2026-08-09T13:10:00+08:00";
+const APP_VERSION = "v43";
+const APP_LAST_UPDATED = "2026-08-09T13:35:00+08:00";
 let progress = loadProgress();
 const migratedAchievements = recordAchievementGame(progress);
 progress = migratedAchievements.progress;
@@ -673,14 +673,16 @@ function bindIslandMapDrag(viewport) {
     startLeft = viewport.scrollLeft;
     startTop = viewport.scrollTop;
     dragged = false;
-    viewport.setPointerCapture?.(pointerId);
   });
   viewport.addEventListener("pointermove", (event) => {
     if (event.pointerId !== pointerId) return;
     const deltaX = event.clientX - startX;
     const deltaY = event.clientY - startY;
     if (!dragged && Math.hypot(deltaX, deltaY) < 6) return;
-    dragged = true;
+    if (!dragged) {
+      dragged = true;
+      viewport.setPointerCapture?.(pointerId);
+    }
     viewport.classList.add("is-dragging");
     viewport.scrollLeft = startLeft - deltaX;
     viewport.scrollTop = startTop - deltaY;
