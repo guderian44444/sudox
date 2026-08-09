@@ -1,6 +1,6 @@
 # 小島素材接入與友軍交接指南
 
-- 適用版本：小島架構 v49、素材目錄 `island/v1`
+- 適用版本：小島架構 v50、素材目錄 `island/v1`
 - Style ID：`SUDOX Buddy & Island Style v1`
 - 更新日期：2026-08-09
 - 目的：讓美術 AI、前端與驗收人員能分工，不需要猜 assetKey、尺寸、fallback 或程式接點

@@ -1,5 +1,6 @@
 -- P0-2: Require family PIN for cloud save updates and leaderboard writes.
--- Run this in Supabase SQL Editor on existing projects (leaderboard.sql already includes the same logic for fresh installs).
+-- Historical PIN migration. After leaderboard-score-log-migration.sql has been applied,
+-- do not rerun this older file because the newer migration owns submit_leaderboard_score.
 
 begin;
 

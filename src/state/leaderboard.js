@@ -1,5 +1,5 @@
-import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "../config.js?v=v49";
-import { loadCloudPin, validCloudPin } from "./cloud.js?v=v49";
+import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "../config.js?v=v50";
+import { loadCloudPin, validCloudPin } from "./cloud.js?v=v50";
 
 const QUEUE_KEY = "sudox-score-queue-v1";
 const difficulties = new Set(["easy", "medium", "hard", "alin"]);
@@ -38,7 +38,9 @@ function sanitizeQueuedScore(score) {
     p_mistakes,
     p_stars,
     p_player_avatar,
-    p_avatar_color
+    p_avatar_color,
+    p_next_floor,
+    p_app_version
   } = score || {};
   return {
     p_player_id,
@@ -50,7 +52,9 @@ function sanitizeQueuedScore(score) {
     p_mistakes,
     p_stars,
     p_player_avatar: p_player_avatar || null,
-    p_avatar_color: p_avatar_color != null ? p_avatar_color : 0
+    p_avatar_color: p_avatar_color != null ? p_avatar_color : 0,
+    p_next_floor: Number.isFinite(Number(p_next_floor)) ? Math.max(1, Math.floor(Number(p_next_floor))) : null,
+    p_app_version: typeof p_app_version === "string" ? p_app_version.slice(0, 20) : ""
   };
 }
 
@@ -69,7 +73,8 @@ export function normalizeLeaderboardTaunt(value) {
   return String(value ?? "").replace(/[\u0000-\u001f\u007f]/g, "").trim().slice(0, 48);
 }
 
-export function buildScore(progress, game, alinMode = false) {
+export function buildScore(progress, game, alinMode = false, { appVersion = "" } = {}) {
+  const progressDifficulty = alinMode ? "alin" : game.difficulty;
   const score = game.floor * 10000 + game.stars * 1000 + Math.max(0, 2000 - game.elapsed) - game.mistakes * 100;
   return sanitizeQueuedScore({
     p_player_id: progress.playerId,
@@ -81,8 +86,16 @@ export function buildScore(progress, game, alinMode = false) {
     p_mistakes: Math.max(0, Math.round(game.mistakes)),
     p_stars: Math.max(1, Math.min(3, Math.round(game.stars))),
     p_player_avatar: progress.playerAvatar || null,
-    p_avatar_color: progress.avatarColor != null ? progress.avatarColor : 0
+    p_avatar_color: progress.avatarColor != null ? progress.avatarColor : 0,
+    p_next_floor: progress.floors?.[progressDifficulty] ?? null,
+    p_app_version: appVersion
   });
+}
+
+export function scoreOutranks(candidate, current) {
+  if (!current) return true;
+  if (candidate.p_floor !== current.p_floor) return candidate.p_floor > current.p_floor;
+  return candidate.p_score > current.p_score;
 }
 
 async function sendScore(score) {
@@ -139,7 +152,7 @@ export async function queueLeaderboardScore(score) {
   const queue = loadQueue();
   const existing = queue.findIndex((item) => item.p_player_id === clean.p_player_id && item.p_difficulty === clean.p_difficulty);
   if (existing >= 0) {
-    if (clean.p_floor > queue[existing].p_floor || clean.p_score > queue[existing].p_score) queue[existing] = clean;
+    if (scoreOutranks(clean, queue[existing])) queue[existing] = clean;
   } else queue.push(clean);
   saveQueue(queue);
   return flushPendingScores();
@@ -156,6 +169,18 @@ export async function fetchLeaderboard(difficulty = "easy") {
   });
   const response = await fetch(`${SUPABASE_URL}/rest/v1/leaderboard_scores?${query}`, { headers: headers() });
   if (!response.ok) throw new Error(`無法讀取排行榜 (${response.status})`);
+  return response.json();
+}
+
+export async function fetchPlayerLeaderboardRows(playerId) {
+  if (!leaderboardConfigured()) throw new Error("排行榜尚未連接資料庫");
+  const query = new URLSearchParams({
+    select: "player_id,difficulty,floor,updated_at",
+    player_id: `eq.${playerId}`,
+    order: "difficulty.asc"
+  });
+  const response = await fetch(`${SUPABASE_URL}/rest/v1/leaderboard_scores?${query}`, { headers: headers() });
+  if (!response.ok) throw new Error(`無法讀取玩家排行榜進度 (${response.status})`);
   return response.json();
 }
 

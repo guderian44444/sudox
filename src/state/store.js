@@ -1,4 +1,4 @@
-import { normalizeSession } from "../game/flow.js?v=v49";
+import { normalizeSession } from "../game/flow.js?v=v50";
 
 const STORAGE_KEY = "sudox-progress-v3";
 const SESSION_KEY = "sudox-session-v3";
@@ -40,7 +40,8 @@ const defaultProgress = {
   rewardedRuns: [],
   achievements: [],
   achievementStats: { perfectGames: 0, speedGames: 0, alinGames: 0 },
-  floors: { easy: 1, medium: 1, hard: 1 },
+  floors: { easy: 1, medium: 1, hard: 1, alin: 1 },
+  floorModelVersion: 2,
   playerAvatar: "",
   avatarColor: 0,
   island: null,
@@ -62,7 +63,7 @@ export function saveTimestampMs(progress, fallbackExportedAt = "") {
 
 function progressRank(progress = {}) {
   const floors = progress.floors || {};
-  const floorTotal = ["easy", "medium", "hard"]
+  const floorTotal = ["easy", "medium", "hard", "alin"]
     .reduce((total, difficulty) => total + Math.max(0, Number(floors[difficulty]) || 0), 0);
   return Math.max(0, Number(progress.completedGames) || 0) * 1000
     + Math.max(0, Number(progress.totalStars) || 0) * 10
@@ -137,8 +138,8 @@ export function nextFloorFromCompleted(completedFloor) {
 }
 
 export function raiseFloorProgress(progress, difficulty, nextFloor) {
-  const key = difficulty === "alin" ? null : difficulty;
-  if (!key || !defaultProgress.floors[key]) return progress;
+  const key = difficulty;
+  if (!key || defaultProgress.floors[key] == null) return progress;
   const target = Math.max(1, Math.floor(Number(nextFloor) || 1));
   const current = Math.max(1, Math.floor(Number(progress?.floors?.[key]) || 1));
   if (current >= target) return progress;
@@ -149,9 +150,9 @@ export function raiseFloorProgress(progress, difficulty, nextFloor) {
 }
 
 /** Return whether an active run is older than the saved next floor. */
-export function sessionFloorBehindProgress(progress, game) {
-  const difficulty = game?.difficulty;
-  if (!difficulty || difficulty === "alin" || defaultProgress.floors[difficulty] == null) return false;
+export function sessionFloorBehindProgress(progress, game, alinMode = false) {
+  const difficulty = alinMode ? "alin" : game?.difficulty;
+  if (!difficulty || defaultProgress.floors[difficulty] == null) return false;
   const nextFloor = Math.max(1, Math.floor(Number(progress?.floors?.[difficulty]) || 1));
   const activeFloor = Math.max(1, Math.floor(Number(game?.floor) || 1));
   return activeFloor < nextFloor;
@@ -192,6 +193,11 @@ function normalizedProgress(saved = {}) {
       alinGames: Math.floor(safeNumber(safeSaved.achievementStats?.alinGames))
     },
     floors: Object.fromEntries(Object.keys(defaultProgress.floors).map((difficulty) => [difficulty, Math.max(1, Math.floor(safeNumber(safeSaved.floors?.[difficulty], 1))) ])),
+    floorModelVersion: safeSaved.floorModelVersion === 1
+      ? 1
+      : safeSaved.floorModelVersion === 2
+        ? 2
+        : safeSaved.floors && safeSaved.floors.alin == null ? 1 : 2,
     playerAvatar: (() => {
       if (typeof safeSaved.playerAvatar !== "string" || !/^[a-z_]+$/.test(safeSaved.playerAvatar)) return "";
       // Legacy renames: wild rabbit slot → horse, panda face → sheep.
@@ -287,8 +293,12 @@ export function rewardProgress(progress, xpReward, bonusCoins = 0, stars = 0, di
   // floors[difficulty] = NEXT floor to play (never regress; honor completed floor).
   const key = defaultProgress.floors[difficulty] != null ? difficulty : "easy";
   const current = Math.max(1, Math.floor(Number(next.floors[key]) || 1));
-  const fromCompleted = completedFloor != null ? Math.floor(Number(completedFloor) || 0) + 1 : 0;
-  next.floors[key] = Math.max(current + 1, fromCompleted, 1);
+  const hasCompletedFloor = completedFloor != null && Number.isFinite(Number(completedFloor));
+  const fromCompleted = hasCompletedFloor ? Math.floor(Number(completedFloor)) + 1 : 0;
+  // A stale/replayed lower session must never increment an already-higher next-floor record.
+  next.floors[key] = hasCompletedFloor
+    ? Math.max(current, fromCompleted, 1)
+    : Math.max(current + 1, 1);
   while (next.xp >= next.level * 100) {
     next.xp -= next.level * 100;
     next.level += 1;

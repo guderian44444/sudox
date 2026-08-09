@@ -1,4 +1,4 @@
-import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "../config.js?v=v49";
+import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "../config.js?v=v50";
 
 const CLOUD_PIN_KEY = "sudox-cloud-pin-v1";
 

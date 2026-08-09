@@ -2,7 +2,7 @@
 
 更新日期：2026-08-09
 開發分支：`feature/island-building`；正式部署分支：`main`
-目前版次：`v49`／Service Worker `sudox-shell-v49`
+目前版次：`v50`／Service Worker `sudox-shell-v50`
 狀態：正式模式 release 已封版；測試模式預設關閉；正式像素美術仍可後續逐批替換 fallback。
 
 ## 一句話狀態
@@ -18,9 +18,10 @@
 - `docs/sudox-ai-art-style-guide.md`：**SUDOX Buddy & Island Style v1** 的角色／建築風格、prompt 與 AI 生成標準。
 - `docs/island-asset-integration-guide.md`：每類素材是已接通、已預留或需擴充 renderer，以及 key、格式、anchor、接入與驗收方式。
 - `docs/island-production-launch-checklist.md`：正式模式切換、資料庫、PWA、雙玩家 smoke test、部署、回滾與上線後監測。
+- `docs/leaderboard-progress-audit.md`：四種模式層數語意、v50 修正、雲端排行榜歷史 LOG、查詢與既有錯值修復邊界。
 - `npm.cmd run check:island-assets -- --list`：由目前 catalog 即時列出完整 assetKey，不維護容易過期的手抄清單。
 
-## v49 已完成
+## v50 已完成
 
 - 地圖半徑由 4 擴為 8，共 217 格；舊存檔進入時直接取得新範圍，既有陸地與建物不移位。
 - 初始島仍是半徑 1 的 7 格；只能填造相鄰海格，不會產生孤島。
@@ -75,7 +76,9 @@
 
 Migration：`supabase/island-logistics-migration.sql`
 
-Production project：`riradorayjziystoalyj`。v49 使用的 migration 已成功套用並驗證：
+Production project：`riradorayjziystoalyj`。v50 使用的 migration 已成功套用並驗證：
+
+- `supabase/leaderboard-score-log-migration.sql`：排行榜送出歷史 LOG、層數決策欄位與本人 PIN 查詢 RPC；2026-08-10 驗證 table／兩個 RPC／RLS／舊參數相容性皆通過。
 
 - `island_recipe_catalog` 共 54 筆。
 - 其中 40 筆為可信任的跨島市場收購價。

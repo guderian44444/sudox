@@ -12,10 +12,11 @@
 - 每個難度可無限向上探索；第 1 層正常獎勵，後續層為 55% XP，並在每 3 層掉落寶物。
 - 共有 60 種寶物卡，可永久累積且每局開始前最多裝備兩種；輕鬆、動腦、高手分別開放 10、30、60 種寶物池。
 - 過關依錯誤與提示使用狀況取得一至三星；有寶物掉落時，可從三張寶物卡中選一張帶走。
-- 阿霖模式不限制失誤次數，仍保留完成獎勵與答錯統計。
+- 阿霖模式不限制失誤次數，仍保留完成獎勵與答錯統計，並使用獨立層數，不再推進輕鬆／動腦／高手紀錄。
 - 第一次開始時設定玩家名稱與 4 位數家庭 PIN；名稱與匿名玩家 ID 會保存於完整進度。
 - 進度與目前盤面會先自動保存在瀏覽器，設定 Supabase 後也會同步到雲端；換裝置可用玩家名稱與 PIN 載入。
-- 每個難度都有獨立全球排行榜；離線完成的成績會排隊，恢復連線後補送。
+- 每個難度與阿霖模式都有獨立全球排行榜；離線完成的成績會排隊，恢復連線後補送。
+- 每次排行榜送出都會寫入受 PIN 保護的雲端歷史 LOG，保留完成層、當時下一層、原排行榜層、採用結果、版本與時間，主榜覆蓋後仍可追查。
 
 ## 啟動
 
@@ -30,7 +31,7 @@ npm.cmd run dev
 ## 家庭雲端與排行榜
 
 1. 建立一個 Supabase 專案。
-2. 在 Supabase SQL Editor 執行 `supabase/leaderboard.sql`。
+2. 新專案在 Supabase SQL Editor 執行 `supabase/leaderboard.sql`；既有專案另執行 `supabase/leaderboard-score-log-migration.sql`。
 3. 將 Project URL 與 `sb_publishable_...` key 填入 `src/config.js`。
 
 Publishable key 是設計給公開網頁使用的低權限金鑰；不要把 secret 或 service_role key 放入前端。排行榜只開放公開讀取，寫入成績與雲端存檔必須經過限制欄位的資料庫函式。雲端未設定或暫時離線時，遊戲仍會使用本機存檔。
@@ -48,6 +49,7 @@ src/
   state/leaderboard.js 全球排行與離線成績佇列
 supabase/
   leaderboard.sql 家庭排行、雲端存檔與資料庫權限
+  leaderboard-score-log-migration.sql 既有資料庫的排行榜歷史 LOG 與診斷欄位
 scripts/
   dev-server.mjs  零依賴本機伺服器
 ```

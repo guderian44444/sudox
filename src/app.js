@@ -1,5 +1,5 @@
-import { DIFFICULTIES, relatedCells } from "./game/sudoku.js?v=v49";
-import { activateAutomaticTreasures, ADVENTURE_RULES, applyHintTreasure, applyImmediateTreasure, strongestEquippedRevive, sudokuUnitCells, TREASURE_AUTO_EFFECTS, TREASURE_CARDS } from "./game/adventure.js?v=v49";
+import { DIFFICULTIES, relatedCells } from "./game/sudoku.js?v=v50";
+import { activateAutomaticTreasures, ADVENTURE_RULES, applyHintTreasure, applyImmediateTreasure, strongestEquippedRevive, sudokuUnitCells, TREASURE_AUTO_EFFECTS, TREASURE_CARDS } from "./game/adventure.js?v=v50";
 import {
   applyHintFill,
   applyPlayerDigit,
@@ -11,21 +11,21 @@ import {
   removeRelatedNotes,
   RUN_MILESTONES,
   settleCompletedGame
-} from "./game/flow.js?v=v49";
-import { ACHIEVEMENTS, achievementValue, recordAchievementGame } from "./game/achievements.js?v=v49";
-import { chooseFriendPair, chooseGardenEel, choosePartyFriends, FRIEND_ROSTER, nextDanceVariants } from "./game/friends.js?v=v49";
-import { ISLAND_TEST_MODE } from "./island/catalog.js?v=v49";
-import { availableInventoryQuantity, dismissIslandLetter, availableConstructionWorkerIds, availableHelperIds, collectFacility, createIslandState, finishIslandWork, hireConstructionHelper, marketSale, normalizeIslandState, selectSourceRecipe, settleIsland, startBuilding, startDemolition, startHomeUpgrade, startProcessing, startReclamation } from "./island/model.js?v=v49";
-import { DEMO_ISLAND_PARTNERS, dispatchDemoShipment, LOGISTICS_METHODS, mergeCloudLogistics, networkProfileSnapshot, normalizeIslandPartner, partnerLogisticsOffers, recordDispatchedShipment, shipmentQuote } from "./island/logistics.js?v=v49";
-import { formatIslandDuration, renderIslandScreen } from "./island/renderer.js?v=v49";
-import { cloudConfigured, loadCloudPin, loadCloudProgress, normalizePlayerName, renameCloudPlayer, saveCloudPin, saveCloudProgress, validCloudPin } from "./state/cloud.js?v=v49";
-import { acknowledgeIslandLogistics, dispatchIslandShipment, getIslandLogistics, listIslandPartners, publishIslandNetwork } from "./state/island-cloud.js?v=v49";
-import { buildScore, fetchLeaderboard, flushPendingScores, leaderboardConfigured, normalizeLeaderboardTaunt, pendingScoreCount, queueLeaderboardScore, updateLeaderboardAvatar, updateLeaderboardTaunt } from "./state/leaderboard.js?v=v49";
-import { addCard, clearSession, consumeCard, exportSaveCode, importSaveCode, loadProgress, loadSession, mergeProgressHighWater, nextFloorFromCompleted, parseSaveCode, preferSaveSide, raiseFloorProgress, rewardProgress, saveProgress, saveSession, saveTimestampMs, sessionFloorBehindProgress, spendCoins } from "./state/store.js?v=v49";
+} from "./game/flow.js?v=v50";
+import { ACHIEVEMENTS, achievementValue, recordAchievementGame } from "./game/achievements.js?v=v50";
+import { chooseFriendPair, chooseGardenEel, choosePartyFriends, FRIEND_ROSTER, nextDanceVariants } from "./game/friends.js?v=v50";
+import { ISLAND_TEST_MODE } from "./island/catalog.js?v=v50";
+import { availableInventoryQuantity, dismissIslandLetter, availableConstructionWorkerIds, availableHelperIds, collectFacility, createIslandState, finishIslandWork, hireConstructionHelper, marketSale, normalizeIslandState, selectSourceRecipe, settleIsland, startBuilding, startDemolition, startHomeUpgrade, startProcessing, startReclamation } from "./island/model.js?v=v50";
+import { DEMO_ISLAND_PARTNERS, dispatchDemoShipment, LOGISTICS_METHODS, mergeCloudLogistics, networkProfileSnapshot, normalizeIslandPartner, partnerLogisticsOffers, recordDispatchedShipment, shipmentQuote } from "./island/logistics.js?v=v50";
+import { formatIslandDuration, renderIslandScreen } from "./island/renderer.js?v=v50";
+import { cloudConfigured, loadCloudPin, loadCloudProgress, normalizePlayerName, renameCloudPlayer, saveCloudPin, saveCloudProgress, validCloudPin } from "./state/cloud.js?v=v50";
+import { acknowledgeIslandLogistics, dispatchIslandShipment, getIslandLogistics, listIslandPartners, publishIslandNetwork } from "./state/island-cloud.js?v=v50";
+import { buildScore, fetchLeaderboard, fetchPlayerLeaderboardRows, flushPendingScores, leaderboardConfigured, normalizeLeaderboardTaunt, pendingScoreCount, queueLeaderboardScore, updateLeaderboardAvatar, updateLeaderboardTaunt } from "./state/leaderboard.js?v=v50";
+import { addCard, clearSession, consumeCard, exportSaveCode, importSaveCode, loadProgress, loadSession, mergeProgressHighWater, nextFloorFromCompleted, parseSaveCode, preferSaveSide, raiseFloorProgress, rewardProgress, saveProgress, saveSession, saveTimestampMs, sessionFloorBehindProgress, spendCoins } from "./state/store.js?v=v50";
 
 const app = document.querySelector("#app");
-const APP_VERSION = "v49";
-const APP_LAST_UPDATED = "2026-08-09T20:13:13+08:00";
+const APP_VERSION = "v50";
+const APP_LAST_UPDATED = "2026-08-10T07:47:28+08:00";
 let progress = loadProgress();
 const migratedAchievements = recordAchievementGame(progress);
 progress = migratedAchievements.progress;
@@ -175,6 +175,7 @@ function setAvatarFace(face, duration = 2000) {
   avatarFaceTimer = setTimeout(() => { avatarFace = "idle"; }, duration);
 }
 const currentHintCost = () => alinMode ? 0 : DIFFICULTIES[game.difficulty].hintCost;
+const progressDifficulty = (difficulty = game?.difficulty, mode = alinMode) => mode ? "alin" : difficulty;
 const escapeHtml = (value) => String(value).replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character]);
 const normalizePinInput = (value) => String(value)
   .replace(/[０-９]/g, (digit) => String(digit.charCodeAt(0) - 0xFF10))
@@ -1151,12 +1152,13 @@ function startModal() {
 
 function completionModal() {
   const totalCoins = Math.ceil(game.xpReward / 5) + game.timeBonus;
+  const nextFloor = progress.floors?.[progressDifficulty()] || nextFloorFromCompleted(game.floor);
   return `<div class="modal-backdrop"><section class="modal completion-modal" role="dialog" aria-modal="true" aria-labelledby="complete-title">
     <div class="celebrate">🎉</div><p class="eyebrow">FLOOR ${game.floor} COMPLETE</p><h2 id="complete-title">第 ${game.floor} 層完成！</h2>
     <div class="stars-earned" aria-label="獲得 ${game.stars} 顆星">${"⭐".repeat(game.stars)}${"☆".repeat(3 - game.stars)}</div>
     <div class="reward-row"><span>⭐ +${game.xpReward} XP</span><span>🪙 +${totalCoins}</span></div>
     <p class="cloud-result">${leaderboardConfigured() ? "🏆 成績已加入全球排行同步佇列" : "🏆 排行榜等待連接資料庫"}</p>
-    ${game.floor > 1 ? `<p class="farm-reward-note">探索層採 55% 經驗；下一局前往第 ${game.floor + 1} 層</p>` : ""}
+    ${game.floor > 1 ? `<p class="farm-reward-note">探索層採 55% 經驗；下一局前往第 ${nextFloor} 層</p>` : ""}
     ${game.timeBonus ? `<p class="speed-bonus">⚡ 目標時間內完成，速度獎勵 +${game.timeBonus} 金幣</p>` : `<p class="speed-bonus calm">慢慢玩也很好，關卡沒有時間限制</p>`}
     <div class="card-draw"><strong>${game.remainingClaims ? `選擇 ${game.remainingClaims} 張寶物卡帶走` : game.claimedCards.length ? "寶物已放進背包" : `本層沒有寶物・第 ${Math.ceil((game.floor + 1) / 3) * 3} 層再次掉落`}</strong><div>
       ${game.cardChoices.map((cardId) => {
@@ -1338,8 +1340,8 @@ function bindEvents() {
   document.querySelectorAll("[data-equip-card]").forEach((button) => button.addEventListener("click", () => toggleEquipCard(button.dataset.equipCard)));
   document.querySelectorAll("[data-claim-card]").forEach((button) => button.addEventListener("click", () => claimCard(button.dataset.claimCard)));
   document.querySelector("#notes")?.addEventListener("click", () => { noteMode = !noteMode; render(); });
-  document.querySelector("#alin-mode")?.addEventListener("click", () => { if (!game.started) { alinMode = !alinMode; render(); } });
-  document.querySelector("#prestart-alin-mode")?.addEventListener("click", () => { if (!game.started) { alinMode = !alinMode; render(); } });
+  document.querySelector("#alin-mode")?.addEventListener("click", toggleAlinMode);
+  document.querySelector("#prestart-alin-mode")?.addEventListener("click", toggleAlinMode);
   document.querySelector("#undo")?.addEventListener("click", clearCell);
   document.querySelector("#hint")?.addEventListener("click", useHint);
   document.querySelector("#restart")?.addEventListener("click", () => newGame(game.difficulty));
@@ -1517,14 +1519,15 @@ function applyImportedSave(imported, { mergeWithLocal = null } = {}) {
     alinMode = imported.session.alinMode || false;
     // Session may be mid-floor while floors counter lagged — keep next-floor high water.
     if (game?.difficulty && game?.floor) {
-      progress = raiseFloorProgress(progress, game.difficulty, game.floor);
+      progress = raiseFloorProgress(progress, progressDifficulty(game.difficulty, alinMode), game.floor);
     }
   } else {
     equippedCards = [];
     const fallbackDifficulty = game?.difficulty && game.difficulty !== "alin" ? game.difficulty : "easy";
+    const fallbackProgressDifficulty = progressDifficulty(fallbackDifficulty, alinMode);
     game = createAdventureGame({
       difficulty: fallbackDifficulty,
-      floor: progress.floors?.[fallbackDifficulty] || 1,
+      floor: progress.floors?.[fallbackProgressDifficulty] || 1,
       equippedCards
     });
     lastWaveVariants = { row: null, column: null, box: null };
@@ -1535,8 +1538,9 @@ function applyImportedSave(imported, { mergeWithLocal = null } = {}) {
 function reconcileActiveSessionFloor() {
   if (!game?.difficulty || game.completed || game.failed) return false;
 
-  if (!sessionFloorBehindProgress(progress, game)) {
-    const raised = raiseFloorProgress(progress, game.difficulty, game.floor);
+  const difficulty = progressDifficulty(game.difficulty, alinMode);
+  if (!sessionFloorBehindProgress(progress, game, alinMode)) {
+    const raised = raiseFloorProgress(progress, difficulty, game.floor);
     if (raised !== progress) {
       progress = raised;
       saveProgress(progress, { touch: false });
@@ -1544,35 +1548,33 @@ function reconcileActiveSessionFloor() {
     return false;
   }
 
-  const difficulty = game.difficulty;
   const floor = Math.max(1, Math.floor(Number(progress.floors?.[difficulty]) || 1));
   clearInterval(timerId);
   equippedCards = equippedCards.filter((cardId) => progress.inventory[cardId] > 0).slice(0, 2);
-  game = createAdventureGame({ difficulty, floor, equippedCards });
+  game = createAdventureGame({ difficulty: game.difficulty, floor, equippedCards });
   clearSession();
   lastWaveVariants = { row: null, column: null, box: null };
   return true;
 }
 
-/** Leaderboard floor = highest completed; local floors = next to play. */
-function reconcileFloorsFromLeaderboardRows(rows) {
-  if (!Array.isArray(rows) || !progress?.playerId) return false;
-  let changed = false;
-  let next = progress;
-  rows.forEach((row) => {
-    if (row.player_id !== progress.playerId) return;
-    const difficulty = row.difficulty === "alin" ? (game?.difficulty || "easy") : row.difficulty;
-    const raised = raiseFloorProgress(next, difficulty, nextFloorFromCompleted(row.floor));
-    if (raised !== next) {
-      next = raised;
-      changed = true;
-    }
-  });
-  if (changed) {
-    progress = next;
+/** One-time migration: old saves had no independent Alin floor counter. */
+async function migrateAlinFloorProgress() {
+  if (progress.floorModelVersion === 2 || !progress?.playerId || !leaderboardConfigured()) return false;
+  try {
+    const rows = await fetchPlayerLeaderboardRows(progress.playerId);
+    const alinRow = rows.find((row) => row.difficulty === "alin");
+    const raised = alinRow
+      ? raiseFloorProgress(progress, "alin", nextFloorFromCompleted(alinRow.floor))
+      : progress;
+    progress = { ...raised, floorModelVersion: 2 };
     saveProgress(progress);
+    const sessionReset = reconcileActiveSessionFloor();
+    if (sessionReset) render();
+    scheduleCloudSync();
+    return true;
+  } catch {
+    return false;
   }
-  return changed;
 }
 
 async function loadExistingPlayer() {
@@ -1686,8 +1688,6 @@ async function refreshLeaderboard() {
   try {
     leaderboardRows = await fetchLeaderboard(leaderboardDifficulty);
     leaderboardStatus = "";
-    // If my uploaded completed floor is ahead of local next-floor, catch up.
-    reconcileFloorsFromLeaderboardRows(leaderboardRows);
   } catch (error) {
     leaderboardRows = [];
     leaderboardStatus = error.message || "排行榜暫時無法連線";
@@ -1925,7 +1925,8 @@ function checkCompletion() {
   if (!settlement) return;
   clearInterval(timerId);
   showFinaleCelebration();
-  progress = rewardProgress(progress, settlement.xpReward, settlement.timeBonus, settlement.stars, game.difficulty, game.floor);
+  const completedDifficulty = progressDifficulty(game.difficulty, alinMode);
+  progress = rewardProgress(progress, settlement.xpReward, settlement.timeBonus, settlement.stars, completedDifficulty, game.floor);
   const achievementResult = recordAchievementGame(progress, {
     perfect: settlement.perfect,
     speed: settlement.speed,
@@ -1933,14 +1934,14 @@ function checkCompletion() {
   });
   progress = achievementResult.progress;
   // Belt-and-suspenders: next floor is always at least completed + 1.
-  progress = raiseFloorProgress(progress, game.difficulty, nextFloorFromCompleted(game.floor));
+  progress = raiseFloorProgress(progress, completedDifficulty, nextFloorFromCompleted(game.floor));
   saveProgress(progress);
   achievementResult.unlocked.forEach((achievement, index) => {
     setTimeout(() => showCelebration(achievement.icon, `永久成就・${achievement.name}`, `${achievement.description}・🪙 +${achievement.coins}`), 3500 + index * 450);
   });
   clearSession();
   // Upload the completed floor (game.floor), not the next-floor counter.
-  queueLeaderboardScore(buildScore(progress, game, alinMode))
+  queueLeaderboardScore(buildScore(progress, game, alinMode, { appVersion: APP_VERSION }))
     .then((result) => {
       applyLeaderboardSyncResult(result);
       if (game.completed) render();
@@ -1994,13 +1995,14 @@ function newGame(difficulty) {
   cellWaveQueue = [];
   cellWaveActive = false;
   equippedCards = equippedCards.filter((cardId) => progress.inventory[cardId] > 0).slice(0, 2);
+  const difficultyProgress = progressDifficulty(difficulty, alinMode);
   // If we just cleared a board, never re-open a lower floor than completed + 1.
   const fromLastClear = game?.completed && game?.difficulty === difficulty
     ? nextFloorFromCompleted(game.floor)
     : 1;
-  const floor = Math.max(progress.floors[difficulty] || 1, fromLastClear, 1);
-  if ((progress.floors[difficulty] || 1) < floor) {
-    progress = raiseFloorProgress(progress, difficulty, floor);
+  const floor = Math.max(progress.floors[difficultyProgress] || 1, fromLastClear, 1);
+  if ((progress.floors[difficultyProgress] || 1) < floor) {
+    progress = raiseFloorProgress(progress, difficultyProgress, floor);
     saveProgress(progress);
   }
   game = createAdventureGame({
@@ -2013,6 +2015,12 @@ function newGame(difficulty) {
   lastWaveVariants = { row: null, column: null, box: null };
   refreshBoardBuddies();
   render();
+}
+
+function toggleAlinMode() {
+  if (game.started) return;
+  alinMode = !alinMode;
+  newGame(game.difficulty);
 }
 
 document.addEventListener("keydown", (event) => {
@@ -2031,7 +2039,7 @@ if (restoredSession) {
   render();
 } else newGame("easy");
 if (reconcileActiveSessionFloor()) render();
-hydrateCloudProgress();
+hydrateCloudProgress().finally(() => migrateAlinFloorProgress());
 if (activeScreen === "island") refreshIslandNetwork();
 
 window.addEventListener("hashchange", () => {
@@ -2056,11 +2064,12 @@ document.addEventListener("visibilitychange", () => {
 
 window.addEventListener("online", () => {
   flushPendingScores().catch(() => {});
+  migrateAlinFloorProgress();
   syncCloudNow(false);
   if (activeScreen === "island") refreshIslandNetwork();
 });
 flushPendingScores().catch(() => {});
 
 if ("serviceWorker" in navigator && location.protocol !== "file:") {
-  navigator.serviceWorker.register(new URL("sw.js?v=v49", document.baseURI), { updateViaCache: "none" }).catch(() => {});
+  navigator.serviceWorker.register(new URL("sw.js?v=v50", document.baseURI), { updateViaCache: "none" }).catch(() => {});
 }

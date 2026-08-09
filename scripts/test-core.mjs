@@ -16,7 +16,7 @@ import {
 import { ACHIEVEMENTS, achievementValue, recordAchievementGame } from "../src/game/achievements.js";
 import { chooseFriendPair, chooseGardenEel, choosePartyFriends, nextDanceVariants, FRIEND_ROSTER, friendPairKey, GARDEN_EEL_VARIANTS, DANCE_VARIANT_COUNT } from "../src/game/friends.js";
 import { normalizePlayerName, validCloudPin } from "../src/state/cloud.js";
-import { buildScore, flushPendingScores, leaderboardConfigured, normalizeLeaderboardTaunt, pendingScoreCount } from "../src/state/leaderboard.js";
+import { buildScore, flushPendingScores, leaderboardConfigured, normalizeLeaderboardTaunt, pendingScoreCount, scoreOutranks } from "../src/state/leaderboard.js";
 import { exportSaveCode, importSaveCode, mergeProgressHighWater, nextFloorFromCompleted, parseSaveCode, preferSaveSide, raiseFloorProgress, rewardProgress, saveProgress as writeProgress, saveTimestampMs, sessionFloorBehindProgress } from "../src/state/store.js";
 
 function assert(condition, message) {
@@ -69,6 +69,10 @@ assert(/p_player_avatar text/i.test(leaderboardSql) && /p_avatar_color integer/i
 assert(/p_player_avatar/.test(leaderboardSource) && /p_avatar_color/.test(leaderboardSource), "score submission should include avatar parameters");
 assert(/update_leaderboard_avatar/.test(leaderboardSource) && /update_leaderboard_avatar/.test(leaderboardSql), "avatar changes should sync to existing leaderboard rows");
 assert(/p_pin text/.test(leaderboardSql) && /Invalid cloud PIN/.test(leaderboardSql), "leaderboard score submission must require a family PIN");
+assert(/create table if not exists public\.leaderboard_score_log/.test(leaderboardSql), "排行榜應建立不可公開讀取的歷史 LOG");
+assert(/submitted_next_floor/.test(leaderboardSql) && /previous_floor/.test(leaderboardSql) && /accepted/.test(leaderboardSql) && /app_version/.test(leaderboardSql), "排行榜 LOG 應保存層數決策與版本診斷欄位");
+assert(/get_leaderboard_score_log/.test(leaderboardSql) && /revoke all on public\.leaderboard_score_log/.test(leaderboardSql), "排行榜 LOG 只能經 PIN 驗證 RPC 讀取");
+assert(/offset 500/.test(leaderboardSql), "排行榜 LOG 應限制每位玩家每種模式最多保留 500 次送出");
 assert(/existing_hash <> extensions\.crypt\(p_pin, existing_hash\)/.test(leaderboardSql), "cloud save updates must verify the existing PIN");
 assert(/pin_hash = excluded\.pin_hash/.test(leaderboardSql) === false, "cloud save updates must not overwrite pin_hash without auth");
 assert(/loadCloudPin\(\)/.test(leaderboardSource) && /p_pin: pin/.test(leaderboardSource), "score upload should attach PIN at send time only");
@@ -76,7 +80,7 @@ assert(/sanitizeQueuedScore|p_pin/.test(leaderboardSource) && !/p_pin: progress/
 const pinGuardSql = readFileSync(new URL("../supabase/pin-guard-migration.sql", import.meta.url), "utf8");
 assert(/updated_at/.test(leaderboardSource) && /formatLeaderboardUpdatedAt|最後更新/.test(appSource), "leaderboard rows should show their last update time");
 assert(/APP_VERSION/.test(appSource) && /APP_LAST_UPDATED/.test(appSource) && /app-footer/.test(appSource), "main page should show app version and last update time");
-assert(/sudox-shell-v49/.test(readFileSync(new URL("../sw.js", import.meta.url), "utf8")), "Service Worker cache version should match the visible app release");
+assert(/sudox-shell-v50/.test(readFileSync(new URL("../sw.js", import.meta.url), "utf8")), "Service Worker cache version should match the visible app release");
 assert(/location\.protocol === "file:"/.test(indexSource) && /Start_SUDOX\.cmd/.test(indexSource), "直接開啟 index.html 時應顯示本機伺服器提示，不可只留白畫面");
 assert(/npm\.cmd run dev/.test(launcherSource) && /127\.0\.0\.1:4173/.test(launcherSource), "雙擊啟動器應啟動正確的 SUDOX 本機網址");
 assert(/submit_leaderboard_score/.test(pinGuardSql) && /save_cloud_progress/.test(pinGuardSql), "existing projects need a PIN guard migration");
@@ -101,7 +105,7 @@ assert(/\.topbar \{ height: auto; min-height: 48px; flex-wrap: wrap;/.test(style
 assert(/if \(!progress\.playerAvatar\) \{\s*showAvatarPicker = true/.test(appSource), "a new game should require an avatar selection");
 assert(appSource.indexOf('<div class="number-pad"') < appSource.indexOf('<div class="tools">'), "number pad should sit immediately before the tool buttons");
 assert(/\.notes i \{[^}]*font-size:\s*clamp\(7px, 1\.2vw, 10px\)/.test(stylesheet) && /\.notes i \{ font-size: clamp\(8px, 2\.5vw, 10px\); \}/.test(stylesheet), "note digits should be larger on desktop and mobile");
-assert(/from "\.\/game\/flow\.js\?v=v49"/.test(appSource) && /applyPlayerDigit|settleCompletedGame/.test(appSource), "app 應透過版次化 flow 模組處理填格與完局規則");
+assert(/from "\.\/game\/flow\.js\?v=v50"/.test(appSource) && /applyPlayerDigit|settleCompletedGame/.test(appSource), "app 應透過版次化 flow 模組處理填格與完局規則");
 assert(/createAdventureGame/.test(appSource) && !/createGame\(/.test(appSource), "app 應以 createAdventureGame 建立完整局，不再直接 createGame");
 assert(/normalizeSession/.test(storeSource), "session 載入應走完整 runtime 正規化");
 assert(/src\/game\/flow\.js/.test(readFileSync(new URL("../sw.js", import.meta.url), "utf8")), "Service Worker 應快取 flow 模組");
@@ -338,25 +342,30 @@ const legacyUnlockSave = exportSaveCode({
 }, null);
 const strippedUnlock = importSaveCode(legacyUnlockSave, { touch: false });
 assert(!("unlockedDifficulty" in strippedUnlock.progress), "載入舊存檔應移除 unlockedDifficulty");
+assert(strippedUnlock.progress.floors.alin === 1 && strippedUnlock.progress.floorModelVersion === 1, "舊存檔應等待從阿霖排行榜遷移獨立層數");
 const afterRewards = rewardProgress(strippedUnlock.progress, 35, 0, 1, "hard");
 assert(afterRewards.completedGames === 1 && !("unlockedDifficulty" in afterRewards), "完賽獎勵不應再建立難度解鎖狀態");
 assert(afterRewards.floors.hard >= 2, "高手難度從第一局即可推進樓層");
 assert(nextFloorFromCompleted(16) === 17, "排行榜已完成樓層應對應下一層 = 完成層 + 1");
 assert(raiseFloorProgress({ floors: { easy: 15, medium: 1, hard: 1 } }, "easy", 17).floors.easy === 17, "本機樓層落後時應被抬高");
 assert(raiseFloorProgress({ floors: { easy: 18, medium: 1, hard: 1 } }, "easy", 17).floors.easy === 18, "本機已較高時不可被排行榜拉低");
-assert(sessionFloorBehindProgress({ floors: { easy: 15, medium: 1, hard: 1 } }, { difficulty: "easy", floor: 12 }), "落後的中途局應被辨識為低於正式下一層");
-assert(!sessionFloorBehindProgress({ floors: { easy: 15, medium: 1, hard: 1 } }, { difficulty: "easy", floor: 15 }), "中途局已在正式下一層時不可被重置");
-assert(!sessionFloorBehindProgress({ floors: { easy: 15, medium: 1, hard: 1 } }, { difficulty: "alin", floor: 12 }), "阿霖模式不應污染三種正式樓層紀錄");
+assert(sessionFloorBehindProgress({ floors: { easy: 15, medium: 1, hard: 1, alin: 4 } }, { difficulty: "easy", floor: 12 }), "落後的中途局應被辨識為低於正式下一層");
+assert(!sessionFloorBehindProgress({ floors: { easy: 15, medium: 1, hard: 1, alin: 4 } }, { difficulty: "easy", floor: 15 }), "中途局已在正式下一層時不可被重置");
+assert(sessionFloorBehindProgress({ floors: { easy: 15, medium: 1, hard: 20, alin: 4 } }, { difficulty: "hard", floor: 3 }, true), "阿霖模式應只比較獨立阿霖層數");
 const mergedFloors = mergeProgressHighWater(
-  { floors: { easy: 12, medium: 2, hard: 1 }, completedGames: 4, totalStars: 8, level: 3, coins: 10 },
-  { floors: { easy: 16, medium: 1, hard: 4 }, completedGames: 2, totalStars: 20, level: 2, coins: 40 }
+  { floors: { easy: 12, medium: 2, hard: 1, alin: 3 }, completedGames: 4, totalStars: 8, level: 3, coins: 10 },
+  { floors: { easy: 16, medium: 1, hard: 4, alin: 8 }, completedGames: 2, totalStars: 20, level: 2, coins: 40 }
 );
-assert(mergedFloors.floors.easy === 16 && mergedFloors.floors.hard === 4, "合併存檔應取各難度最高樓層");
+assert(mergedFloors.floors.easy === 16 && mergedFloors.floors.hard === 4 && mergedFloors.floors.alin === 8, "合併存檔應取各難度與阿霖模式最高樓層");
 assert(mergedFloors.completedGames === 4 && mergedFloors.totalStars === 20, "合併存檔應取生命週期計數高水位");
 assert(mergedFloors.coins === 10, "合併存檔應保留主要存檔的可消費金幣，避免已花費金幣復活");
 const catchUp = rewardProgress({ floors: { easy: 15, medium: 1, hard: 1 }, completedGames: 0, xp: 0, level: 1, coins: 0, streak: 0, totalStars: 0 }, 10, 0, 1, "easy", 16);
 assert(catchUp.floors.easy === 17, "完賽時若局內樓層高於存檔計數，下一層應對齊 completed+1");
-assert(/mergeProgressHighWater|raiseFloorProgress|reconcileFloorsFromLeaderboardRows/.test(appSource), "雲端與排行榜應能抬高落後的本機樓層");
+const replayedLowerFloor = rewardProgress({ floors: { easy: 29, medium: 1, hard: 1, alin: 1 }, completedGames: 0, xp: 0, level: 1, coins: 0, streak: 0, totalStars: 0 }, 10, 0, 1, "easy", 27);
+assert(replayedLowerFloor.floors.easy === 29, "重玩或舊 session 完成第 27 層時不可把既有下一層 29 再加成 30");
+const alinReward = rewardProgress({ floors: { easy: 15, medium: 10, hard: 17, alin: 17 }, completedGames: 0, xp: 0, level: 1, coins: 0, streak: 0, totalStars: 0 }, 10, 0, 1, "alin", 17);
+assert(alinReward.floors.alin === 18 && alinReward.floors.hard === 17, "阿霖過關只能推進獨立阿霖層數，不可污染高手紀錄");
+assert(/migrateAlinFloorProgress|fetchPlayerLeaderboardRows/.test(appSource) && !/function reconcileFloorsFromLeaderboardRows/.test(appSource), "舊阿霖進度應一次性遷移，開排行榜不可再直接改正式層數");
 
 assert(/sessionFloorBehindProgress/.test(appSource) && /reconcileActiveSessionFloor/.test(appSource), "雲端抬高樓層後應重置落後的中途局");
 const flowGame = createAdventureGame({ difficulty: "easy", floor: 1 });
@@ -399,6 +408,11 @@ assert(leaderboardConfigured(), "Supabase 專案設定後排行榜應啟用雲�
 const score = buildScore(imported.progress, { difficulty: "easy", floor: 9, stars: 3, elapsed: 120, mistakes: 0 });
 assert(score.p_player_name === "阿霖" && score.p_floor === 9 && score.p_score > 90000, "排行榜成績應包含玩家、層數與計算分數");
 assert(!("p_pin" in score), "成績佇列物件不可內嵌家庭 PIN");
+const loggedScore = buildScore({ ...imported.progress, floors: { ...imported.progress.floors, hard: 19, alin: 18 } }, { difficulty: "hard", floor: 18, stars: 1, elapsed: 830, mistakes: 3 }, false, { appVersion: "v50" });
+assert(loggedScore.p_floor === 18 && loggedScore.p_next_floor === 19 && loggedScore.p_app_version === "v50", "排行榜 LOG 應帶完成層、當時下一層與 app 版次");
+assert(scoreOutranks({ p_floor: 18, p_score: 180000 }, { p_floor: 17, p_score: 999999 }), "較高層必須優先於分數");
+assert(!scoreOutranks({ p_floor: 17, p_score: 999999 }, { p_floor: 18, p_score: 180000 }), "較低層不可只因分數較高覆蓋佇列中的高層");
+assert(scoreOutranks({ p_floor: 18, p_score: 181000 }, { p_floor: 18, p_score: 180000 }), "同層才比較分數");
 assert(buildScore(imported.progress, { difficulty: "hard", floor: 3, stars: 2, elapsed: 300, mistakes: 4 }, true).p_difficulty === "alin", "阿霖模式成績應送往獨立排行榜");
 assert(normalizeLeaderboardTaunt("  榜首是我的！\n  ") === "榜首是我的！", "排行榜嗆聲應移除控制字元與前後空白");
 assert(normalizeLeaderboardTaunt("哈".repeat(60)).length === 48, "排行榜嗆聲應限制為 48 字");
