@@ -209,6 +209,8 @@ assert(/靈巧佈置|大力土木/.test(catalogMarkup), "施工伙伴選擇器�
 assert(/pointerdown/.test(appSource) && /pointermove/.test(appSource) && /islandDragged/.test(appSource), "地圖應支援滑鼠與手機 Pointer Events 拖曳並防止拖後誤觸");
 assert(!/setPointerCapture/.test(pointerDownSource) && /setPointerCapture/.test(pointerMoveSource), "一般點擊不可在 pointerdown 時被地圖接管，只有超過拖曳門檻後才能 capture");
 assert(/touch-action:\s*none/.test(islandStyles) && /cursor:\s*grab/.test(islandStyles), "地圖拖曳應關閉瀏覽器手勢衝突並顯示拖曳游標");
+assert(/\.island-hex\.is-ready\s*{[^}]*z-index:\s*12/.test(islandStyles), "可領取狀態的六角格必須高於選取與相鄰格");
+assert(/\.island-ready-badge\s*{[^}]*z-index:\s*30[^}]*left:\s*50%/.test(islandStyles) && /translateX\(-50%\)[^}]*translateY\(-3px\)/.test(islandStyles), "驚嘆號應固定在六角格上緣中央且動畫不可破壞置中");
 assert.equal(RECIPE_CATALOG.dairyBatch.outputs.dairyBox, 1, "配方目錄應保留可擴充的資料驅動輸出");
 
 console.log("Island foundation checks passed.");

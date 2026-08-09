@@ -106,6 +106,7 @@
 .island-hex.is-reclaimed { background: linear-gradient(145deg, #b6d984, #70ba6e); }
 .island-hex.is-selected { z-index: 8; filter: drop-shadow(0 0 7px #fff86d) brightness(1.08); }
 .island-hex.is-selected::after { content: ""; position: absolute; inset: 3px; clip-path: inherit; border: 3px solid #fff583; }
+.island-hex.is-ready { z-index: 12; }
 .island-ground-detail { position: absolute; inset: 0; display: grid; place-items: center; color: rgba(255,255,255,.28); font-size: 26px; }
 .island-wave { font-size: 20px; }
 .island-sprite { pointer-events: none; user-select: none; }
@@ -117,7 +118,7 @@
 .island-workers img { width: 22px; height: 22px; margin-left: -5px; object-fit: contain; animation: island-worker-bob .7s ease-in-out calc(var(--worker-index) * -.12s) infinite alternate; }
 .island-countdown { color: #2d7080; font-weight: 950; white-space: nowrap; }
 .island-ready-badge, .island-job-badge { position: absolute; z-index: 5; display: grid; place-items: center; border-radius: 999px; color: white; font-size: 11px; font-weight: 950; }
-.island-ready-badge { top: 3px; right: 5px; width: 18px; height: 18px; background: #ff805c; animation: island-ready-pop .7s ease-in-out infinite alternate; }
+.island-ready-badge { z-index: 30; top: 4px; left: 50%; width: 18px; height: 18px; background: #ff805c; transform: translateX(-50%); animation: island-ready-pop .7s ease-in-out infinite alternate; }
 .island-job-badge { top: 3px; left: 5px; min-width: 18px; height: 18px; padding: 0 4px; background: #547fca; }
 .island-work-bar { padding: 8px 10px 10px; flex: 0 0 auto; border-top: 1px solid rgba(54,116,126,.14); background: rgba(255,255,255,.62); }
 .island-work-bar > header { margin-bottom: 6px; display: flex; justify-content: space-between; color: #4d727a; font-size: 11px; }
@@ -209,7 +210,10 @@
 .island-footer { padding: 5px 0 0; color: rgba(37,81,94,.66); font-size: 9px; font-weight: 800; text-align: center; flex: 0 0 auto; }
 @keyframes island-worker-bob { to { transform: translateY(-4px) rotate(4deg); } }
 @keyframes island-build-pulse { to { transform: translateX(-50%) scale(1.06); } }
-@keyframes island-ready-pop { to { transform: translateY(-3px) scale(1.1); } }
+@keyframes island-ready-pop {
+  from { transform: translateX(-50%) translateY(0) scale(1); }
+  to { transform: translateX(-50%) translateY(-3px) scale(1.1); }
+}
 
 @media (max-width: 900px) {
   .island-shell { height: auto; min-height: 100dvh; overflow: visible; }

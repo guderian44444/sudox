@@ -3,7 +3,7 @@
 更新日期：2026-08-09
 開發分支：`feature/island-building`
 分支起點：`f10946a`（建立分支時的 `main`）
-目前版次：`v43`／Service Worker `sudox-shell-v43`
+目前版次：`v44`／Service Worker `sudox-shell-v44`
 
 ## 一句話狀態
 
@@ -90,6 +90,7 @@ Renderer 會自動以圖片取代 emoji，不需要改遊戲規則。詳細尺�
 - 菜園可從葉菜改種胡蘿蔔並重設為 30 分鐘；友善牧場顯示牛奶、雞蛋、羊毛三種非殺生配方。
 - 地圖拖曳使用統一 Pointer Events，包含 6 px 移動門檻、拖後 click 抑制、`touch-action: none` 與位置保存；靜態回歸測試已覆蓋事件接點，仍建議實機上線前各做一次 iPhone／Android 慣用手勢驗收。
 - v43 修正：`pointerdown` 不再立即呼叫 Pointer Capture，只有移動超過 6 px、正式進入拖曳時才接管；避免真實滑鼠／觸控的格子與按鈕 click 被地圖容器吃掉。
+- v44 修正：可領取格提升到地圖 `z-index: 12`，驚嘆號提升到格內 `z-index: 30` 並移到六角上緣中央安全區，避免被斜角裁切或相鄰格遮住。
 - 重新載入後施工與金幣仍存在。
 - 390×844 手機 viewport：61 格地圖、倉庫與控制面板存在，頁面無橫向溢出，console 無 error／warning。
 - 1366×768 桌面 viewport：頁面寬高與 viewport 相同，不需捲動整頁；地圖無施工倒數覆蓋，工作列、右上縮放與測試控制存在。
