@@ -74,7 +74,7 @@ assert(/sanitizeQueuedScore|p_pin/.test(leaderboardSource) && !/p_pin: progress/
 const pinGuardSql = readFileSync(new URL("../supabase/pin-guard-migration.sql", import.meta.url), "utf8");
 assert(/updated_at/.test(leaderboardSource) && /formatLeaderboardUpdatedAt|最後更新/.test(appSource), "leaderboard rows should show their last update time");
 assert(/APP_VERSION/.test(appSource) && /APP_LAST_UPDATED/.test(appSource) && /app-footer/.test(appSource), "main page should show app version and last update time");
-assert(/sudox-shell-v38/.test(readFileSync(new URL("../sw.js", import.meta.url), "utf8")), "Service Worker cache version should match the visible app release");
+assert(/sudox-shell-v39/.test(readFileSync(new URL("../sw.js", import.meta.url), "utf8")), "Service Worker cache version should match the visible app release");
 assert(/submit_leaderboard_score/.test(pinGuardSql) && /save_cloud_progress/.test(pinGuardSql), "existing projects need a PIN guard migration");
 assert(/a-z_/.test(storeSource) && /Math\.min\(7/.test(storeSource), "avatar persistence should support avatar IDs and all eight colors");
 assert(/hasLeaderboardRow \? row\.player_avatar : progress\.playerAvatar/.test(appSource), "leaderboard rows should use each player's own avatar");
@@ -293,7 +293,7 @@ globalThis.localStorage = {
   setItem: (key, value) => memory.set(key, String(value)),
   removeItem: (key) => memory.delete(key)
 };
-const saveProgress = { playerId: "5e2b1c42-fc62-4f58-9f01-29ded0bab4d2", playerName: "阿霖", level: 7, xp: 42, coins: 88, floors: { easy: 9, medium: 4, hard: 2 }, inventory: { dragonElixir: 1 }, cardCollection: ["dragonElixir"], updatedAt: "2026-01-01T00:00:00.000Z" };
+const saveProgress = { playerId: "5e2b1c42-fc62-4f58-9f01-29ded0bab4d2", playerName: "阿霖", level: 7, xp: 42, coins: 88, floors: { easy: 9, medium: 4, hard: 2 }, inventory: { dragonElixir: 1 }, cardCollection: ["dragonElixir"], island: { schemaVersion: 1, tiles: { "0,0": { terrain: "grass" } }, inventory: { corn: 3 } }, updatedAt: "2026-01-01T00:00:00.000Z" };
 const saveSession = { game: createAdventureGame({ difficulty: "easy", floor: 9, equippedCards: ["dragonElixir"] }), equippedCards: ["dragonElixir"], alinMode: false };
 const saveCode = exportSaveCode(saveProgress, saveSession);
 const parsedOnly = parseSaveCode(saveCode);
@@ -302,6 +302,7 @@ assert(parsedOnly.exportedAt === "2026-01-01T00:00:00.000Z", "存檔碼應保留
 const imported = importSaveCode(saveCode, { touch: false });
 assert(imported.progress.level === 7 && imported.progress.floors.easy === 9, "存檔碼應還原等級與層數");
 assert(imported.progress.playerName === "阿霖" && imported.progress.playerId === saveProgress.playerId, "存檔碼應還原玩家名稱與匿名 ID");
+assert(imported.progress.island?.inventory?.corn === 3, "完整 SUDOX3 存檔應保留小島狀態");
 assert(imported.session.game.floor === 9 && imported.session.equippedCards[0] === "dragonElixir", "存檔碼應還原目前關卡與裝備");
 assert(imported.progress.updatedAt === "2026-01-01T00:00:00.000Z", "touch:false 應保留原存檔時間戳");
 assert(preferSaveSide(
@@ -347,7 +348,8 @@ const mergedFloors = mergeProgressHighWater(
   { floors: { easy: 16, medium: 1, hard: 4 }, completedGames: 2, totalStars: 20, level: 2, coins: 40 }
 );
 assert(mergedFloors.floors.easy === 16 && mergedFloors.floors.hard === 4, "合併存檔應取各難度最高樓層");
-assert(mergedFloors.completedGames === 4 && mergedFloors.totalStars === 20 && mergedFloors.coins === 40, "合併存檔應取生命週期計數高水位");
+assert(mergedFloors.completedGames === 4 && mergedFloors.totalStars === 20, "合併存檔應取生命週期計數高水位");
+assert(mergedFloors.coins === 10, "合併存檔應保留主要存檔的可消費金幣，避免已花費金幣復活");
 const catchUp = rewardProgress({ floors: { easy: 15, medium: 1, hard: 1 }, completedGames: 0, xp: 0, level: 1, coins: 0, streak: 0, totalStars: 0 }, 10, 0, 1, "easy", 16);
 assert(catchUp.floors.easy === 17, "完賽時若局內樓層高於存檔計數，下一層應對齊 completed+1");
 assert(/mergeProgressHighWater|raiseFloorProgress|reconcileFloorsFromLeaderboardRows/.test(appSource), "雲端與排行榜應能抬高落後的本機樓層");

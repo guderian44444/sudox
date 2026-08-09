@@ -78,6 +78,7 @@ button:focus-visible { outline: 3px solid #4f9dd9; outline-offset: 2px; }
 .island-card strong, .island-card small { display: block; }
 .island-card strong { color: #6d5c3d; font-size: 15px; }
 .island-card small { color: #8e7954; font-size: 12px; }
+.achievement-island-card { margin-top: 8px; background: #f4f0ff; }
 
 .board-card { position: relative; width: 100%; padding: clamp(15px, 2.5vw, 25px); border-radius: 28px; overflow: visible; }
 /* Trio perched on the white card's top-left rim (above difficulty pill). */

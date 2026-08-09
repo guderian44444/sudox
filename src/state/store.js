@@ -43,6 +43,7 @@ const defaultProgress = {
   floors: { easy: 1, medium: 1, hard: 1 },
   playerAvatar: "",
   avatarColor: 0,
+  island: null,
   updatedAt: ""
 };
 
@@ -101,7 +102,9 @@ export function preferSaveSide(localProgress, cloudProgress, {
 
 /**
  * Never let floors / lifetime counters go backwards when merging two saves.
- * `primary` supplies the base fields; numeric high-water marks come from both sides.
+ * `primary` supplies spendable balances and mutable world state; only lifetime
+ * counters use high-water marks. Taking the maximum coin balance would restore
+ * coins that were already spent on another device.
  */
 export function mergeProgressHighWater(primary, secondary = {}) {
   const base = primary && typeof primary === "object" ? primary : {};
@@ -121,7 +124,7 @@ export function mergeProgressHighWater(primary, secondary = {}) {
     completedGames: Math.max(0, Math.floor(Number(base.completedGames) || 0), Math.floor(Number(other.completedGames) || 0)),
     totalStars: Math.max(0, Math.floor(Number(base.totalStars) || 0), Math.floor(Number(other.totalStars) || 0)),
     level: Math.max(1, Math.floor(Number(base.level) || 1), Math.floor(Number(other.level) || 1)),
-    coins: Math.max(0, Math.floor(Number(base.coins) || 0), Math.floor(Number(other.coins) || 0))
+    coins: Math.max(0, Math.floor(Number(base.coins) || 0))
   };
 }
 
@@ -197,6 +200,7 @@ function normalizedProgress(saved = {}) {
       return safeSaved.playerAvatar;
     })(),
     avatarColor: Math.max(0, Math.min(7, Math.floor(safeNumber(safeSaved.avatarColor)))),
+    island: safeSaved.island && typeof safeSaved.island === "object" && !Array.isArray(safeSaved.island) ? safeSaved.island : null,
     updatedAt: normalizeUpdatedAt(safeSaved.updatedAt)
   };
   delete progress.unlockedDifficulty;

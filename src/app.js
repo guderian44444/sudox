@@ -13,14 +13,16 @@ import {
   settleCompletedGame
 } from "./game/flow.js";
 import { ACHIEVEMENTS, achievementValue, recordAchievementGame } from "./game/achievements.js";
-import { chooseFriendPair, chooseGardenEel, choosePartyFriends, nextDanceVariants } from "./game/friends.js";
+import { chooseFriendPair, chooseGardenEel, choosePartyFriends, FRIEND_ROSTER, nextDanceVariants } from "./game/friends.js";
+import { availableHelperIds, collectFacility, createIslandState, hireConstructionHelper, marketSale, normalizeIslandState, settleIsland, startBuilding, startProcessing, startReclamation } from "./island/model.js";
+import { formatIslandDuration, renderIslandScreen } from "./island/renderer.js";
 import { cloudConfigured, loadCloudPin, loadCloudProgress, normalizePlayerName, renameCloudPlayer, saveCloudPin, saveCloudProgress, validCloudPin } from "./state/cloud.js";
 import { buildScore, fetchLeaderboard, flushPendingScores, leaderboardConfigured, normalizeLeaderboardTaunt, pendingScoreCount, queueLeaderboardScore, updateLeaderboardAvatar, updateLeaderboardTaunt } from "./state/leaderboard.js";
 import { addCard, clearSession, consumeCard, exportSaveCode, importSaveCode, loadProgress, loadSession, mergeProgressHighWater, nextFloorFromCompleted, parseSaveCode, preferSaveSide, raiseFloorProgress, rewardProgress, saveProgress, saveSession, saveTimestampMs, sessionFloorBehindProgress, spendCoins } from "./state/store.js";
 
 const app = document.querySelector("#app");
-const APP_VERSION = "v38";
-const APP_LAST_UPDATED = "2026-08-08T21:36:49+08:00";
+const APP_VERSION = "v39";
+const APP_LAST_UPDATED = "2026-08-09T09:30:00+08:00";
 let progress = loadProgress();
 const migratedAchievements = recordAchievementGame(progress);
 progress = migratedAchievements.progress;
@@ -60,6 +62,12 @@ let lastFriendPairKey = "";
 let danceVariantCursor = 0;
 /** Three random stickers perched on the board frame (refreshed each new game). */
 let boardBuddyIds = [];
+let activeScreen = location.hash === "#island" ? "island" : "game";
+let island = null;
+let islandSelectedKey = "0,1";
+let islandZoom = 0.9;
+let islandStatus = "";
+let islandClockId;
 
 const friendAssetUrl = (folder, fileName) => new URL(`../public/assets/${folder}/${fileName}`, import.meta.url).href;
 const friendStickerUrl = (id) => friendAssetUrl("friends", `${id}.png`);
@@ -490,7 +498,179 @@ function persistSession() {
   scheduleCloudSync();
 }
 
+function islandOwner(now = Date.now()) {
+  return {
+    playerId: progress.playerId,
+    playerName: progress.playerName,
+    playerAvatar: progress.playerAvatar || "cat",
+    now
+  };
+}
+
+function ensureIsland() {
+  const now = Date.now();
+  if (!progress.island) {
+    island = createIslandState(islandOwner(now));
+    progress = { ...progress, coins: progress.coins + 100, island };
+    saveProgress(progress);
+    scheduleCloudSync();
+    islandStatus = "島主開發金 🪙 100 已入帳，先填海或從空地開始建設吧！";
+    return island;
+  }
+  island = normalizeIslandState(progress.island, islandOwner(now));
+  return island;
+}
+
+function commitIsland(nextIsland, { coinDelta = 0, status = "", rerender = true } = {}) {
+  island = nextIsland;
+  progress = {
+    ...progress,
+    coins: Math.max(0, progress.coins + coinDelta),
+    island: nextIsland
+  };
+  saveProgress(progress);
+  scheduleCloudSync();
+  islandStatus = status;
+  if (rerender) renderIslandView();
+}
+
+function settleIslandNow(now = Date.now()) {
+  if (!island) return false;
+  const result = settleIsland(island, now);
+  if (!result.changed) return false;
+  const completedNames = result.completed.map((entry) => entry.name).filter(Boolean);
+  commitIsland(result.state, {
+    status: completedNames.length ? `完成：${completedNames.join("、")}` : "小島進度已依真實時間更新。",
+    rerender: false
+  });
+  return true;
+}
+
+function islandHelpers() {
+  const ids = availableHelperIds(island, FRIEND_ROSTER.map((friend) => friend.id), progress.playerAvatar || "cat");
+  return ids.map((id) => FRIEND_ROSTER.find((friend) => friend.id === id)).filter(Boolean);
+}
+
+function renderIslandView() {
+  if (!island) ensureIsland();
+  if (!islandClockId) islandClockId = setInterval(refreshIslandClock, 1000);
+  settleIslandNow();
+  app.innerHTML = renderIslandScreen({
+    state: island,
+    coins: progress.coins,
+    selectedKey: islandSelectedKey,
+    zoom: islandZoom,
+    status: islandStatus,
+    helpers: islandHelpers(),
+    version: APP_VERSION
+  });
+  bindIslandEvents();
+  refreshIslandClock();
+}
+
+function openIsland() {
+  persistSession();
+  activeScreen = "island";
+  history.replaceState(null, "", `${location.pathname}${location.search}#island`);
+  ensureIsland();
+  clearInterval(islandClockId);
+  islandClockId = setInterval(refreshIslandClock, 1000);
+  renderIslandView();
+}
+
+function closeIsland() {
+  clearInterval(islandClockId);
+  islandClockId = undefined;
+  activeScreen = "game";
+  history.replaceState(null, "", `${location.pathname}${location.search}`);
+  render();
+}
+
+function refreshIslandClock() {
+  if (activeScreen !== "island" || !island) return;
+  const now = Date.now();
+  let reachedReadyAt = false;
+  document.querySelectorAll("[data-island-ready-at]").forEach((element) => {
+    const readyAt = Number(element.dataset.islandReadyAt) || 0;
+    element.textContent = formatIslandDuration((readyAt - now) / 1000);
+    if (readyAt <= now) reachedReadyAt = true;
+  });
+  if (reachedReadyAt && settleIslandNow(now)) renderIslandView();
+}
+
+function affordIslandResult(result, successStatus) {
+  if (!result.ok) {
+    islandStatus = result.error || "目前無法執行這項操作。";
+    renderIslandView();
+    return;
+  }
+  if (progress.coins < result.costCoins) {
+    islandStatus = `金幣不足，還需要 🪙 ${result.costCoins - progress.coins}。`;
+    renderIslandView();
+    return;
+  }
+  commitIsland(result.state, { coinDelta: -result.costCoins, status: successStatus });
+}
+
+function bindIslandEvents() {
+  document.querySelector("#close-island")?.addEventListener("click", closeIsland);
+  document.querySelectorAll("[data-island-cell]").forEach((button) => button.addEventListener("click", () => {
+    islandSelectedKey = button.dataset.islandCell;
+    islandStatus = "";
+    renderIslandView();
+  }));
+  document.querySelectorAll("[data-island-zoom]").forEach((button) => button.addEventListener("click", () => {
+    islandZoom = Math.max(0.65, Math.min(1.25, islandZoom + (button.dataset.islandZoom === "in" ? 0.1 : -0.1)));
+    renderIslandView();
+  }));
+  document.querySelector("[data-island-reclaim]")?.addEventListener("click", () => {
+    const [q, r] = islandSelectedKey.split(",").map(Number);
+    affordIslandResult(startReclamation(island, { q, r, workerId: progress.playerAvatar || "cat" }), "伙伴已開始填海造陸！");
+  });
+  document.querySelectorAll("[data-island-build]").forEach((button) => button.addEventListener("click", () => {
+    const [q, r] = islandSelectedKey.split(",").map(Number);
+    const buildingName = button.querySelector("strong")?.textContent || "設施";
+    affordIslandResult(startBuilding(island, { buildingId: button.dataset.islandBuild, q, r, workerId: progress.playerAvatar || "cat" }), `${buildingName} 已開始施工！`);
+  }));
+  document.querySelectorAll("[data-island-hire]").forEach((button) => button.addEventListener("click", () => {
+    affordIslandResult(hireConstructionHelper(island, { jobId: button.dataset.islandHire, helperId: button.dataset.islandHelper }), "新伙伴加入，完工時間已提前！");
+  }));
+  document.querySelectorAll("[data-island-collect]").forEach((button) => button.addEventListener("click", () => {
+    const result = collectFacility(island, { buildingInstanceId: button.dataset.islandCollect });
+    if (!result.ok) {
+      islandStatus = result.error;
+      renderIslandView();
+      return;
+    }
+    commitIsland(result.state, { status: "產品已領取到無上限倉庫。" });
+  }));
+  document.querySelectorAll("[data-island-process]").forEach((button) => button.addEventListener("click", () => {
+    const result = startProcessing(island, { buildingInstanceId: button.dataset.islandBuilding, recipeId: button.dataset.islandProcess });
+    if (!result.ok) {
+      islandStatus = result.error;
+      renderIslandView();
+      return;
+    }
+    commitIsland(result.state, { status: "加工批次已啟動；同一座設施可以繼續接收其他批次。" });
+  }));
+  document.querySelectorAll("[data-island-sell]").forEach((button) => button.addEventListener("click", () => {
+    const result = marketSale(island, { itemId: button.dataset.islandSell, quantity: Number(button.dataset.islandQuantity) });
+    if (!result.ok) {
+      islandStatus = result.error;
+      renderIslandView();
+      return;
+    }
+    commitIsland(result.state, { coinDelta: result.coinsEarned, status: `市場售出完成，獲得 🪙 ${result.coinsEarned}。` });
+  }));
+}
+
 function render() {
+  if (activeScreen === "island" && !showNameSetup) {
+    persistSession();
+    ensureIsland();
+    renderIslandView();
+    return;
+  }
   persistSession();
   const levelTarget = progress.level * 100;
   const selectedValue = game.values[game.selected];
@@ -500,7 +680,7 @@ function render() {
     <main class="shell ${game.started ? "game-active" : ""}">
       <header class="topbar">
         <div class="brand">${mascot()}<div><span>阿霖的數獨島</span><small>ALIN'S SUDOKU ISLAND</small></div></div>
-        <div class="topbar-actions"><div class="wallet" aria-label="玩家資源"><span>⭐ ${progress.totalStars}</span><span>🪙 ${progress.coins}</span></div><button id="toggle-sound" class="save-button sound-button" aria-label="${soundEnabled ? "關閉音效" : "開啟音效"}" aria-pressed="${soundEnabled}">${soundEnabled ? "🔊" : "🔇"}</button><button id="open-avatar-picker" class="save-button">🐾 <span>頭像</span></button><button id="open-leaderboard" class="save-button">🏆 <span>排行</span></button><button id="open-save-center" class="save-button">💾 <span>存檔</span></button></div>
+        <div class="topbar-actions"><div class="wallet" aria-label="玩家資源"><span>⭐ ${progress.totalStars}</span><span>🪙 ${progress.coins}</span></div><button id="open-island" class="save-button">🏝️ <span>小島</span></button><button id="toggle-sound" class="save-button sound-button" aria-label="${soundEnabled ? "關閉音效" : "開啟音效"}" aria-pressed="${soundEnabled}">${soundEnabled ? "🔊" : "🔇"}</button><button id="open-avatar-picker" class="save-button">🐾 <span>頭像</span></button><button id="open-leaderboard" class="save-button">🏆 <span>排行</span></button><button id="open-save-center" class="save-button">💾 <span>存檔</span></button></div>
       </header>
 
       <section class="hero-card">
@@ -522,7 +702,8 @@ function render() {
           <button class="alin-mode ${alinMode ? "active" : ""}" id="alin-mode" aria-pressed="${alinMode}" ${game.started ? "disabled" : ""}>
             <span>🌈</span><span><strong>阿霖模式</strong><small>${game.started ? (alinMode ? "本局已鎖定・不限失誤" : "本局已鎖定・下局可開啟") : (alinMode ? "已開啟・不限失誤" : "開啟後不會失敗")}</small></span>
           </button>
-          <button class="island-card" id="open-achievements-side"><span>🏝️</span><div><strong>我的小島與成就</strong><small>${progress.achievements?.length || 0}/${ACHIEVEMENTS.length} 個・${progress.totalStars} 顆星</small></div></button>
+          <button class="island-card" id="open-island-side"><span>🏝️</span><div><strong>建設我的小島</strong><small>${progress.island ? `${Object.keys(progress.island.tiles || {}).length} 格土地・點我進入` : "首次進入贈 100 開發金"}</small></div></button>
+          <button class="island-card achievement-island-card" id="open-achievements-side"><span>🏅</span><div><strong>成就圖鑑</strong><small>${progress.achievements?.length || 0}/${ACHIEVEMENTS.length} 個・${progress.totalStars} 顆星</small></div></button>
         </aside>
 
         <section class="board-card" aria-label="數獨遊戲">
@@ -810,6 +991,8 @@ function bindEvents() {
   document.querySelector("#choose-start-cards")?.addEventListener("click", openBackpack);
   document.querySelector("#start-game")?.addEventListener("click", startGame);
   document.querySelector("#open-leaderboard")?.addEventListener("click", openLeaderboardModal);
+  document.querySelector("#open-island")?.addEventListener("click", openIsland);
+  document.querySelector("#open-island-side")?.addEventListener("click", openIsland);
   document.querySelector("#toggle-sound")?.addEventListener("click", toggleSound);
   document.querySelector("#open-start-leaderboard")?.addEventListener("click", openLeaderboardModal);
   document.querySelector("#open-start-achievements")?.addEventListener("click", openAchievements);
@@ -966,6 +1149,7 @@ function applyImportedSave(imported, { mergeWithLocal = null } = {}) {
   progress = mergeWithLocal
     ? mergeProgressHighWater(imported.progress, mergeWithLocal)
     : imported.progress;
+  island = null;
   if (imported.session) {
     game = imported.session.game;
     equippedCards = imported.session.equippedCards || [];
@@ -1474,7 +1658,7 @@ document.addEventListener("keydown", (event) => {
   const target = event.target;
   const isFormControl = target instanceof HTMLElement
     && (target.matches("input, textarea, select, button") || target.isContentEditable);
-  if (isFormControl || showNameSetup || showSaveCenter || showLeaderboard || showBackpack) return;
+  if (activeScreen === "island" || isFormControl || showNameSetup || showSaveCenter || showLeaderboard || showBackpack) return;
   if (/^[1-9]$/.test(event.key)) enterNumber(Number(event.key));
   if (["Backspace", "Delete", "0"].includes(event.key)) clearCell();
   if (event.key.toLowerCase() === "n") { noteMode = !noteMode; render(); }
@@ -1487,6 +1671,22 @@ if (restoredSession) {
 } else newGame("easy");
 if (reconcileActiveSessionFloor()) render();
 hydrateCloudProgress();
+
+window.addEventListener("hashchange", () => {
+  const nextScreen = location.hash === "#island" ? "island" : "game";
+  if (nextScreen === activeScreen) return;
+  activeScreen = nextScreen;
+  if (activeScreen === "island") ensureIsland();
+  else {
+    clearInterval(islandClockId);
+    islandClockId = undefined;
+  }
+  render();
+});
+
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible" && activeScreen === "island") renderIslandView();
+});
 
 window.addEventListener("online", () => {
   flushPendingScores().catch(() => {});

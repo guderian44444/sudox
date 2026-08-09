@@ -5,6 +5,6 @@
   "type": "module",
   "scripts": {
     "dev": "node scripts/dev-server.mjs",
-    "check": "node --check src/app.js && node --check src/config.js && node --check src/game/sudoku.js && node --check src/game/adventure.js && node --check src/game/flow.js && node --check src/game/achievements.js && node --check src/game/friends.js && node --check src/state/store.js && node --check src/state/cloud.js && node --check src/state/leaderboard.js && node --check scripts/dev-server.mjs && node scripts/test-core.mjs"
+    "check": "node --check src/app.js && node --check src/config.js && node --check src/game/sudoku.js && node --check src/game/adventure.js && node --check src/game/flow.js && node --check src/game/achievements.js && node --check src/game/friends.js && node --check src/island/assets.js && node --check src/island/catalog.js && node --check src/island/hex.js && node --check src/island/model.js && node --check src/island/renderer.js && node --check src/state/store.js && node --check src/state/cloud.js && node --check src/state/leaderboard.js && node --check scripts/dev-server.mjs && node scripts/test-core.mjs && node scripts/test-island.mjs"
   }
 }

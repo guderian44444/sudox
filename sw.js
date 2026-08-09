@@ -1,4 +1,4 @@
-const CACHE_NAME = "sudox-shell-v38";
+const CACHE_NAME = "sudox-shell-v39";
 const BASE_PATH = new URL("./", self.location.href).pathname;
 const APP_SHELL = [
   BASE_PATH,
@@ -6,6 +6,12 @@ const APP_SHELL = [
   `${BASE_PATH}src/app.js`,
   `${BASE_PATH}src/config.js`,
   `${BASE_PATH}src/styles.css`,
+  `${BASE_PATH}src/island/island.css`,
+  `${BASE_PATH}src/island/assets.js`,
+  `${BASE_PATH}src/island/catalog.js`,
+  `${BASE_PATH}src/island/hex.js`,
+  `${BASE_PATH}src/island/model.js`,
+  `${BASE_PATH}src/island/renderer.js`,
   `${BASE_PATH}src/game/sudoku.js`,
   `${BASE_PATH}src/game/adventure.js`,
   `${BASE_PATH}src/game/flow.js`,
