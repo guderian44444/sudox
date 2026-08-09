@@ -15,15 +15,17 @@ import {
 import { ACHIEVEMENTS, achievementValue, recordAchievementGame } from "./game/achievements.js";
 import { chooseFriendPair, chooseGardenEel, choosePartyFriends, FRIEND_ROSTER, nextDanceVariants } from "./game/friends.js";
 import { ISLAND_TEST_MODE } from "./island/catalog.js";
+import { DEMO_ISLAND_PARTNERS, dispatchDemoShipment, LOGISTICS_METHODS, mergeCloudLogistics, networkProfileSnapshot, normalizeIslandPartner, recordDispatchedShipment, shipmentQuote } from "./island/logistics.js";
 import { availableConstructionWorkerIds, availableHelperIds, collectFacility, createIslandState, finishIslandWork, hireConstructionHelper, marketSale, normalizeIslandState, selectSourceRecipe, settleIsland, startBuilding, startProcessing, startReclamation } from "./island/model.js";
 import { formatIslandDuration, renderIslandScreen } from "./island/renderer.js";
 import { cloudConfigured, loadCloudPin, loadCloudProgress, normalizePlayerName, renameCloudPlayer, saveCloudPin, saveCloudProgress, validCloudPin } from "./state/cloud.js";
+import { acknowledgeIslandLogistics, dispatchIslandShipment, getIslandLogistics, listIslandPartners, publishIslandNetwork } from "./state/island-cloud.js";
 import { buildScore, fetchLeaderboard, flushPendingScores, leaderboardConfigured, normalizeLeaderboardTaunt, pendingScoreCount, queueLeaderboardScore, updateLeaderboardAvatar, updateLeaderboardTaunt } from "./state/leaderboard.js";
 import { addCard, clearSession, consumeCard, exportSaveCode, importSaveCode, loadProgress, loadSession, mergeProgressHighWater, nextFloorFromCompleted, parseSaveCode, preferSaveSide, raiseFloorProgress, rewardProgress, saveProgress, saveSession, saveTimestampMs, sessionFloorBehindProgress, spendCoins } from "./state/store.js";
 
 const app = document.querySelector("#app");
-const APP_VERSION = "v44";
-const APP_LAST_UPDATED = "2026-08-09T13:50:00+08:00";
+const APP_VERSION = "v45";
+const APP_LAST_UPDATED = "2026-08-09T18:30:00+08:00";
 let progress = loadProgress();
 const migratedAchievements = recordAchievementGame(progress);
 progress = migratedAchievements.progress;
@@ -73,6 +75,10 @@ let islandZoom = innerWidth > 900
 let islandMapPosition = null;
 let islandStatus = "";
 let islandClockId;
+let islandPartners = [];
+let islandSelectedPartnerId = "";
+let islandNetworkStatus = "";
+let islandNetworkBusy = false;
 
 const friendAssetUrl = (folder, fileName) => new URL(`../public/assets/${folder}/${fileName}`, import.meta.url).href;
 const friendStickerUrl = (id) => friendAssetUrl("friends", `${id}.png`);
@@ -545,6 +551,7 @@ function settleIslandNow(now = Date.now()) {
   if (!result.changed) return false;
   const completedNames = result.completed.map((entry) => entry.name).filter(Boolean);
   commitIsland(result.state, {
+    coinDelta: ISLAND_TEST_MODE ? 0 : result.coinsEarned,
     status: completedNames.length ? `完成：${completedNames.join("、")}` : "小島進度已依真實時間更新。",
     rerender: false
   });
@@ -582,6 +589,10 @@ function renderIslandView() {
     selectedKey: islandSelectedKey,
     zoom: islandZoom,
     status: islandStatus,
+    partners: islandPartners,
+    selectedPartnerId: islandSelectedPartnerId,
+    networkStatus: islandNetworkStatus,
+    networkBusy: islandNetworkBusy,
     helpers: islandHelpers(),
     workers,
     selectedWorkerId: islandSelectedWorkerId,
@@ -611,6 +622,7 @@ function openIsland() {
   clearInterval(islandClockId);
   islandClockId = setInterval(refreshIslandClock, 1000);
   renderIslandView();
+  refreshIslandNetwork();
 }
 
 function closeIsland() {
@@ -619,6 +631,182 @@ function closeIsland() {
   activeScreen = "game";
   history.replaceState(null, "", `${location.pathname}${location.search}`);
   render();
+}
+
+async function saveIslandCloudSnapshot() {
+  const pin = loadCloudPin();
+  if (!cloudConfigured() || !validCloudPin(pin) || !progress.playerName) return false;
+  clearTimeout(cloudSyncTimer);
+  await saveCloudProgress({
+    playerId: progress.playerId,
+    playerName: progress.playerName,
+    pin,
+    saveCode: exportSaveCode(progress, sessionSnapshot())
+  });
+  return true;
+}
+
+function useDemoIslandPartners(message) {
+  islandPartners = ISLAND_TEST_MODE ? DEMO_ISLAND_PARTNERS.map(normalizeIslandPartner).filter(Boolean) : [];
+  islandNetworkStatus = message;
+  if (!islandPartners.some((partner) => partner.id === islandSelectedPartnerId)) islandSelectedPartnerId = "";
+}
+
+async function refreshIslandNetwork() {
+  if (islandNetworkBusy || activeScreen !== "island") return;
+  if (cloudHydrationPending) {
+    islandNetworkStatus = "正在先核對完整雲端存檔，完成後再公開小島設施。";
+    renderIslandView();
+    setTimeout(refreshIslandNetwork, 1000);
+    return;
+  }
+  const pin = loadCloudPin();
+  if (!navigator.onLine || !cloudConfigured() || !validCloudPin(pin) || !progress.playerName) {
+    useDemoIslandPartners(ISLAND_TEST_MODE ? "目前使用測試島友；設定有效家庭 PIN 並連線後即可讀取真實玩家。" : "需要網路與有效家庭 PIN 才能使用跨島物流。");
+    renderIslandView();
+    return;
+  }
+
+  islandNetworkBusy = true;
+  islandNetworkStatus = "正在核對島友設施與到站貨物…";
+  renderIslandView();
+  try {
+    const snapshot = networkProfileSnapshot(island, islandOwner());
+    const published = await publishIslandNetwork(snapshot, pin);
+    let merged = mergeCloudLogistics(island, published);
+    const [partnerRows, logistics] = await Promise.all([
+      listIslandPartners(progress.playerId),
+      getIslandLogistics(progress.playerId, pin)
+    ]);
+    merged = mergeCloudLogistics(merged.state, logistics);
+    const normalizedPartners = partnerRows.map(normalizeIslandPartner).filter(Boolean);
+    islandPartners = normalizedPartners.length ? normalizedPartners : (ISLAND_TEST_MODE ? DEMO_ISLAND_PARTNERS.map(normalizeIslandPartner).filter(Boolean) : []);
+    if (!islandPartners.some((partner) => partner.id === islandSelectedPartnerId)) islandSelectedPartnerId = "";
+
+    const changed = JSON.stringify(merged.state) !== JSON.stringify(island) || merged.coinsEarned > 0;
+    if (changed) {
+      commitIsland(merged.state, {
+        coinDelta: ISLAND_TEST_MODE ? 0 : merged.coinsEarned,
+        status: merged.coinsEarned ? `跨島貨物已送達，收到 🪙 ${merged.coinsEarned}。` : islandStatus,
+        rerender: false
+      });
+    }
+
+    if (merged.ackInboundIds.length || merged.ackRewardIds.length) {
+      await saveIslandCloudSnapshot();
+      await acknowledgeIslandLogistics(progress.playerId, pin, merged.ackInboundIds, merged.ackRewardIds);
+    }
+    islandNetworkStatus = normalizedPartners.length
+      ? `已同步 ${normalizedPartners.length} 位島友；離線期間抵達的貨物也已結算。`
+      : "目前沒有公開相容設施的玩家，暫時顯示測試島友。";
+  } catch (error) {
+    useDemoIslandPartners(ISLAND_TEST_MODE ? `${error.message || "物流連線失敗"}；目前改用測試島友。` : (error.message || "物流連線失敗"));
+  } finally {
+    islandNetworkBusy = false;
+    if (activeScreen === "island") renderIslandView();
+  }
+}
+
+function logisticsFormSelection(form) {
+  const partner = islandPartners.find((entry) => entry.id === form.dataset.islandPartnerId);
+  const offer = partner?.offers.find((entry) => entry.id === form.elements.offer?.value);
+  return { partner, offer, methodId: form.elements.method?.value || "", quantity: Number(form.elements.quantity?.value) || 0 };
+}
+
+function islandOperationId() {
+  if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
+  const bytes = new Uint8Array(16);
+  if (globalThis.crypto?.getRandomValues) globalThis.crypto.getRandomValues(bytes);
+  else bytes.forEach((_, index) => { bytes[index] = Math.floor(Math.random() * 256); });
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = [...bytes].map((value) => value.toString(16).padStart(2, "0")).join("");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
+function updateIslandLogisticsQuote(form) {
+  const selection = logisticsFormSelection(form);
+  if (!selection.partner || !selection.offer) return;
+  const methodDefinition = LOGISTICS_METHODS[selection.methodId] || null;
+  const quantityInput = form.elements.quantity;
+  if (quantityInput) {
+    quantityInput.min = String(selection.offer.inputPerBatch);
+    quantityInput.step = String(selection.offer.inputPerBatch);
+    if (methodDefinition) quantityInput.max = String(methodDefinition.capacity);
+    const aligned = Math.max(selection.offer.inputPerBatch, Math.floor((Number(quantityInput.value) || selection.offer.inputPerBatch) / selection.offer.inputPerBatch) * selection.offer.inputPerBatch);
+    quantityInput.value = String(methodDefinition ? Math.min(aligned, methodDefinition.capacity) : aligned);
+    selection.quantity = Number(quantityInput.value);
+  }
+  const quote = shipmentQuote(island, selection);
+  const quoteElement = form.querySelector("[data-island-logistics-quote]");
+  const stockElement = form.querySelector("[data-island-logistics-stock]");
+  if (stockElement) stockElement.textContent = ISLAND_TEST_MODE && selection.partner.isDemo
+    ? "測試無限"
+    : `${selection.offer.itemId ? "📦" : ""} ×${island.inventory[selection.offer.itemId] || 0}`;
+  if (quoteElement) quoteElement.textContent = quote.ok
+    ? `${quote.method.icon} ${formatIslandDuration(quote.durationSeconds)}後送達・可收 🪙 ${quote.rewardCoins}${quote.feeCoins ? `・運費 🪙 ${quote.feeCoins}` : ""}`
+    : quote.error;
+  form.querySelector('button[type="submit"]')?.toggleAttribute("disabled", islandNetworkBusy || !quote.ok);
+}
+
+async function submitIslandShipment(form) {
+  if (islandNetworkBusy) return;
+  const selection = logisticsFormSelection(form);
+  const quote = shipmentQuote(island, selection);
+  if (!quote.ok) {
+    islandStatus = quote.error;
+    renderIslandView();
+    return;
+  }
+  if (!ISLAND_TEST_MODE && progress.coins < quote.feeCoins) {
+    islandStatus = `空運費不足，還需要 🪙 ${quote.feeCoins - progress.coins}。`;
+    renderIslandView();
+    return;
+  }
+
+  islandNetworkBusy = true;
+  islandStatus = `正在安排${quote.method.name}…`;
+  renderIslandView();
+  try {
+    let result;
+    if (selection.partner.isDemo) {
+      result = dispatchDemoShipment(island, { ...selection, ignoreInventory: ISLAND_TEST_MODE });
+    } else {
+      const operationId = islandOperationId();
+      const cloudResult = await dispatchIslandShipment({
+        operationId,
+        senderId: progress.playerId,
+        pin: loadCloudPin(),
+        receiverId: selection.partner.id,
+        facilityInstanceId: selection.offer.facilityInstanceId,
+        recipeId: selection.offer.recipeId,
+        itemId: selection.offer.itemId,
+        quantity: quote.quantity,
+        methodId: selection.methodId
+      });
+      result = recordDispatchedShipment(island, { shipment: cloudResult.shipment });
+      if (result.ok) result.state = mergeCloudLogistics(result.state, cloudResult).state;
+    }
+    if (!result.ok) throw new Error(result.error || "無法建立物流任務");
+    commitIsland(result.state, {
+      coinDelta: ISLAND_TEST_MODE ? 0 : -quote.feeCoins,
+      status: `${quote.method.icon} 已載著 ${quote.quantity} 份貨物前往 ${selection.partner.name}！`,
+      rerender: false
+    });
+    if (!selection.partner.isDemo) {
+      try {
+        await saveIslandCloudSnapshot();
+      } catch {
+        scheduleCloudSync();
+        islandStatus = `${quote.method.icon} 貨物已成功出發；完整存檔暫時未同步，系統會自動重試。`;
+      }
+    }
+  } catch (error) {
+    islandStatus = error.message || "物流出貨失敗，本機庫存未變更。";
+  } finally {
+    islandNetworkBusy = false;
+    renderIslandView();
+  }
 }
 
 function refreshIslandClock() {
@@ -707,6 +895,7 @@ function bindIslandEvents() {
   document.querySelectorAll("[data-island-cell]").forEach((button) => button.addEventListener("click", () => {
     if (button.closest("[data-island-map-viewport]")?.dataset.islandDragged === "true") return;
     islandSelectedKey = button.dataset.islandCell;
+    islandSelectedPartnerId = "";
     islandStatus = "";
     renderIslandView();
   }));
@@ -727,9 +916,25 @@ function bindIslandEvents() {
   }));
   document.querySelectorAll("[data-island-jump]").forEach((button) => button.addEventListener("click", () => {
     islandSelectedKey = button.dataset.islandJump;
+    islandSelectedPartnerId = "";
     islandStatus = "";
     renderIslandView();
   }));
+  document.querySelectorAll("[data-island-partner]").forEach((button) => button.addEventListener("click", () => {
+    if (button.closest("[data-island-map-viewport]")?.dataset.islandDragged === "true") return;
+    islandSelectedPartnerId = button.dataset.islandPartner;
+    islandStatus = "";
+    renderIslandView();
+  }));
+  document.querySelector("[data-island-refresh-network]")?.addEventListener("click", refreshIslandNetwork);
+  document.querySelectorAll("[data-island-logistics-form]").forEach((form) => {
+    form.addEventListener("change", () => updateIslandLogisticsQuote(form));
+    form.addEventListener("input", () => updateIslandLogisticsQuote(form));
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      submitIslandShipment(form);
+    });
+  });
   document.querySelector("[data-island-reclaim]")?.addEventListener("click", () => {
     const [q, r] = islandSelectedKey.split(",").map(Number);
     affordIslandResult(startReclamation(island, { q, r, workerId: islandSelectedWorkerId, playerAvatar: progress.playerAvatar || "cat" }), "伙伴已開始填海造陸！");
@@ -786,7 +991,7 @@ function bindIslandEvents() {
       renderIslandView();
       return;
     }
-    commitIsland(result.state, { status: "測試模式：工作已馬上完成。" });
+    commitIsland(result.state, { coinDelta: ISLAND_TEST_MODE ? 0 : result.coinsEarned, status: result.coinsEarned ? `測試物流已送達，獲得 🪙 ${result.coinsEarned}。` : "測試模式：工作已馬上完成。" });
   }));
 }
 
@@ -1797,6 +2002,7 @@ if (restoredSession) {
 } else newGame("easy");
 if (reconcileActiveSessionFloor()) render();
 hydrateCloudProgress();
+if (activeScreen === "island") refreshIslandNetwork();
 
 window.addEventListener("hashchange", () => {
   const nextScreen = location.hash === "#island" ? "island" : "game";
@@ -1808,15 +2014,20 @@ window.addEventListener("hashchange", () => {
     islandClockId = undefined;
   }
   render();
+  if (activeScreen === "island") refreshIslandNetwork();
 });
 
 document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "visible" && activeScreen === "island") renderIslandView();
+  if (document.visibilityState === "visible" && activeScreen === "island") {
+    renderIslandView();
+    refreshIslandNetwork();
+  }
 });
 
 window.addEventListener("online", () => {
   flushPendingScores().catch(() => {});
   syncCloudNow(false);
+  if (activeScreen === "island") refreshIslandNetwork();
 });
 flushPendingScores().catch(() => {});
 

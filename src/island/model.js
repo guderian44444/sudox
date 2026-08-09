@@ -51,7 +51,11 @@ export function createIslandState({ playerId = "", playerName = "", playerAvatar
     constructionJobs: {},
     facilities: {},
     processingJobs: {},
+    outgoingShipments: {},
+    importedShipmentIds: [],
+    rewardedShipmentIds: [],
     inventory: normalizeInventory(),
+    inventoryUpdatedAt: now,
     reclaimedCount: 0,
     starterGrantApplied: true,
     playerAvatar: playerAvatar || "cat",
@@ -61,7 +65,7 @@ export function createIslandState({ playerId = "", playerName = "", playerAvatar
 }
 
 export function normalizeIslandState(raw, owner = {}) {
-  if (!raw || typeof raw !== "object" || Number(raw.schemaVersion) !== ISLAND_SCHEMA_VERSION) {
+  if (!raw || typeof raw !== "object" || ![1, ISLAND_SCHEMA_VERSION].includes(Number(raw.schemaVersion))) {
     return createIslandState({ ...owner, now: owner.now || Date.now() });
   }
   const base = createIslandState({ ...owner, now: owner.now || Date.now() });
@@ -76,10 +80,9 @@ export function normalizeIslandState(raw, owner = {}) {
 
   const buildings = {};
   Object.entries(safeObject(raw.buildings)).forEach(([id, building]) => {
-    if (!BUILDING_CATALOG[building?.buildingId]) return;
-    const key = axialKey(building.q, building.r);
-    if (!tiles[key]) return;
-    buildings[id] = {
+    const definition = BUILDING_CATALOG[building?.buildingId];
+    if (!definition) return;
+    const normalizedBuilding = {
       id,
       buildingId: building.buildingId,
       q: Math.trunc(Number(building.q) || 0),
@@ -87,6 +90,13 @@ export function normalizeIslandState(raw, owner = {}) {
       orientation: safeInt(building.orientation) % 6,
       completedAt: safeTime(building.completedAt)
     };
+    const waterIndexes = new Set(definition.waterFootprintIndexes || []);
+    const cells = footprintCells(normalizedBuilding, definition.footprint, normalizedBuilding.orientation);
+    const valid = cells.every((cell, index) => waterIndexes.has(index)
+      ? !tiles[axialKey(cell.q, cell.r)] && axialDistance(cell) <= radius
+      : Boolean(tiles[axialKey(cell.q, cell.r)]));
+    if (!valid) return;
+    buildings[id] = normalizedBuilding;
   });
   if (!buildings["starter-home"]) buildings["starter-home"] = base.buildings["starter-home"];
 
@@ -102,7 +112,11 @@ export function normalizeIslandState(raw, owner = {}) {
     constructionJobs: safeObject(raw.constructionJobs),
     facilities: safeObject(raw.facilities),
     processingJobs: safeObject(raw.processingJobs),
+    outgoingShipments: safeObject(raw.outgoingShipments),
+    importedShipmentIds: [...new Set(Array.isArray(raw.importedShipmentIds) ? raw.importedShipmentIds.filter((id) => typeof id === "string").slice(-200) : [])],
+    rewardedShipmentIds: [...new Set(Array.isArray(raw.rewardedShipmentIds) ? raw.rewardedShipmentIds.filter((id) => typeof id === "string").slice(-200) : [])],
     inventory: normalizeInventory(raw.inventory),
+    inventoryUpdatedAt: safeTime(raw.inventoryUpdatedAt) || safeTime(raw.updatedAt) || base.inventoryUpdatedAt,
     reclaimedCount: safeInt(raw.reclaimedCount),
     starterGrantApplied: raw.starterGrantApplied !== false,
     playerAvatar: owner.playerAvatar || raw.playerAvatar || "cat",
@@ -111,12 +125,27 @@ export function normalizeIslandState(raw, owner = {}) {
   };
 }
 
-export function buildingAt(state, q, r) {
+export function buildingAnchorAt(state, q, r) {
   return Object.values(state.buildings).find((building) => building.q === q && building.r === r) || null;
 }
 
-export function constructionAt(state, q, r) {
+export function buildingAt(state, q, r) {
+  return Object.values(state.buildings).find((building) => {
+    const definition = BUILDING_CATALOG[building.buildingId];
+    return footprintCells(building, definition?.footprint, building.orientation).some((cell) => cell.q === q && cell.r === r);
+  }) || null;
+}
+
+export function constructionAnchorAt(state, q, r) {
   return Object.values(state.constructionJobs).find((job) => job.q === q && job.r === r) || null;
+}
+
+export function constructionAt(state, q, r) {
+  return Object.values(state.constructionJobs).find((job) => {
+    if (job.kind !== "building") return job.q === q && job.r === r;
+    const definition = BUILDING_CATALOG[job.buildingId];
+    return footprintCells(job, definition?.footprint, job.orientation).some((cell) => cell.q === q && cell.r === r);
+  }) || null;
 }
 
 export function isTileOccupied(state, q, r) {
@@ -125,13 +154,25 @@ export function isTileOccupied(state, q, r) {
 
 export function isReclaimable(state, q, r) {
   const key = axialKey(q, r);
-  if (state.tiles[key] || axialDistance({ q, r }) > state.radius || constructionAt(state, q, r)) return false;
+  if (state.tiles[key] || axialDistance({ q, r }) > state.radius || constructionAt(state, q, r) || buildingAt(state, q, r)) return false;
   return axialNeighbors(q, r).some((neighbor) => Boolean(state.tiles[axialKey(neighbor.q, neighbor.r)]));
 }
 
 function canPlaceBuilding(state, definition, q, r, orientation = 0) {
   const cells = footprintCells({ q, r }, definition.footprint, orientation);
-  return cells.every((cell) => state.tiles[axialKey(cell.q, cell.r)] && !isTileOccupied(state, cell.q, cell.r));
+  const waterIndexes = new Set(definition.waterFootprintIndexes || []);
+  return cells.every((cell, index) => {
+    if (axialDistance(cell) > state.radius || isTileOccupied(state, cell.q, cell.r)) return false;
+    return waterIndexes.has(index) ? !state.tiles[axialKey(cell.q, cell.r)] : Boolean(state.tiles[axialKey(cell.q, cell.r)]);
+  });
+}
+
+function resolveBuildingOrientation(state, definition, q, r, preferredOrientation) {
+  const preferred = preferredOrientation === null || preferredOrientation === undefined
+    ? null
+    : Number.isFinite(Number(preferredOrientation)) ? safeInt(preferredOrientation) % 6 : null;
+  const candidates = preferred === null ? [0, 1, 2, 3, 4, 5] : [preferred];
+  return candidates.find((orientation) => canPlaceBuilding(state, definition, q, r, orientation));
 }
 
 function baseJob({ kind, q, r, costCoins, durationSeconds, workerId, workTags = [], now }) {
@@ -184,10 +225,11 @@ export function startReclamation(state, { q, r, workerId = "cat", playerAvatar =
   return { ok: true, state: next, costCoins: quote.costCoins + workerHireCost, workerHireCost, job };
 }
 
-export function startBuilding(state, { buildingId, q, r, orientation = 0, workerId = "cat", playerAvatar = "cat", now = Date.now() } = {}) {
+export function startBuilding(state, { buildingId, q, r, orientation = null, workerId = "cat", playerAvatar = "cat", now = Date.now() } = {}) {
   const definition = BUILDING_CATALOG[buildingId];
   if (!definition?.buildable) return { ok: false, state, error: "這項設施尚未開放建造" };
-  if (!canPlaceBuilding(state, definition, q, r, orientation)) return { ok: false, state, error: "這個位置放不下該設施" };
+  const resolvedOrientation = resolveBuildingOrientation(state, definition, q, r, orientation);
+  if (resolvedOrientation === undefined) return { ok: false, state, error: definition.waterFootprintIndexes?.length ? "碼頭需要一格海岸土地與相鄰海面" : "這個位置放不下該設施" };
   if (workerBusy(state, workerId)) return { ok: false, state, error: "這位伙伴已經在忙，請另外聘一位伙伴" };
   const workerHireCost = initialWorkerHireCost(workerId, playerAvatar, definition.costCoins);
   const next = clone(state);
@@ -195,7 +237,7 @@ export function startBuilding(state, { buildingId, q, r, orientation = 0, worker
     ...baseJob({ kind: "building", q, r, costCoins: definition.costCoins, durationSeconds: definition.durationSeconds, workerId, workTags: definition.workTags, now }),
     buildingId,
     workerHireCost,
-    orientation: safeInt(orientation) % 6
+    orientation: resolvedOrientation
   };
   next.constructionJobs[job.id] = job;
   next.updatedAt = now;
@@ -280,6 +322,7 @@ export function settleIsland(state, now = Date.now()) {
   const next = clone(state);
   const completed = [];
   let changed = false;
+  let coinsEarned = 0;
 
   Object.entries(next.constructionJobs).forEach(([jobId, job]) => {
     if (safeTime(job.readyAt) > now) return;
@@ -330,9 +373,18 @@ export function settleIsland(state, now = Date.now()) {
     changed = true;
   });
 
+  Object.entries(next.outgoingShipments || {}).forEach(([shipmentId, shipment]) => {
+    if (shipment.mode !== "demo" || shipment.status !== "in_transit" || safeTime(shipment.arrivesAt) > now) return;
+    shipment.status = "arrived_paid";
+    shipment.completedAt = now;
+    coinsEarned += safeInt(shipment.rewardCoins);
+    completed.push({ kind: "shipment", name: `送達 ${shipment.partnerName || "合作小島"}` });
+    changed = true;
+  });
+
   if (changed) next.updatedAt = now;
   next.lastSettledAt = now;
-  return { state: next, changed, completed };
+  return { state: next, changed, completed, coinsEarned };
 }
 
 function addInventory(inventory, items) {
@@ -366,6 +418,7 @@ export function collectFacility(state, { buildingInstanceId, now = Date.now() } 
     target.readyOutputs = {};
   }
   if (!Object.keys(collected).length) return { ok: false, state: settled, error: "產品還在準備中" };
+  next.inventoryUpdatedAt = now;
   target.updatedAt = now;
   next.updatedAt = now;
   return { ok: true, state: next, collected };
@@ -382,7 +435,10 @@ export function startProcessing(state, { buildingInstanceId, recipeId, now = Dat
   }
   if (!ignoreInputs && !hasInputs(state.inventory, recipe.inputs)) return { ok: false, state, error: "倉庫原料不足" };
   const next = clone(state);
-  if (!ignoreInputs) Object.entries(recipe.inputs).forEach(([itemId, count]) => { next.inventory[itemId] -= count; });
+  if (!ignoreInputs) {
+    Object.entries(recipe.inputs).forEach(([itemId, count]) => { next.inventory[itemId] -= count; });
+    next.inventoryUpdatedAt = now;
+  }
   const job = {
     id: operationId("processing"),
     buildingInstanceId,
@@ -406,6 +462,7 @@ export function marketSale(state, { itemId, quantity = 1, now = Date.now() } = {
   if (!item || safeInt(state.inventory[itemId]) < count) return { ok: false, state, error: "倉庫數量不足" };
   const next = clone(state);
   next.inventory[itemId] -= count;
+  next.inventoryUpdatedAt = now;
   next.updatedAt = now;
   return { ok: true, state: next, coinsEarned: item.marketCoins * count, sold: { itemId, quantity: count } };
 }
@@ -420,7 +477,8 @@ export function finishIslandWork(state, { kind, id, now = Date.now() } = {}) {
   if (kind === "construction" && next.constructionJobs[id]) next.constructionJobs[id].readyAt = now;
   else if (kind === "processing" && next.processingJobs[id]) next.processingJobs[id].readyAt = now;
   else if (kind === "source" && next.facilities[id]?.state === "running") next.facilities[id].readyAt = now;
+  else if (kind === "shipment" && next.outgoingShipments?.[id]?.mode === "demo" && next.outgoingShipments[id].status === "in_transit") next.outgoingShipments[id].arrivesAt = now;
   else return { ok: false, state, error: "找不到可馬上完成的工作" };
   const settled = settleIsland(next, now);
-  return { ok: true, state: settled.state, completed: settled.completed };
+  return { ok: true, state: settled.state, completed: settled.completed, coinsEarned: settled.coinsEarned };
 }

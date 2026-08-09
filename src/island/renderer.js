@@ -11,8 +11,9 @@ import {
 } from "./catalog.js";
 import { islandSpriteMarkup } from "./assets.js";
 import { adjustedConstructionDuration, companionAbility, companionReductionPercent, constructionTeamRate } from "./companions.js";
-import { axialKey, axialToPixel, hexRange, mapPixelBounds } from "./hex.js";
-import { buildingAt, constructionAt, constructionJobWorkTags, helperQuote, initialWorkerHireCost, isReclaimable } from "./model.js";
+import { axialKey, axialToPixel, HEX_DIRECTIONS, hexRange, mapPixelBounds } from "./hex.js";
+import { availableTransportMethods, buildingName, LOGISTICS_METHODS, partnerAcceptedItems, shipmentQuote } from "./logistics.js";
+import { buildingAnchorAt, buildingAt, constructionAnchorAt, constructionAt, constructionJobWorkTags, helperQuote, initialWorkerHireCost, isReclaimable } from "./model.js";
 
 const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({
   "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
@@ -48,9 +49,11 @@ function mapCellMarkup(state, cell, selectedKey, bounds) {
   const key = axialKey(cell.q, cell.r);
   const position = axialToPixel(cell.q, cell.r);
   const tile = state.tiles[key];
-  const building = buildingAt(state, cell.q, cell.r);
-  const job = constructionAt(state, cell.q, cell.r);
-  const definition = BUILDING_CATALOG[building?.buildingId];
+  const occupyingBuilding = buildingAt(state, cell.q, cell.r);
+  const building = buildingAnchorAt(state, cell.q, cell.r);
+  const occupyingJob = constructionAt(state, cell.q, cell.r);
+  const job = constructionAnchorAt(state, cell.q, cell.r);
+  const definition = BUILDING_CATALOG[occupyingBuilding?.buildingId];
   const facility = state.facilities[building?.id];
   const reclaimable = !tile && isReclaimable(state, cell.q, cell.r);
   const ready = facility?.state === "ready" || Object.values(facility?.readyOutputs || {}).some((count) => count > 0);
@@ -61,11 +64,13 @@ function mapCellMarkup(state, cell, selectedKey, bounds) {
     tile?.terrain === "reclaimed" ? "is-reclaimed" : "",
     reclaimable ? "is-reclaimable" : "",
     selectedKey === key ? "is-selected" : "",
-    ready ? "is-ready" : ""
+    ready ? "is-ready" : "",
+    (occupyingBuilding && !building) || (occupyingJob && !job) ? "is-footprint" : ""
   ].filter(Boolean).join(" ");
   const style = `left:${bounds.offsetX + position.x}px;top:${bounds.offsetY + position.y}px`;
-  const label = definition?.name || (job ? (job.kind === "reclaim" ? "填海施工中" : `${BUILDING_CATALOG[job.buildingId]?.name || "設施"}施工中`) : tile ? "空地" : reclaimable ? "可填海" : "海域");
+  const label = definition?.name || (occupyingJob ? (occupyingJob.kind === "reclaim" ? "填海施工中" : `${BUILDING_CATALOG[occupyingJob.buildingId]?.name || "設施"}施工中`) : tile ? "空地" : reclaimable ? "可填海" : "海域");
   let content = tile ? `<span class="island-ground-detail" aria-hidden="true">${tile.terrain === "reclaimed" ? "·" : "✦"}</span>` : `<span class="island-wave" aria-hidden="true">≈</span>`;
+  if (tile) content += HEX_DIRECTIONS.map((direction, index) => state.tiles[axialKey(cell.q + direction.q, cell.r + direction.r)] ? "" : `<span class="island-shore-foam dir-${index}" aria-hidden="true">≈</span>`).join("");
   if (building && definition) {
     content += islandSpriteMarkup({ assetKey: definition.assetKey, fallback: definition.icon, className: "island-building-sprite", label: definition.name });
     if (ready) content += `<span class="island-ready-badge" aria-label="可以領取">!</span>`;
@@ -76,6 +81,38 @@ function mapCellMarkup(state, cell, selectedKey, bounds) {
     content += workerMarkup(job.workerIds);
   }
   return `<button class="${classes}" style="${style}" data-island-cell="${key}" aria-label="${escapeHtml(label)}">${content}</button>`;
+}
+
+function partnerSlots(bounds, partners) {
+  const slots = [
+    { x: -4, y: 34 }, { x: bounds.width - 108, y: 34 },
+    { x: -10, y: bounds.height / 2 - 31 }, { x: bounds.width - 102, y: bounds.height / 2 - 31 },
+    { x: 4, y: bounds.height - 91 }, { x: bounds.width - 112, y: bounds.height - 91 }
+  ];
+  return new Map(partners.slice(0, slots.length).map((partner, index) => [partner.id, slots[index]]));
+}
+
+function partnerNodesMarkup(partners, selectedPartnerId, bounds) {
+  const slots = partnerSlots(bounds, partners);
+  return partners.slice(0, 6).map((partner) => {
+    const slot = slots.get(partner.id);
+    const accepted = partnerAcceptedItems(partner).slice(0, 4);
+    return `<button class="island-partner-node ${partner.id === selectedPartnerId ? "selected" : ""}" style="left:${slot.x}px;top:${slot.y}px" data-island-partner="${escapeHtml(partner.id)}" aria-label="與 ${escapeHtml(partner.name)} 合作物流">
+      <img src="${friendAssetUrl(partner.avatar)}" alt=""><span><b>${escapeHtml(partner.name)}</b><small>${accepted.map((itemId) => ITEM_CATALOG[itemId]?.icon || "📦").join(" ")} 可接收</small></span><i>${partner.online ? "●" : "○"}</i>
+    </button>`;
+  }).join("");
+}
+
+function transportMarkup(state, partners, bounds) {
+  const slots = partnerSlots(bounds, partners);
+  const shipments = Object.values(state.outgoingShipments || {}).filter((shipment) => shipment.status === "in_transit");
+  const center = { x: bounds.width / 2 - 14, y: bounds.height / 2 - 14 };
+  return shipments.map((shipment, index) => {
+    const destination = slots.get(shipment.partnerId) || { x: index % 2 ? bounds.width - 78 : 42, y: 24 + (index % 3) * 100 };
+    const icon = LOGISTICS_METHODS[shipment.methodId]?.icon || "📦";
+    const style = `left:${center.x}px;top:${center.y}px;--travel-x:${Math.round(destination.x - center.x)}px;--travel-y:${Math.round(destination.y - center.y)}px;--travel-delay:${(index % 4) * -.7}s`;
+    return `<span class="island-transport is-${escapeHtml(shipment.methodId)}" style="${style}" title="${escapeHtml(shipment.partnerName)}・${ITEM_CATALOG[shipment.itemId]?.name || "貨物"}">${icon}</span>`;
+  }).join("");
 }
 
 function abilityLabel(workerId, workTags = []) {
@@ -199,7 +236,31 @@ function buildingPanel(state, building, now, testMode) {
   </div>`;
 }
 
-function selectedPanel({ state, selectedKey, coins, helpers, workers, selectedWorkerId, playerAvatar, now, testMode }) {
+function logisticsPanel(state, partner, networkStatus, networkBusy, testMode) {
+  const methods = availableTransportMethods(state);
+  const offer = partner.offers[0];
+  const method = methods[0];
+  const quantity = Math.max(1, offer?.inputPerBatch || 1);
+  const quote = shipmentQuote(state, { partner, offer, methodId: method?.id, quantity });
+  const accepted = partnerAcceptedItems(partner);
+  return `<div class="island-selection-card island-logistics-card">
+    <p class="island-panel-kicker">跨島合作設施</p>
+    <div class="island-partner-heading"><img src="${friendAssetUrl(partner.avatar)}" alt=""><span><h3>${escapeHtml(partner.name)}</h3><small>${partner.isDemo ? "測試島友" : partner.online ? "最近在線" : "離線也可收貨"}</small></span></div>
+    <p>可接收：${accepted.map((itemId) => `${ITEM_CATALOG[itemId]?.icon || "📦"} ${ITEM_CATALOG[itemId]?.name || itemId}`).join("、")}</p>
+    ${networkStatus ? `<p class="island-network-note">${escapeHtml(networkStatus)}</p>` : ""}
+    ${methods.length ? `<form class="island-logistics-form" data-island-logistics-form data-island-partner-id="${escapeHtml(partner.id)}">
+      <label>送往哪座設施<select name="offer">${partner.offers.map((entry) => `<option value="${escapeHtml(entry.id)}">${escapeHtml(buildingName(entry.buildingId))}・${ITEM_CATALOG[entry.itemId]?.icon || "📦"} ${escapeHtml(ITEM_CATALOG[entry.itemId]?.name || entry.itemId)} → ${escapeHtml(outputMarkup(entry.outputs))}</option>`).join("")}</select></label>
+      <label>運送方式<select name="method">${methods.map((entry) => `<option value="${entry.id}">${entry.icon} ${entry.name}・${formatIslandDuration(entry.durationSeconds)}・上限 ${entry.capacity}</option>`).join("")}</select></label>
+      <label>數量<input name="quantity" type="number" inputmode="numeric" min="${quantity}" step="${quantity}" max="${method?.capacity || quantity}" value="${quantity}"></label>
+      <div class="island-logistics-stock">小屋倉庫：<strong data-island-logistics-stock>${testMode && partner.isDemo ? "測試無限" : `${ITEM_CATALOG[offer.itemId]?.icon || "📦"} ×${state.inventory[offer.itemId] || 0}`}</strong></div>
+      <div class="island-logistics-quote" data-island-logistics-quote>${quote.ok ? `${quote.method.icon} ${formatIslandDuration(quote.durationSeconds)}後送達・可收 🪙 ${quote.rewardCoins}${quote.feeCoins ? `・運費 🪙 ${quote.feeCoins}` : ""}` : escapeHtml(quote.error)}</div>
+      <button class="island-primary" type="submit" ${networkBusy ? "disabled" : ""}>${networkBusy ? "物流連線中…" : "確認出貨"}</button>
+    </form>` : `<div class="island-logistics-locked"><strong>還缺運輸設施</strong><p>先在海岸建造合作碼頭，或在三格相連土地建造小島機場，才能把貨送出去。</p></div>`}
+  </div>`;
+}
+
+function selectedPanel({ state, selectedKey, selectedPartner, networkStatus, networkBusy, coins, helpers, workers, selectedWorkerId, playerAvatar, now, testMode }) {
+  if (selectedPartner) return logisticsPanel(state, selectedPartner, networkStatus, networkBusy, testMode);
   const [q, r] = selectedKey.split(",").map(Number);
   const tile = state.tiles[selectedKey];
   const job = constructionAt(state, q, r);
@@ -234,21 +295,30 @@ function activeWork(state) {
     const building = state.buildings[facility.buildingInstanceId];
     return { kind: "source", id: facility.buildingInstanceId, q: building?.q, r: building?.r, readyAt: facility.readyAt, icon: BUILDING_CATALOG[building?.buildingId]?.icon || "🌱", name: RECIPE_CATALOG[facility.recipeId]?.name || "生產中", workers: [] };
   });
-  return [...construction, ...processing, ...sources].filter((work) => Number.isFinite(work.q) && Number.isFinite(work.r)).sort((left, right) => left.readyAt - right.readyAt);
+  const shipments = Object.values(state.outgoingShipments || {}).filter((shipment) => shipment.status === "in_transit").map((shipment) => ({
+    kind: "shipment", id: shipment.id, readyAt: shipment.arrivesAt,
+    icon: LOGISTICS_METHODS[shipment.methodId]?.icon || "📦",
+    name: `運往 ${shipment.partnerName || "合作小島"}`,
+    workers: [], partnerId: shipment.partnerId, testFinish: shipment.mode === "demo"
+  }));
+  return [...construction, ...processing, ...sources, ...shipments]
+    .filter((work) => work.kind === "shipment" || (Number.isFinite(work.q) && Number.isFinite(work.r)))
+    .sort((left, right) => left.readyAt - right.readyAt);
 }
 
 function workBarMarkup(state, now, testMode) {
   const works = activeWork(state);
   return `<section class="island-work-bar" aria-label="目前進行中的工作"><header><strong>目前進行中的工作</strong><small>${works.length} 項</small></header><div>${works.length ? works.map((work) => `
-    <article><button class="island-work-main" data-island-jump="${work.q},${work.r}"><span>${work.icon}</span><b>${escapeHtml(work.name)}</b>${work.workers.length ? workerMarkup(work.workers) : ""}${countdownMarkup(work.readyAt, now)}</button>${testMode ? `<button class="island-work-finish" data-island-finish-kind="${work.kind}" data-island-finish-id="${escapeHtml(work.id)}">馬上完成</button>` : ""}</article>`).join("") : `<p>目前沒有進行中的工作。</p>`}</div></section>`;
+    <article><button class="island-work-main" ${work.partnerId ? `data-island-partner="${escapeHtml(work.partnerId)}"` : `data-island-jump="${work.q},${work.r}"`}><span>${work.icon}</span><b>${escapeHtml(work.name)}</b>${work.workers.length ? workerMarkup(work.workers) : ""}${countdownMarkup(work.readyAt, now)}</button>${testMode && work.kind !== "shipment" || testMode && work.testFinish ? `<button class="island-work-finish" data-island-finish-kind="${work.kind}" data-island-finish-id="${escapeHtml(work.id)}">馬上完成</button>` : ""}</article>`).join("") : `<p>目前沒有進行中的工作。</p>`}</div></section>`;
 }
 
-export function renderIslandScreen({ state, coins, selectedKey = "0,1", zoom = 0.8, status = "", helpers = [], workers = [], selectedWorkerId = "", playerAvatar = "cat", testMode = false, now = Date.now(), version = "" }) {
+export function renderIslandScreen({ state, coins, selectedKey = "0,1", zoom = 0.8, status = "", partners = [], selectedPartnerId = "", networkStatus = "", networkBusy = false, helpers = [], workers = [], selectedWorkerId = "", playerAvatar = "cat", testMode = false, now = Date.now(), version = "" }) {
   const cells = hexRange(state.radius);
   const bounds = mapPixelBounds(cells);
   const safeZoom = Math.max(0.55, Math.min(1.25, Number(zoom) || 0.8));
   const scaledWidth = Math.ceil(bounds.width * safeZoom);
   const scaledHeight = Math.ceil(bounds.height * safeZoom);
+  const selectedPartner = partners.find((partner) => partner.id === selectedPartnerId) || null;
   return `<main class="island-shell ${testMode ? "is-test-mode" : ""}">
     <header class="island-topbar">
       <button class="island-back" id="close-island" aria-label="回到數獨">← <span>回數獨</span></button>
@@ -261,17 +331,17 @@ export function renderIslandScreen({ state, coins, selectedKey = "0,1", zoom = 0
         <div class="island-map-viewport" data-island-map-viewport>
           <div class="island-map-zoom"><button data-island-zoom="out" aria-label="縮小地圖">－</button><span>${Math.round(safeZoom * 100)}%</span><button data-island-zoom="in" aria-label="放大地圖">＋</button></div>
           <div class="island-map-scale" style="width:${scaledWidth}px;height:${scaledHeight}px">
-            <div class="island-map" style="width:${bounds.width}px;height:${bounds.height}px;--island-zoom:${safeZoom}">${cells.map((cell) => mapCellMarkup(state, cell, selectedKey, bounds)).join("")}</div>
+            <div class="island-map" style="width:${bounds.width}px;height:${bounds.height}px;--island-zoom:${safeZoom}">${cells.map((cell) => mapCellMarkup(state, cell, selectedKey, bounds)).join("")}${partnerNodesMarkup(partners, selectedPartnerId, bounds)}${transportMarkup(state, partners, bounds)}</div>
           </div>
         </div>
         ${workBarMarkup(state, now, testMode)}
       </div>
       <aside class="island-control-panel">
         ${status ? `<p class="island-status" role="status">${escapeHtml(status)}</p>` : ""}
-        ${selectedPanel({ state, selectedKey, coins, helpers, workers, selectedWorkerId, playerAvatar, now, testMode })}
-        <details class="island-coming-soon"><summary>下一階段接點</summary><p>碼頭、機場、跨玩家物流與正式像素動畫已保留資料與素材接點，本版先不寫入雲端物流資料表。</p></details>
+        <div class="island-network-strip"><span>🌐 ${partners.length ? `${partners.length} 位可合作島友` : "目前沒有相容島友"}</span><button data-island-refresh-network ${networkBusy ? "disabled" : ""}>${networkBusy ? "連線中…" : "重新整理"}</button></div>
+        ${selectedPanel({ state, selectedKey, selectedPartner, networkStatus, networkBusy, coins, helpers, workers, selectedWorkerId, playerAvatar, now, testMode })}
       </aside>
     </section>
-    <footer class="island-footer">小島架構版 ${escapeHtml(version)}・${testMode ? "測試模式尚未關閉" : "資料隨完整 SUDOX 存檔同步"}</footer>
+    <footer class="island-footer">小島物流版 ${escapeHtml(version)}・${testMode ? "測試模式尚未關閉" : "工程進度與跨島物流皆採雲端交接"}</footer>
   </main>`;
 }

@@ -1,4 +1,4 @@
-export const ISLAND_SCHEMA_VERSION = 1;
+export const ISLAND_SCHEMA_VERSION = 2;
 export const ISLAND_RADIUS = 4;
 export const STARTER_LAND_RADIUS = 1;
 // DEVELOPMENT ONLY: must be false before this branch is pushed or deployed.
@@ -14,6 +14,7 @@ export const BUILDING_CATEGORIES = Object.freeze([
   Object.freeze({ id: "processor", name: "加工與畜產", icon: "⚙️" }),
   Object.freeze({ id: "market", name: "商業服務", icon: "🏪" }),
   Object.freeze({ id: "utility", name: "公共工程", icon: "🛠️" }),
+  Object.freeze({ id: "logistics", name: "跨島物流", icon: "🚢" }),
   Object.freeze({ id: "decoration", name: "景觀遊樂", icon: "🌷" })
 ]);
 
@@ -131,11 +132,6 @@ export const BUILDING_CATALOG = Object.freeze({
     footprint: oneHex, costCoins: 60, durationSeconds: hours(1), workTags: tags("commerce", "craft"),
     description: "把倉庫中的任何原料或加工品直接換成金幣。", assetKey: "buildings/market"
   }),
-  workshed: Object.freeze({
-    id: "workshed", name: "工務小屋", icon: "🛠️", category: "utility", buildable: true,
-    footprint: oneHex, costCoins: 100, durationSeconds: hours(2), workTags: tags("civil", "craft", "utility"),
-    description: "伙伴規劃工程與修繕工具的基地。", assetKey: "buildings/workshed"
-  }),
   lighthouse: Object.freeze({
     id: "lighthouse", name: "珊瑚燈塔", icon: "🗼", category: "utility", buildable: true,
     footprint: oneHex, costCoins: 260, durationSeconds: hours(6), workTags: tags("civil", "heavy", "waterfront"),
@@ -157,14 +153,15 @@ export const BUILDING_CATALOG = Object.freeze({
     description: "伙伴完工後會來這裡玩。", assetKey: "buildings/playground"
   }),
   dock: Object.freeze({
-    id: "dock", name: "碼頭", icon: "⚓", category: "logistics", buildable: false, comingSoon: true,
-    footprint: Object.freeze([{ q: 0, r: 0 }, { q: 1, r: 0 }]), costCoins: 350, durationSeconds: hours(8), workTags: tags("civil", "heavy", "waterfront"),
-    description: "合作物流接點；後續版本開放跨島運輸。", assetKey: "buildings/dock"
+    id: "dock", name: "合作碼頭", icon: "⚓", category: "logistics", buildable: true,
+    footprint: Object.freeze([{ q: 0, r: 0 }, { q: 1, r: 0 }]), waterFootprintIndexes: Object.freeze([1]),
+    costCoins: 350, durationSeconds: hours(8), workTags: tags("civil", "heavy", "waterfront"),
+    description: "必須蓋在海岸，解鎖載量較大的跨島船運。", assetKey: "buildings/dock"
   }),
   airport: Object.freeze({
-    id: "airport", name: "機場", icon: "✈️", category: "logistics", buildable: false, comingSoon: true,
+    id: "airport", name: "小島機場", icon: "✈️", category: "logistics", buildable: true,
     footprint: Object.freeze([{ q: 0, r: 0 }, { q: 1, r: 0 }, { q: 0, r: 1 }]), costCoins: 900, durationSeconds: hours(24), workTags: tags("civil", "heavy", "utility"),
-    description: "快速物流接點；資料模型已預留。", assetKey: "buildings/airport"
+    description: "占用三格相連陸地，解鎖快速但單次載量較小的空運。", assetKey: "buildings/airport"
   })
 });
 

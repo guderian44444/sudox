@@ -23,7 +23,7 @@ export function saveCloudPin(pin) {
   localStorage.setItem(CLOUD_PIN_KEY, pin);
 }
 
-async function callRpc(name, body) {
+export async function callRpc(name, body) {
   if (!cloudConfigured()) throw new Error("雲端資料庫尚未設定");
   const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${name}`, {
     method: "POST",
@@ -35,6 +35,12 @@ async function callRpc(name, body) {
     if (/duplicate key|unique/i.test(detail)) throw new Error("這個玩家名稱已經存在，請改名或選擇載入雲端進度");
     if (/Invalid cloud PIN/i.test(detail)) throw new Error("玩家名稱或家庭 PIN 不正確");
     if (/Invalid cloud save/i.test(detail)) throw new Error("雲端存檔格式不正確");
+    if (/Insufficient island inventory/i.test(detail)) throw new Error("小屋倉庫的貨物數量不足");
+    if (/Invalid island shipment route/i.test(detail)) throw new Error("對方設施或你的運輸設施已變更，請重新整理物流名單");
+    if (/Invalid island shipment|Invalid island network profile/i.test(detail)) throw new Error("跨島物流資料不正確，請重新整理後再試");
+    if (/PGRST202|Could not find the function|island_network_profiles|island_shipments/i.test(detail) && /island/i.test(name)) {
+      throw new Error("跨島物流雲端尚未安裝，請先執行 island-logistics-migration.sql");
+    }
     if (/P0001/i.test(detail)) throw new Error("玩家名稱或家庭 PIN 不正確");
     throw new Error(`雲端連線失敗 (${response.status})`);
   }
