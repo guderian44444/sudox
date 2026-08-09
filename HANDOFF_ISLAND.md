@@ -6,7 +6,7 @@
 
 ## 一句話狀態
 
-小島單人生產與跨玩家物流的完整垂直架構已實作：61 格六角地圖、填海、多格碼頭／機場、伙伴施工、生產加工、無上限倉庫、市場，以及「公開相容設施 → 選物料／方式／數量 → 船機運輸 → 到站付款 → 對方工廠自動加工」流程。正式像素素材仍使用 emoji／CSS fallback；雲端物流上線前需執行 migration。
+小島單人生產與跨玩家物流的完整垂直架構已實作：61 格六角地圖、填海、多格碼頭／機場、伙伴施工、生產加工、無上限倉庫、市場，以及「公開相容設施 → 選物料／方式／數量 → 船機運輸 → 到站付款 → 對方工廠自動加工」流程。正式像素素材仍使用 emoji／CSS fallback；雲端物流 migration 已套用至正式 Supabase 專案。
 
 ## 本版完成內容
 
@@ -24,6 +24,8 @@
 ## 雲端架構
 
 Migration：`supabase/island-logistics-migration.sql`
+
+安裝狀態（2026-08-09）：已套用至 Production project `riradorayjziystoalyj`。Table Editor 已確認三張表與 7 筆預設配方，Database Functions 已確認五個 RPC，並以遊戲 publishable key 實際呼叫 `list_compatible_island_players` 得到 HTTP 200 與相容玩家資料。
 
 新增三張禁止 anon／authenticated 直接讀寫的表：
 
