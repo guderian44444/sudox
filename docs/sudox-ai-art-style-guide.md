@@ -5,6 +5,8 @@
 - 用途：提供其他 AI 生成阿霖的數獨島伙伴、動畫、六角地圖、建築、產品、載具與特效
 - 優先原則：角色身份一致、縮圖可辨識、透明邊緣乾淨、手機效能可控
 
+本文件只定義視覺。assetKey、資料夾、sidecar、現行 renderer 是否已接通與驗收指令，統一看 `docs/island-asset-integration-guide.md`。
+
 任何交付素材都必須記錄 Style ID、素材 ID、參考圖、prompt、negative prompt、seed／job ID、尺寸、幀率與生成日期。
 
 ## 1. 角色參考圖
@@ -166,6 +168,7 @@ JPEG artifacts, inconsistent perspective, inconsistent light direction
 {
   "styleId": "SUDOX Buddy & Island Style v1",
   "assetId": "cat-hammer",
+  "sourceKey": "actors/work/cat-hammer",
   "reference": "friends/cat.png",
   "width": 220,
   "height": 220,

@@ -1,6 +1,6 @@
 # 小島建設模式架構規劃書
 
-- 文件版本：0.7（五級倉庫、載具物流、跨島市場與統計）
+- 文件版本：0.8（正式交接、素材接點與上線 runbook 對齊）
 - 日期：2026-08-09
 - 狀態：Foundation、景觀收益與跨玩家物流架構已實作；正式像素美術待完成
 - 適用專案：阿霖的數獨島（目前為原生 HTML／CSS／JavaScript PWA）
@@ -9,7 +9,16 @@
 
 `feature/island-building` 已完成可直接從主畫面進入的 v47 架構：217 格可拖曳／縮放六角地圖、7 格起始島、填海、分類建築目錄、25 位伙伴施工專長、建造／升級／拆除、事件式真實時間結算、五級島主小屋倉庫、多作物與非殺生畜產、景觀訪客收益，以及農食、林業造船、金屬造機等 2～4 層產業鏈。合作碼頭、單格機場、船機載具併發、海格船運尋路、相容玩家加工／市場報價、唯讀出貨、到站付款／感謝函與對方工廠自動加工均已接入。首次進入會提供 100 金幣開發金。
 
-目前正式圖像尚未製作，畫面使用 emoji 與 CSS 簡圖；`src/island/assets.js` 已提供素材 manifest 接點。`supabase/island-logistics-migration.sql` 已提供後端交易防重與權限規則並曾套用至正式專案；每次增加可跨島接收的單一原料配方後需重跑同一份可重複 migration。
+目前正式圖像尚未製作，畫面使用 emoji 與 CSS 簡圖。`src/island/assets.js` 已直接接通 44 個唯一建築／小屋完成圖 key 與 4 個通用施工 key；40 個產品 key 已在 catalog 預留，但產品 UI、地形、岸浪、船機與專用工作動畫仍需依素材接入指南擴充 renderer。`supabase/island-logistics-migration.sql` 已提供後端交易防重與權限規則並曾套用至正式專案；每次增加可跨島接收的單一原料配方後需重跑同一份可重複 migration。
+
+### 0.1 文件邊界
+
+- 本文件描述已實作架構與長期設計；各節若使用「建議、後續、可加入」即代表不是 v47 現成功能。
+- `HANDOFF_ISLAND.md` 是目前工作狀態與接手入口。
+- `docs/sudox-ai-art-style-guide.md` 是 **SUDOX Buddy & Island Style v1** 的視覺權威來源。
+- `docs/island-asset-integration-guide.md` 是 runtime assetKey、檔案與 renderer 接法的權威來源。
+- `docs/island-production-launch-checklist.md` 是正式模式切換、部署、回滾與監測 runbook。
+- catalog key 與素材覆蓋率以 `npm.cmd run check:island-assets -- --list` 的即時輸出為準。
 
 ## 1. 產品定位
 
@@ -72,7 +81,7 @@ MVP 包含：
 
 ### 3.2 地圖主要 UI
 
-- 頂部：返回、島名、繁榮等級與金幣。
+- 頂部：v47 顯示返回、島名與金幣；繁榮等級是後續成長版欄位，尚未接入目前資料模型。
 - 中間：六角格地圖；滑鼠按住或手機手指按住即可拖曳，右上提供 `＋／－`，桌面可直接在地圖上滾輪縮放。拖曳超過 6 px 後抑制該次格子點擊，避免移動地圖時誤選。
 - 底部：顯示目前施工、生產與加工工作；點工作可定位對應格。
 - 右側／手機地圖下方操作面板顯示選中格資訊、建築分類、費用與時間。
@@ -81,6 +90,8 @@ MVP 包含：
 - 所有可點區域至少 44×44 CSS px，不依賴滑鼠 hover。
 
 ### 3.3 放置流程
+
+v47 目前由玩家先選格，再從分類清單直接開始工程；合作碼頭會自動尋找合法海岸方向。下列合法／衝突預覽與手動旋轉屬後續 UI 強化，不是目前已實作畫面：
 
 1. 點擊空白陸地或相鄰海格。
 2. 海格先顯示填海選項；陸地顯示可放置設施。
@@ -503,48 +514,48 @@ v47 migration 實際維護：
 
 ## 10. 程式模組規劃
 
-核心規則與畫面不堆進目前的大型 `src/app.js`。Foundation 與物流已建立以下模組；控制器暫由 `app.js` 負責畫面切換與事件接線：
+核心規則與畫面不堆進目前的大型 `src/app.js`。v47 實際模組如下；控制器仍由 `app.js` 負責畫面切換、事件接線與雲端同步：
 
 ```text
 src/
   island/
-    catalog.js        建築、地形、費用、工期與解鎖條件
+    catalog.js        測試開關、小屋、品項、配方、建築、費用與工期
+    attractions.js    可重現的景觀訪客選擇
     companions.js     25 位伙伴的專長標籤、倍率與團隊速度公式
     hex.js            axial 座標、鄰接、距離、占地與畫面位置
     model.js          正規化、施工、生產、領取與本地市場規則
-    construction.js   社交版前再從 model.js 拆出
-    production.js     社交版前再從 model.js 拆出
     logistics.js      相容設施、報價、目的地、防重合併與 shipment 狀態
     renderer.js       地圖與底部面板 DOM
-    controller.js     點擊、拖曳、縮放、放置與畫面生命週期
-    assets.js         素材 manifest、預載與缺圖 fallback
+    assets.js         素材 manifest、URL 解析與缺圖 fallback
   state/
-    wallet.js         金幣交易與本機鏡像
     island-cloud.js   小島與物流 RPC
   island/island.css
 scripts/
   test-island.mjs
+  check-island-assets.mjs
 supabase/
   island-logistics-migration.sql
 public/assets/island/v1/
 ```
 
-現有 `app.js` 只負責切換 `home / sudoku / island` 畫面及共享錢包顯示。
+`construction.js`、`production.js`、`controller.js` 與 `wallet.js` 是未來檔案拆分方向，目前並不存在；接手者不可假設已有這些匯入點。現有 `app.js` 除了切換 `home / sudoku / island` 與共享錢包，也負責小島事件控制與雲端生命週期。
 
 建築目錄範例：
 
 ```js
 {
   id: "orchard",
-  category: "production",
+  name: "熱帶果園",
+  icon: "🌳",
+  category: "source",
+  buildable: true,
   footprint: [{ q: 0, r: 0 }],
-  allowedTerrain: ["grass", "reclaimed"],
-  costCoins: 80,
+  costCoins: 90,
   durationSeconds: 7200,
-  prosperity: 12,
-  unlockLevel: 2,
-  assetKey: "orchard",
-  stages: [0.15, 0.7, 1]
+  workTags: ["farming", "orchard"],
+  defaultRecipeId: "fruitHarvest",
+  recipeIds: ["fruitHarvest", "coffeeHarvest", "cocoaHarvest"],
+  assetKey: "buildings/orchard"
 }
 ```
 
@@ -563,6 +574,8 @@ public/assets/island/v1/
 ```
 
 ## 11. 美術方向與素材格式
+
+本節定義設計原則。實際 key、現行接通狀態、sidecar 與替換 renderer 的位置，以 `docs/island-asset-integration-guide.md` 為準；AI prompt 與角色 identity 標準以 `docs/sudox-ai-art-style-guide.md` 為準。
 
 ### 11.1 現有可重用素材
 
@@ -728,7 +741,6 @@ no photorealistic texture, centered on the supplied footprint and anchor guide.
 
 ```text
 public/assets/island/v1/
-  manifest.json
   terrain/
     water.webp
     water-ripple.webp
@@ -767,7 +779,7 @@ public/assets/island/v1/
     rotate.webp
 ```
 
-`manifest.json` 記錄尺寸、anchor、占地、動畫循環、版本與替代靜態圖，程式不硬編素材座標。
+v47 runtime 以 `src/island/assets.js` 的 `ISLAND_ASSET_MANIFEST` 管理 key→相對路徑；每個素材另附同名 sidecar JSON 記錄尺寸、anchor、占地、動畫循環、版本與生成資訊。未來若把 sidecar 彙整成 `manifest.json`，必須同時加入 loader，不能只新增一份程式不讀取的檔案。
 
 ## 12. 需要補充的素材
 
@@ -787,11 +799,13 @@ public/assets/island/v1/
 
 ### 12.2 MVP 必要素材
 
+以下是美術完成目標，不代表全部已接進 v47 renderer。精確的 48 個已接通 key、40 個產品預留 key 與缺檔狀態，以素材稽核輸出為準。
+
 - 地形：海面 1、波紋 1、草地 1、填海地 1、海岸邊緣 6、泡沫邊緣 6。
 - 填海：地基、半完成、接近完成，共 3 張。
 - 預建建築：兼作倉庫的島主小屋成品圖。
 - 可建設施：菜園、市場、玉米田、牧場、食品工廠、花園、燈塔、遊樂場、碼頭與機場，各 3 個施工階段加成品圖。
-- 裝飾：樹木、花叢、長椅、路燈、木柵、石板路、小池塘、噴泉等至少 12 種。
+- 景觀遊樂：目前 catalog 的燈塔、花園、池塘、遊樂場、野餐公園、觀景台、摩天輪、溫泉共 8 棟；純裝飾小物 12 種屬後續擴充，不是 v47 上線 blocker。
 - 伙伴：25 種 `work` 循環 Animated WebP；未完成者先使用靜態圖＋共用工具／煙塵動畫。
 - 特效：挖土、敲打、澆水、搬運、星光、金幣跳字，共 6 組。
 - 產品：蔬菜、玉米、牛奶、乳製品箱；每種包含 128×128 主圖與 48×48 UI 圖示。
@@ -832,7 +846,7 @@ public/assets/island/v1/
 - 六角格地圖、拖曳／縮放、7 格初始島。
 - 填海、放置、施工階段、真實時間完工。
 - 玩家伙伴施工、最多 2 位幫手、既有舞蹈完工效果。
-- 菜園、市場、玉米田、牧場、食品工廠等基礎設施、島主小屋倉庫面板與 12 種裝飾。
+- 菜園、市場、玉米田、牧場、食品工廠等基礎設施、島主小屋倉庫面板與目前 8 棟景觀遊樂設施。
 - 完成蔬菜直售與四層乳品鏈，所有產物都有本地出口。
 - 進入小島時用 `serverNow - lastSettledAt` 一次結算施工與生產，不做背景寫入。
 - 本機存檔、雲端恢復、PWA 快取與手機驗證。
@@ -892,7 +906,7 @@ public/assets/island/v1/
 以下全部達成才視為小島建設 MVP 完成：
 
 - 新舊玩家都能建立唯一小島，重載與換裝置後不遺失。
-- 7 格初始島、填海、合法放置、多格占地與建築移動規則正確。
+- 7 格初始島、填海、合法放置、多格 footprint、碼頭方向與碰撞規則正確；v47 不提供完工建築移動。
 - 兼作五級容量倉庫的島主小屋能正確預建／升級；所有設施能完整施工與拆除，單格機場可在一般空地開工。
 - 每項工程立即出現半成品與工作伙伴。
 - 果園等 2 小時工程不需保持頁面開啟也能完工。

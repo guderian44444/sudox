@@ -3,11 +3,22 @@
 更新日期：2026-08-09
 開發分支：`feature/island-building`
 目前版次：`v47`／Service Worker `sudox-shell-v47`
-狀態：完整垂直架構已實作；正式像素美術待補；測試模式仍開啟，尚未 PUSH。
+狀態：完整垂直架構與友軍交接文件已封版；正式像素美術待補；測試模式仍開啟，尚未 PUSH。
 
 ## 一句話狀態
 
-目前已具備 217 格六角地圖、填海、伙伴施工與拆除、五級島主小屋倉庫、完整生產鏈、遊憩訪客、船機載具、海格尋路、跨玩家加工／市場交易、唯讀出貨明細、到貨感謝函、統計表與 Supabase 事件交接。正式圖像仍由 emoji／CSS fallback 代替，但所有素材接點都已保留。
+目前已具備 217 格六角地圖、填海、伙伴施工與拆除、五級島主小屋倉庫、完整生產鏈、遊憩訪客、船機載具、海格尋路、跨玩家加工／市場交易、唯讀出貨明細、到貨感謝函、統計表與 Supabase 事件交接。正式圖像仍由 emoji／CSS fallback 代替；已接通的 key、預留 key 與需擴充 renderer 的位置都已明確記錄。
+
+## 接手入口
+
+接手者先依任務選文件，不需要從聊天紀錄還原決策：
+
+- `HANDOFF_ISLAND.md`：目前狀態、關鍵規則、已知邊界與禁止誤納檔案。
+- `docs/island-building-architecture.md`：玩法、資料、時間、產業、物流與 Supabase 完整架構。
+- `docs/sudox-ai-art-style-guide.md`：**SUDOX Buddy & Island Style v1** 的角色／建築風格、prompt 與 AI 生成標準。
+- `docs/island-asset-integration-guide.md`：每類素材是已接通、已預留或需擴充 renderer，以及 key、格式、anchor、接入與驗收方式。
+- `docs/island-production-launch-checklist.md`：正式模式切換、資料庫、PWA、雙玩家 smoke test、部署、回滾與上線後監測。
+- `npm.cmd run check:island-assets -- --list`：由目前 catalog 即時列出完整 assetKey，不維護容易過期的手抄清單。
 
 ## v47 已完成
 
@@ -99,17 +110,21 @@ Production project：`riradorayjziystoalyj`。v47 migration 已成功套用並�
 - `src/state/island-cloud.js`：五個物流 RPC adapter。
 - `supabase/island-logistics-migration.sql`：正式資料表、價格目錄與安全 RPC。
 - `scripts/test-island.mjs`：217 格、容量、升級、拆除、產業、船機、海路、交易、統計、感謝函與 SQL 回歸測試。
+- `scripts/check-island-assets.mjs`：catalog key、manifest 路徑、fallback 與 150 個伙伴直接素材的自動稽核。
 - `docs/island-building-architecture.md`：完整產品、資料、免費方案負載與素材標準。
+- `docs/sudox-ai-art-style-guide.md`：可交給其他 AI 的角色與像素建築明確風格定義。
+- `docs/island-asset-integration-guide.md`：正式素材接點與應用方式的單一來源。
+- `docs/island-production-launch-checklist.md`：可直接勾選執行的正式上線 runbook。
 
-## 正式素材待補
+## 正式素材接點狀態
 
-- 小屋 1～5 級成品圖，最高級為城堡。
-- 育苗園、森林、製材所、造船廠、礦場、冶煉廠、飛機工坊。
-- 物流船、物流飛機與海格航線動畫。
-- 建造、升級、拆除的 3 個施工階段 Animated WebP。
-- 六方向碼頭；機場只需單格成品與施工圖。
+- 已接通：44 個唯一建築／小屋完成圖 key，以及 `building`、`reclaim`、`homeUpgrade`、`demolition` 4 種通用施工 key。登錄 `src/island/assets.js` 後，地圖與建築選單會直接換圖。
+- 已預留：40 個產品／原料／載具 `assetKey` 已在 catalog 定義，但庫存、市場、配方、物流與統計仍使用 emoji，接圖時需按素材指南修改 renderer。
+- 直接使用：25 張伙伴 PNG、100 個舞蹈 Animated WebP、25 個暈倒 Animated WebP；施工與訪客目前使用靜態 PNG＋CSS 小動畫。
+- 需擴充 renderer：正式地形／岸浪、六方向碼頭、船機 sprite、專用工作動畫與共用 FX；現階段由 CSS、SVG 航線與 emoji 表現。
+- 不需要整張圖片：到貨感謝函保留動態 HTML 文字，只可補郵票／貼紙等裝飾。
 
-素材缺少時都會走 `src/island/assets.js` 的 emoji fallback，不影響資料與互動測試。
+素材缺少時，未登錄的 key 會走 emoji fallback，不影響資料與互動測試；若 manifest 已登錄卻缺檔／壞檔則會破圖，因此提交前必跑 `npm.cmd run check:island-assets`。完整規格以 `docs/island-asset-integration-guide.md` 為準。
 
 ## 仍待正式上線前處理
 
@@ -117,10 +132,11 @@ Production project：`riradorayjziystoalyj`。v47 migration 已成功套用並�
 - 正式公開經濟前，應把 4 位家庭 PIN 升級為可撤銷裝置 token。
 - shipment 明細目前讀取近 30 天；擴量前應增加完成事件彙總與清理排程。
 - 正式像素素材與音效尚未製作。
+- `feature/island-building` 目前沒有 upstream；準備文件不代表已 PUSH、合併或部署。
 
 ## 驗證與提交規則
 
-- 必跑：`npm.cmd run check`、`git diff --check`。
+- 必跑：`npm.cmd run check:island-assets`、`npm.cmd run check`、`git diff --check`。
 - 本機頁面：`http://127.0.0.1:4173/#island`。
 - 瀏覽器需驗證：217 格、拖曳／縮放、小屋容量、拆除、統計、感謝函、港口海路與手機版操作。
 - 不可納入既有未追蹤內容：`preview/`、`public/assets/eel-orange.gif`、`public/assets/eel-white.gif`、`public/assets/friend-mouse-v1.jpg`、`scripts/__pycache__/`。
@@ -131,3 +147,5 @@ Production project：`riradorayjziystoalyj`。v47 migration 已成功套用並�
 2. 確認畫面沒有「測試資源 ∞」、測試島友與「馬上完成」。
 3. 重跑 production 的 migration，確認 54／40／3／true／true 驗證結果。
 4. 重跑完整檢查並再升一次可見版次與 Service Worker cache。
+5. 依 `docs/island-production-launch-checklist.md` 完成桌面、390×844、PWA、舊存檔與兩位真實玩家端到端驗收。
+6. 明確確認目標遠端分支後才 PUSH／合併；不得默認直接覆蓋 `main`。
