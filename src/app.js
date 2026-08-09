@@ -24,8 +24,8 @@ import { buildScore, fetchLeaderboard, flushPendingScores, leaderboardConfigured
 import { addCard, clearSession, consumeCard, exportSaveCode, importSaveCode, loadProgress, loadSession, mergeProgressHighWater, nextFloorFromCompleted, parseSaveCode, preferSaveSide, raiseFloorProgress, rewardProgress, saveProgress, saveSession, saveTimestampMs, sessionFloorBehindProgress, spendCoins } from "./state/store.js";
 
 const app = document.querySelector("#app");
-const APP_VERSION = "v47";
-const APP_LAST_UPDATED = "2026-08-09T22:00:00+08:00";
+const APP_VERSION = "v48";
+const APP_LAST_UPDATED = "2026-08-09T20:05:00+08:00";
 let progress = loadProgress();
 const migratedAchievements = recordAchievementGame(progress);
 progress = migratedAchievements.progress;

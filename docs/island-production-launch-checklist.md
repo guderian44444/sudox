@@ -1,7 +1,7 @@
 # 小島建設正式上線 Checklist
 
 - 適用分支：`feature/island-building`
-- 目前基準：app `v47`、Service Worker `sudox-shell-v47`
+- 目前基準：app `v48`、Service Worker `sudox-shell-v48`
 - Production Supabase project：`riradorayjziystoalyj`
 - 更新日期：2026-08-09
 
@@ -50,11 +50,13 @@
 
 ### 3.1 關閉測試模式
 
-在 `src/island/catalog.js`：
+正式版在 `src/island/catalog.js`：
 
 ```js
 export const ISLAND_TEST_MODE = false;
 ```
+
+若要暫時恢復內部測試，把同一常數改成 `true` 即可恢復無限資源、demo 島友與立即完成；只能在獨立測試分支使用，完成後改回 `false`。不要把它接到 URL、localStorage 或公開設定畫面。正式發佈以 `npm.cmd run check:release` 強制檢查。
 
 關閉後驗證：
 
@@ -126,6 +128,7 @@ order by proname;
 ```powershell
 npm.cmd run check:island-assets
 npm.cmd run check
+npm.cmd run check:release
 git diff --check
 git status --short --branch
 ```
@@ -203,7 +206,7 @@ npm.cmd run dev
 - [ ] 若要合併至線上分支，先確認該分支沒有別人的新提交，再使用非破壞性 merge。
 - [ ] 部署完成後以線上網址做同一組最小 smoke test，並確認 footer 版次。
 
-本文件準備階段不授權自動 PUSH 或部署；只有收到明確「正式上線／推上去」指示後才執行。
+本次 v48 已取得正式上線授權；後續每次 PUSH／部署仍須由使用者明確指示。
 
 ## 9. 回滾
 

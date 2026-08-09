@@ -1,9 +1,9 @@
 # 小島建設模式 Handoff
 
 更新日期：2026-08-09
-開發分支：`feature/island-building`
-目前版次：`v47`／Service Worker `sudox-shell-v47`
-狀態：完整垂直架構與友軍交接文件已封版；正式像素美術待補；測試模式仍開啟，尚未 PUSH。
+開發分支：`feature/island-building`；正式部署分支：`main`
+目前版次：`v48`／Service Worker `sudox-shell-v48`
+狀態：正式模式 release 已封版；測試模式預設關閉；正式像素美術仍可後續逐批替換 fallback。
 
 ## 一句話狀態
 
@@ -20,7 +20,7 @@
 - `docs/island-production-launch-checklist.md`：正式模式切換、資料庫、PWA、雙玩家 smoke test、部署、回滾與上線後監測。
 - `npm.cmd run check:island-assets -- --list`：由目前 catalog 即時列出完整 assetKey，不維護容易過期的手抄清單。
 
-## v47 已完成
+## v48 已完成
 
 - 地圖半徑由 4 擴為 8，共 217 格；舊存檔進入時直接取得新範圍，既有陸地與建物不移位。
 - 初始島仍是半徑 1 的 7 格；只能填造相鄰海格，不會產生孤島。
@@ -75,7 +75,7 @@
 
 Migration：`supabase/island-logistics-migration.sql`
 
-Production project：`riradorayjziystoalyj`。v47 migration 已成功套用並驗證：
+Production project：`riradorayjziystoalyj`。v48 使用的 migration 已成功套用並驗證：
 
 - `island_recipe_catalog` 共 54 筆。
 - 其中 40 筆為可信任的跨島市場收購價。
@@ -111,6 +111,7 @@ Production project：`riradorayjziystoalyj`。v47 migration 已成功套用並�
 - `supabase/island-logistics-migration.sql`：正式資料表、價格目錄與安全 RPC。
 - `scripts/test-island.mjs`：217 格、容量、升級、拆除、產業、船機、海路、交易、統計、感謝函與 SQL 回歸測試。
 - `scripts/check-island-assets.mjs`：catalog key、manifest 路徑、fallback 與 150 個伙伴直接素材的自動稽核。
+- `scripts/check-release.mjs`：正式模式、app 版次、更新時間、Service Worker cache 與 Handoff 一致性 release gate。
 - `docs/island-building-architecture.md`：完整產品、資料、免費方案負載與素材標準。
 - `docs/sudox-ai-art-style-guide.md`：可交給其他 AI 的角色與像素建築明確風格定義。
 - `docs/island-asset-integration-guide.md`：正式素材接點與應用方式的單一來源。
@@ -126,26 +127,32 @@ Production project：`riradorayjziystoalyj`。v47 migration 已成功套用並�
 
 素材缺少時，未登錄的 key 會走 emoji fallback，不影響資料與互動測試；若 manifest 已登錄卻缺檔／壞檔則會破圖，因此提交前必跑 `npm.cmd run check:island-assets`。完整規格以 `docs/island-asset-integration-guide.md` 為準。
 
-## 仍待正式上線前處理
+## 正式模式與測試模式開關
 
-- `ISLAND_TEST_MODE` 目前故意維持 `true`；測試資源、測試島友與「馬上完成」仍存在。
+- `src/island/catalog.js` 的 `ISLAND_TEST_MODE` 正式預設為 `false`；線上不顯示測試資源、demo 島友或「馬上完成」。
+- 需要內部測試時，可在獨立測試分支把同一常數改成 `true`，即可恢復無限資源、demo 島友與立即完成；測完必須改回 `false`。
+- 不得把測試開關接到 URL、localStorage 或公開 UI，避免玩家在線上自行啟用無限資源。
+- 正式 PUSH 前必跑 `npm.cmd run check:release`；若測試模式仍開啟，release gate 會直接失敗。
+
+## 上線後持續強化
+
 - 正式公開經濟前，應把 4 位家庭 PIN 升級為可撤銷裝置 token。
 - shipment 明細目前讀取近 30 天；擴量前應增加完成事件彙總與清理排程。
 - 正式像素素材與音效尚未製作。
-- `feature/island-building` 目前沒有 upstream；準備文件不代表已 PUSH、合併或部署。
 
 ## 驗證與提交規則
 
-- 必跑：`npm.cmd run check:island-assets`、`npm.cmd run check`、`git diff --check`。
+- 一般開發必跑：`npm.cmd run check:island-assets`、`npm.cmd run check`、`git diff --check`。
+- 正式發佈必跑：`npm.cmd run check:release`，其中會重跑完整檢查並驗證測試模式關閉與版次一致。
 - 本機頁面：`http://127.0.0.1:4173/#island`。
 - 瀏覽器需驗證：217 格、拖曳／縮放、小屋容量、拆除、統計、感謝函、港口海路與手機版操作。
 - 不可納入既有未追蹤內容：`preview/`、`public/assets/eel-orange.gif`、`public/assets/eel-white.gif`、`public/assets/friend-mouse-v1.jpg`、`scripts/__pycache__/`。
 
-### PUSH 前硬性檢查
+### 每次正式 PUSH 前硬性檢查
 
-1. 把 `src/island/catalog.js` 的 `ISLAND_TEST_MODE` 改成 `false`。
+1. 確認 `src/island/catalog.js` 的 `ISLAND_TEST_MODE` 為 `false`。
 2. 確認畫面沒有「測試資源 ∞」、測試島友與「馬上完成」。
 3. 重跑 production 的 migration，確認 54／40／3／true／true 驗證結果。
-4. 重跑完整檢查並再升一次可見版次與 Service Worker cache。
+4. 每次發佈都同步提高可見版次與 Service Worker cache，並執行 `npm.cmd run check:release`。
 5. 依 `docs/island-production-launch-checklist.md` 完成桌面、390×844、PWA、舊存檔與兩位真實玩家端到端驗收。
 6. 明確確認目標遠端分支後才 PUSH／合併；不得默認直接覆蓋 `main`。

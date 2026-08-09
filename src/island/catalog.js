@@ -1,8 +1,12 @@
 export const ISLAND_SCHEMA_VERSION = 3;
 export const ISLAND_RADIUS = 8;
 export const STARTER_LAND_RADIUS = 1;
-// DEVELOPMENT ONLY: must be false before this branch is pushed or deployed.
-export const ISLAND_TEST_MODE = true;
+/**
+ * Internal development switch only. `true` enables unlimited test resources,
+ * demo partners, and instant completion. Never expose this through URL or
+ * localStorage; production releases must keep it `false`.
+ */
+export const ISLAND_TEST_MODE = false;
 
 const minutes = (value) => value * 60;
 const hours = (value) => minutes(value * 60);
