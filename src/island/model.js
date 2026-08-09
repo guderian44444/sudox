@@ -33,8 +33,7 @@ function starterTiles() {
 
 function starterBuildings() {
   return {
-    "starter-home": { id: "starter-home", buildingId: "islandHome", q: 0, r: 0, orientation: 0, completedAt: 0 },
-    "starter-warehouse": { id: "starter-warehouse", buildingId: "warehouse", q: 1, r: 0, orientation: 0, completedAt: 0 }
+    "starter-home": { id: "starter-home", buildingId: "islandHome", q: 0, r: 0, orientation: 0, completedAt: 0 }
   };
 }
 
@@ -88,7 +87,6 @@ export function normalizeIslandState(raw, owner = {}) {
     };
   });
   if (!buildings["starter-home"]) buildings["starter-home"] = base.buildings["starter-home"];
-  if (!buildings["starter-warehouse"]) buildings["starter-warehouse"] = base.buildings["starter-warehouse"];
 
   return {
     ...base,
@@ -148,29 +146,53 @@ function baseJob({ kind, q, r, costCoins, durationSeconds, workerId, now }) {
   };
 }
 
-export function startReclamation(state, { q, r, workerId = "cat", now = Date.now() } = {}) {
-  if (!isReclaimable(state, q, r)) return { ok: false, state, error: "這格海域目前不能填海" };
-  const quote = reclamationQuote(state.reclaimedCount);
-  const next = clone(state);
-  const job = baseJob({ kind: "reclaim", q, r, ...quote, workerId, now });
-  next.constructionJobs[job.id] = job;
-  next.updatedAt = now;
-  return { ok: true, state: next, costCoins: quote.costCoins, job };
+export function busyConstructionWorkerIds(state) {
+  return [...new Set(Object.values(state?.constructionJobs || {}).flatMap((job) => job.workerIds || []))];
 }
 
-export function startBuilding(state, { buildingId, q, r, orientation = 0, workerId = "cat", now = Date.now() } = {}) {
+export function availableConstructionWorkerIds(state, rosterIds = []) {
+  const busy = new Set(busyConstructionWorkerIds(state));
+  return rosterIds.filter((id) => id && !busy.has(id));
+}
+
+export function initialWorkerHireCost(workerId, playerAvatar, baseCost = 0) {
+  if (!workerId || workerId === playerAvatar) return 0;
+  return Math.max(8, Math.ceil(safeInt(baseCost) * 0.1));
+}
+
+function workerBusy(state, workerId) {
+  return !workerId || busyConstructionWorkerIds(state).includes(workerId);
+}
+
+export function startReclamation(state, { q, r, workerId = "cat", playerAvatar = "cat", now = Date.now() } = {}) {
+  if (!isReclaimable(state, q, r)) return { ok: false, state, error: "這格海域目前不能填海" };
+  if (workerBusy(state, workerId)) return { ok: false, state, error: "這位伙伴已經在忙，請另外聘一位伙伴" };
+  const quote = reclamationQuote(state.reclaimedCount);
+  const workerHireCost = initialWorkerHireCost(workerId, playerAvatar, quote.costCoins);
+  const next = clone(state);
+  const job = baseJob({ kind: "reclaim", q, r, ...quote, workerId, now });
+  job.workerHireCost = workerHireCost;
+  next.constructionJobs[job.id] = job;
+  next.updatedAt = now;
+  return { ok: true, state: next, costCoins: quote.costCoins + workerHireCost, workerHireCost, job };
+}
+
+export function startBuilding(state, { buildingId, q, r, orientation = 0, workerId = "cat", playerAvatar = "cat", now = Date.now() } = {}) {
   const definition = BUILDING_CATALOG[buildingId];
   if (!definition?.buildable) return { ok: false, state, error: "這項設施尚未開放建造" };
   if (!canPlaceBuilding(state, definition, q, r, orientation)) return { ok: false, state, error: "這個位置放不下該設施" };
+  if (workerBusy(state, workerId)) return { ok: false, state, error: "這位伙伴已經在忙，請另外聘一位伙伴" };
+  const workerHireCost = initialWorkerHireCost(workerId, playerAvatar, definition.costCoins);
   const next = clone(state);
   const job = {
     ...baseJob({ kind: "building", q, r, costCoins: definition.costCoins, durationSeconds: definition.durationSeconds, workerId, now }),
     buildingId,
+    workerHireCost,
     orientation: safeInt(orientation) % 6
   };
   next.constructionJobs[job.id] = job;
   next.updatedAt = now;
-  return { ok: true, state: next, costCoins: definition.costCoins, job };
+  return { ok: true, state: next, costCoins: definition.costCoins + workerHireCost, workerHireCost, job };
 }
 
 const workerRate = (count) => count >= 3 ? 2 : count === 2 ? 1.5 : 1;
@@ -187,6 +209,8 @@ export function hireConstructionHelper(state, { jobId, helperId, now = Date.now(
   const costCoins = helperQuote(current);
   if (!current || !costCoins) return { ok: false, state, error: "這項工程不能再增加幫手" };
   if (!helperId || current.workerIds.includes(helperId)) return { ok: false, state, error: "請選擇不同的伙伴" };
+  if (busyConstructionWorkerIds(state).includes(helperId)) return { ok: false, state, error: "這位伙伴正在其他工程工作" };
+  if (safeTime(current.readyAt) <= now) return { ok: false, state, error: "工程已完成，無需再增加伙伴" };
   const next = clone(state);
   const job = next.constructionJobs[jobId];
   const oldRate = workerRate(job.workerIds.length);
@@ -254,6 +278,7 @@ export function settleIsland(state, now = Date.now()) {
     if (safeTime(job.readyAt) > now) return;
     const facility = next.facilities[job.buildingInstanceId];
     if (facility) {
+      facility.readyOutputs = safeObject(facility.readyOutputs);
       Object.entries(safeObject(job.outputs)).forEach(([itemId, count]) => {
         if (!ITEM_CATALOG[itemId]) return;
         facility.readyOutputs[itemId] = safeInt(facility.readyOutputs[itemId]) + safeInt(count);
@@ -308,16 +333,16 @@ export function collectFacility(state, { buildingInstanceId, now = Date.now() } 
 
 const hasInputs = (inventory, inputs) => Object.entries(inputs).every(([itemId, count]) => safeInt(inventory[itemId]) >= safeInt(count));
 
-export function startProcessing(state, { buildingInstanceId, recipeId, now = Date.now() } = {}) {
+export function startProcessing(state, { buildingInstanceId, recipeId, now = Date.now(), ignoreInputs = false } = {}) {
   const building = state.buildings[buildingInstanceId];
   const definition = BUILDING_CATALOG[building?.buildingId];
   const recipe = RECIPE_CATALOG[recipeId];
   if (!building || !recipe || recipe.kind !== "processor" || recipe.facilityId !== definition?.id) {
     return { ok: false, state, error: "這座設施不能使用該配方" };
   }
-  if (!hasInputs(state.inventory, recipe.inputs)) return { ok: false, state, error: "倉庫原料不足" };
+  if (!ignoreInputs && !hasInputs(state.inventory, recipe.inputs)) return { ok: false, state, error: "倉庫原料不足" };
   const next = clone(state);
-  Object.entries(recipe.inputs).forEach(([itemId, count]) => { next.inventory[itemId] -= count; });
+  if (!ignoreInputs) Object.entries(recipe.inputs).forEach(([itemId, count]) => { next.inventory[itemId] -= count; });
   const job = {
     id: operationId("processing"),
     buildingInstanceId,
@@ -347,5 +372,15 @@ export function marketSale(state, { itemId, quantity = 1, now = Date.now() } = {
 
 export function availableHelperIds(state, rosterIds = [], playerAvatar = "") {
   const busy = new Set(Object.values(state.constructionJobs).flatMap((job) => job.workerIds || []));
-  return rosterIds.filter((id) => id && id !== playerAvatar && !busy.has(id));
+  return rosterIds.filter((id) => id && !busy.has(id));
+}
+
+export function finishIslandWork(state, { kind, id, now = Date.now() } = {}) {
+  const next = clone(state);
+  if (kind === "construction" && next.constructionJobs[id]) next.constructionJobs[id].readyAt = now;
+  else if (kind === "processing" && next.processingJobs[id]) next.processingJobs[id].readyAt = now;
+  else if (kind === "source" && next.facilities[id]?.state === "running") next.facilities[id].readyAt = now;
+  else return { ok: false, state, error: "找不到可馬上完成的工作" };
+  const settled = settleIsland(next, now);
+  return { ok: true, state: settled.state, completed: settled.completed };
 }

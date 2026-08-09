@@ -14,15 +14,16 @@ import {
 } from "./game/flow.js";
 import { ACHIEVEMENTS, achievementValue, recordAchievementGame } from "./game/achievements.js";
 import { chooseFriendPair, chooseGardenEel, choosePartyFriends, FRIEND_ROSTER, nextDanceVariants } from "./game/friends.js";
-import { availableHelperIds, collectFacility, createIslandState, hireConstructionHelper, marketSale, normalizeIslandState, settleIsland, startBuilding, startProcessing, startReclamation } from "./island/model.js";
+import { ISLAND_TEST_MODE } from "./island/catalog.js";
+import { availableConstructionWorkerIds, availableHelperIds, collectFacility, createIslandState, finishIslandWork, hireConstructionHelper, marketSale, normalizeIslandState, settleIsland, startBuilding, startProcessing, startReclamation } from "./island/model.js";
 import { formatIslandDuration, renderIslandScreen } from "./island/renderer.js";
 import { cloudConfigured, loadCloudPin, loadCloudProgress, normalizePlayerName, renameCloudPlayer, saveCloudPin, saveCloudProgress, validCloudPin } from "./state/cloud.js";
 import { buildScore, fetchLeaderboard, flushPendingScores, leaderboardConfigured, normalizeLeaderboardTaunt, pendingScoreCount, queueLeaderboardScore, updateLeaderboardAvatar, updateLeaderboardTaunt } from "./state/leaderboard.js";
 import { addCard, clearSession, consumeCard, exportSaveCode, importSaveCode, loadProgress, loadSession, mergeProgressHighWater, nextFloorFromCompleted, parseSaveCode, preferSaveSide, raiseFloorProgress, rewardProgress, saveProgress, saveSession, saveTimestampMs, sessionFloorBehindProgress, spendCoins } from "./state/store.js";
 
 const app = document.querySelector("#app");
-const APP_VERSION = "v40";
-const APP_LAST_UPDATED = "2026-08-09T10:10:00+08:00";
+const APP_VERSION = "v41";
+const APP_LAST_UPDATED = "2026-08-09T11:20:00+08:00";
 let progress = loadProgress();
 const migratedAchievements = recordAchievementGame(progress);
 progress = migratedAchievements.progress;
@@ -65,7 +66,10 @@ let boardBuddyIds = [];
 let activeScreen = location.hash === "#island" ? "island" : "game";
 let island = null;
 let islandSelectedKey = "0,1";
-let islandZoom = 0.9;
+let islandSelectedWorkerId = "";
+let islandZoom = innerWidth > 900
+  ? Math.max(0.62, Math.min(0.98, (innerHeight - 240) / 504))
+  : 0.78;
 let islandStatus = "";
 let islandClockId;
 
@@ -551,10 +555,26 @@ function islandHelpers() {
   return ids.map((id) => FRIEND_ROSTER.find((friend) => friend.id === id)).filter(Boolean);
 }
 
+function islandWorkers() {
+  const ids = availableConstructionWorkerIds(island, FRIEND_ROSTER.map((friend) => friend.id));
+  const ownId = progress.playerAvatar || "cat";
+  return ids.map((id) => FRIEND_ROSTER.find((friend) => friend.id === id)).filter(Boolean)
+    .sort((left, right) => Number(right.id === ownId) - Number(left.id === ownId));
+}
+
+function ensureIslandSelectedWorker() {
+  const workers = islandWorkers();
+  if (!workers.some((worker) => worker.id === islandSelectedWorkerId)) {
+    islandSelectedWorkerId = workers[0]?.id || "";
+  }
+  return workers;
+}
+
 function renderIslandView() {
   if (!island) ensureIsland();
   if (!islandClockId) islandClockId = setInterval(refreshIslandClock, 1000);
   settleIslandNow();
+  const workers = ensureIslandSelectedWorker();
   app.innerHTML = renderIslandScreen({
     state: island,
     coins: progress.coins,
@@ -562,6 +582,10 @@ function renderIslandView() {
     zoom: islandZoom,
     status: islandStatus,
     helpers: islandHelpers(),
+    workers,
+    selectedWorkerId: islandSelectedWorkerId,
+    playerAvatar: progress.playerAvatar || "cat",
+    testMode: ISLAND_TEST_MODE,
     version: APP_VERSION
   });
   bindIslandEvents();
@@ -604,12 +628,18 @@ function affordIslandResult(result, successStatus) {
     renderIslandView();
     return;
   }
-  if (progress.coins < result.costCoins) {
+  if (!ISLAND_TEST_MODE && progress.coins < result.costCoins) {
     islandStatus = `金幣不足，還需要 🪙 ${result.costCoins - progress.coins}。`;
     renderIslandView();
     return;
   }
-  commitIsland(result.state, { coinDelta: -result.costCoins, status: successStatus });
+  commitIsland(result.state, { coinDelta: ISLAND_TEST_MODE ? 0 : -result.costCoins, status: successStatus });
+}
+
+function changeIslandZoom(direction) {
+  const delta = direction === "in" ? 0.06 : -0.06;
+  islandZoom = Math.max(0.55, Math.min(1.25, islandZoom + delta));
+  renderIslandView();
 }
 
 function bindIslandEvents() {
@@ -620,17 +650,30 @@ function bindIslandEvents() {
     renderIslandView();
   }));
   document.querySelectorAll("[data-island-zoom]").forEach((button) => button.addEventListener("click", () => {
-    islandZoom = Math.max(0.65, Math.min(1.25, islandZoom + (button.dataset.islandZoom === "in" ? 0.1 : -0.1)));
+    changeIslandZoom(button.dataset.islandZoom);
+  }));
+  document.querySelector("[data-island-map-viewport]")?.addEventListener("wheel", (event) => {
+    event.preventDefault();
+    changeIslandZoom(event.deltaY < 0 ? "in" : "out");
+  }, { passive: false });
+  document.querySelectorAll("[data-island-worker]").forEach((button) => button.addEventListener("click", () => {
+    islandSelectedWorkerId = button.dataset.islandWorker;
+    islandStatus = "";
+    renderIslandView();
+  }));
+  document.querySelectorAll("[data-island-jump]").forEach((button) => button.addEventListener("click", () => {
+    islandSelectedKey = button.dataset.islandJump;
+    islandStatus = "";
     renderIslandView();
   }));
   document.querySelector("[data-island-reclaim]")?.addEventListener("click", () => {
     const [q, r] = islandSelectedKey.split(",").map(Number);
-    affordIslandResult(startReclamation(island, { q, r, workerId: progress.playerAvatar || "cat" }), "伙伴已開始填海造陸！");
+    affordIslandResult(startReclamation(island, { q, r, workerId: islandSelectedWorkerId, playerAvatar: progress.playerAvatar || "cat" }), "伙伴已開始填海造陸！");
   });
   document.querySelectorAll("[data-island-build]").forEach((button) => button.addEventListener("click", () => {
     const [q, r] = islandSelectedKey.split(",").map(Number);
     const buildingName = button.querySelector("strong")?.textContent || "設施";
-    affordIslandResult(startBuilding(island, { buildingId: button.dataset.islandBuild, q, r, workerId: progress.playerAvatar || "cat" }), `${buildingName} 已開始施工！`);
+    affordIslandResult(startBuilding(island, { buildingId: button.dataset.islandBuild, q, r, workerId: islandSelectedWorkerId, playerAvatar: progress.playerAvatar || "cat" }), `${buildingName} 已開始施工！`);
   }));
   document.querySelectorAll("[data-island-hire]").forEach((button) => button.addEventListener("click", () => {
     affordIslandResult(hireConstructionHelper(island, { jobId: button.dataset.islandHire, helperId: button.dataset.islandHelper }), "新伙伴加入，完工時間已提前！");
@@ -645,7 +688,7 @@ function bindIslandEvents() {
     commitIsland(result.state, { status: "產品已領取到無上限倉庫。" });
   }));
   document.querySelectorAll("[data-island-process]").forEach((button) => button.addEventListener("click", () => {
-    const result = startProcessing(island, { buildingInstanceId: button.dataset.islandBuilding, recipeId: button.dataset.islandProcess });
+    const result = startProcessing(island, { buildingInstanceId: button.dataset.islandBuilding, recipeId: button.dataset.islandProcess, ignoreInputs: ISLAND_TEST_MODE });
     if (!result.ok) {
       islandStatus = result.error;
       renderIslandView();
@@ -660,7 +703,17 @@ function bindIslandEvents() {
       renderIslandView();
       return;
     }
-    commitIsland(result.state, { coinDelta: result.coinsEarned, status: `市場售出完成，獲得 🪙 ${result.coinsEarned}。` });
+    commitIsland(result.state, { coinDelta: ISLAND_TEST_MODE ? 0 : result.coinsEarned, status: `市場售出完成，獲得 🪙 ${result.coinsEarned}。` });
+  }));
+  document.querySelectorAll("[data-island-finish-kind]").forEach((button) => button.addEventListener("click", () => {
+    if (!ISLAND_TEST_MODE) return;
+    const result = finishIslandWork(island, { kind: button.dataset.islandFinishKind, id: button.dataset.islandFinishId });
+    if (!result.ok) {
+      islandStatus = result.error;
+      renderIslandView();
+      return;
+    }
+    commitIsland(result.state, { status: "測試模式：工作已馬上完成。" });
   }));
 }
 

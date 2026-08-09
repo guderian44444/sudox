@@ -1,6 +1,8 @@
 export const ISLAND_SCHEMA_VERSION = 1;
 export const ISLAND_RADIUS = 4;
 export const STARTER_LAND_RADIUS = 1;
+// DEVELOPMENT ONLY: must be false before this branch is pushed or deployed.
+export const ISLAND_TEST_MODE = true;
 
 const minutes = (value) => value * 60;
 const hours = (value) => minutes(value * 60);
@@ -53,14 +55,9 @@ export const RECIPE_CATALOG = Object.freeze({
 
 export const BUILDING_CATALOG = Object.freeze({
   islandHome: Object.freeze({
-    id: "islandHome", name: "島主小屋", icon: "🏠", category: "starter", buildable: false,
+    id: "islandHome", name: "島主小屋與倉庫", icon: "🏠", category: "starter", buildable: false,
     footprint: Object.freeze([{ q: 0, r: 0 }]), costCoins: 0, durationSeconds: 0,
-    description: "小島的中心，也是伙伴休息的地方。", assetKey: "buildings/island-home"
-  }),
-  warehouse: Object.freeze({
-    id: "warehouse", name: "島嶼倉庫", icon: "📦", category: "starter", buildable: false,
-    footprint: Object.freeze([{ q: 0, r: 0 }]), costCoins: 0, durationSeconds: 0,
-    description: "無上限保存所有原料、半成品與成品。", assetKey: "buildings/warehouse"
+    description: "小島的中心、伙伴休息處，也兼作無上限倉庫。", assetKey: "buildings/island-home"
   }),
   garden: Object.freeze({
     id: "garden", name: "菜園", icon: "🥬", category: "source", buildable: true,
