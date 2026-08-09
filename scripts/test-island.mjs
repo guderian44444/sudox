@@ -1,5 +1,8 @@
 import { strict as assert } from "node:assert";
+import { readFileSync } from "node:fs";
 import { BUILDING_CATALOG, ISLAND_TEST_MODE, ITEM_CATALOG, RECIPE_CATALOG } from "../src/island/catalog.js";
+import { COMPANION_ABILITIES, companionAbility, constructionTeamRate } from "../src/island/companions.js";
+import { FRIEND_ROSTER } from "../src/game/friends.js";
 import { axialKey, hexRange } from "../src/island/hex.js";
 import {
   availableConstructionWorkerIds,
@@ -12,6 +15,7 @@ import {
   isReclaimable,
   marketSale,
   normalizeIslandState,
+  selectSourceRecipe,
   startBuilding,
   startProcessing,
   startReclamation
@@ -19,6 +23,8 @@ import {
 import { renderIslandScreen } from "../src/island/renderer.js";
 
 const T0 = Date.parse("2026-08-09T00:00:00.000Z");
+const appSource = readFileSync(new URL("../src/app.js", import.meta.url), "utf8");
+const islandStyles = readFileSync(new URL("../src/island/island.css", import.meta.url), "utf8");
 let now = T0;
 let state = createIslandState({ playerId: "test-player", playerName: "測試員", playerAvatar: "cat", now });
 
@@ -29,6 +35,15 @@ assert.equal(Object.keys(state.buildings).length, 1, "新玩家只需要兼作�
 assert.equal(state.buildings["starter-home"].buildingId, "islandHome", "島主小屋應是唯一初始建築");
 assert(!Object.values(state.buildings).some((building) => building.buildingId === "warehouse"), "不可再額外占一格放倉庫");
 assert(isReclaimable(state, 2, 0), "與初始土地相鄰的第二圈海域應可填海");
+assert.equal(Object.keys(COMPANION_ABILITIES).length, 25, "25 位小伙伴都應有自己的施工專長");
+assert(FRIEND_ROSTER.every((friend) => COMPANION_ABILITIES[friend.id]), "伙伴名冊中的每一位都必須能找到能力定義");
+assert.equal(new Set(Object.values(COMPANION_ABILITIES).map((entry) => entry.name)).size, 25, "每位伙伴的能力名稱應清楚區分");
+assert.equal(companionAbility("bear").timeMultiplier, 0.5, "熊的大力土木應讓適用工程工期縮短 50%");
+assert(constructionTeamRate(["bear"], BUILDING_CATALOG.workshed.workTags) === 2, "熊進行土木工程時施工速度應為兩倍");
+
+const catReclaimDuration = startReclamation(createIslandState({ now }), { q: 2, r: 0, workerId: "cat", now }).job.readyAt - now;
+const bearReclaimDuration = startReclamation(createIslandState({ now }), { q: 2, r: 0, workerId: "bear", playerAvatar: "cat", now }).job.readyAt - now;
+assert.equal(bearReclaimDuration, catReclaimDuration / 2, "熊單獨填海時實際 readyAt 應縮短 50%");
 
 const reclaim = startReclamation(state, { q: 2, r: 0, workerId: "cat", playerAvatar: "cat", now });
 assert(reclaim.ok && reclaim.costCoins === 25, "自己的空閒伙伴應可開始第一次填海且不收雇用費");
@@ -77,6 +92,14 @@ const sale = marketSale(state, { itemId: "vegetable", quantity: 2, now });
 assert(sale.ok && sale.coinsEarned === ITEM_CATALOG.vegetable.marketCoins * 2, "市場應按數量立即換成金幣");
 state = sale.state;
 
+let sourceSwitch = selectSourceRecipe(state, { buildingInstanceId: garden.id, recipeId: "carrotHarvest", now });
+assert(sourceSwitch.ok && sourceSwitch.state.facilities[garden.id].recipeId === "carrotHarvest", "菜園應可改種不同作物並重開一批生產時間");
+state = sourceSwitch.state;
+finish("source", garden.id);
+harvest = collectFacility(state, { buildingInstanceId: garden.id, now });
+assert(harvest.ok && harvest.state.inventory.carrot === 3, "改種胡蘿蔔後應收到對應產物");
+state = harvest.state;
+
 const cornField = buildNow("cornField", 1, -1);
 const ranch = buildNow("ranch", 0, -1);
 const factory = buildNow("foodFactory", -1, 1);
@@ -110,6 +133,35 @@ state = process.state;
 finish("processing", process.job.id);
 collectNow(factory);
 assert.equal(state.inventory.dairyBox, 1, "三層產業鏈最後應產出乳製品箱");
+assert(BUILDING_CATALOG.ranch.description.includes("不殺生") && BUILDING_CATALOG.ranch.recipeIds.includes("eggBatch") && BUILDING_CATALOG.ranch.recipeIds.includes("woolBatch"), "牧場應採牛奶、雞蛋、羊毛的非殺生設計");
+assert(BUILDING_CATALOG.orchard.recipeIds.includes("coffeeHarvest") && BUILDING_CATALOG.orchard.recipeIds.includes("cocoaHarvest"), "果園應支援咖啡與可可作物");
+assert(RECIPE_CATALOG.brewCoffee.inputs.roastedCoffee === 1 && RECIPE_CATALOG.chocolateBatch.outputs.chocolate === 1, "咖啡與可可加工鏈應完整接到高價產品");
+Object.values(RECIPE_CATALOG).forEach((recipe) => {
+  assert(BUILDING_CATALOG[recipe.facilityId], `配方 ${recipe.id} 的設施必須存在`);
+  Object.keys({ ...recipe.inputs, ...recipe.outputs }).forEach((itemId) => assert(ITEM_CATALOG[itemId], `配方 ${recipe.id} 的品項 ${itemId} 必須存在`));
+});
+for (const recipe of Object.values(RECIPE_CATALOG)) {
+  let recipeState = createIslandState({ playerAvatar: "cat", now });
+  recipeState.buildings.fixture = { id: "fixture", buildingId: recipe.facilityId, q: 0, r: 1, orientation: 0, completedAt: now };
+  recipeState.facilities.fixture = { buildingInstanceId: "fixture", recipeId: "", state: "idle", startedAt: 0, readyAt: 0, readyOutput: {}, readyOutputs: {}, updatedAt: now };
+  if (recipe.kind === "source") {
+    const selected = selectSourceRecipe(recipeState, { buildingInstanceId: "fixture", recipeId: recipe.id, now });
+    assert(selected.ok, `來源配方 ${recipe.id} 應可在對應設施啟動`);
+    const completed = finishIslandWork(selected.state, { kind: "source", id: "fixture", now: now + 1 });
+    const collected = collectFacility(completed.state, { buildingInstanceId: "fixture", now: now + 1 });
+    assert(collected.ok, `來源配方 ${recipe.id} 完成後應可收成`);
+    Object.entries(recipe.outputs).forEach(([itemId, count]) => assert.equal(collected.state.inventory[itemId], count, `來源配方 ${recipe.id} 應產出正確數量`));
+  } else {
+    Object.keys(recipeState.inventory).forEach((itemId) => { recipeState.inventory[itemId] = 20; });
+    Object.keys(recipe.outputs).forEach((itemId) => { recipeState.inventory[itemId] = 0; });
+    const started = startProcessing(recipeState, { buildingInstanceId: "fixture", recipeId: recipe.id, now });
+    assert(started.ok, `加工配方 ${recipe.id} 應可在原料充足時啟動`);
+    const completed = finishIslandWork(started.state, { kind: "processing", id: started.job.id, now: now + 1 });
+    const collected = collectFacility(completed.state, { buildingInstanceId: "fixture", now: now + 1 });
+    assert(collected.ok, `加工配方 ${recipe.id} 完成後應可領取`);
+    Object.entries(recipe.outputs).forEach(([itemId, count]) => assert.equal(collected.state.inventory[itemId], count, `加工配方 ${recipe.id} 應產出正確數量`));
+  }
+}
 
 const noInputState = structuredClone(state);
 noInputState.inventory.milk = 0;
@@ -132,12 +184,28 @@ const markup = renderIslandScreen({
   now,
   version: "test"
 });
+const catalogMarkup = renderIslandScreen({
+  state: createIslandState({ playerAvatar: "cat", now }),
+  coins: 999,
+  selectedKey: "0,1",
+  helpers: [],
+  workers: [{ id: "cat", name: "貓" }, { id: "bear", name: "熊" }],
+  selectedWorkerId: "cat",
+  playerAvatar: "cat",
+  testMode: true,
+  now,
+  version: "test"
+});
 const hexButtons = markup.match(/<button class="island-hex[\s\S]*?<\/button>/g) || [];
 assert(hexButtons.length === 61 && hexButtons.every((button) => !button.includes("data-island-ready-at")), "施工倒數不可顯示在地圖六角格上");
 assert(/目前進行中的工作/.test(markup) && /data-island-ready-at/.test(markup), "底部欄應改為顯示目前進行中的工作與時間");
 assert(/小屋倉庫・容量無上限/.test(markup) && !/class="island-inventory"/.test(markup), "庫存只應在點選島主小屋後顯示");
 assert(/data-island-finish-kind/.test(markup) && /測試資源 ∞/.test(markup), "測試模式應顯示無限資源與馬上完成按鈕");
 assert(/data-island-zoom="out"/.test(markup) && /data-island-map-viewport/.test(markup), "縮放按鈕與滾輪事件接點應位於地圖區域");
+assert(/island-build-category/.test(catalogMarkup) && /農業與採集/.test(catalogMarkup) && /加工與畜產/.test(catalogMarkup), "建築目錄應依用途顯示為巢狀分類");
+assert(/靈巧佈置|大力土木/.test(catalogMarkup), "施工伙伴選擇器應顯示伙伴能力");
+assert(/pointerdown/.test(appSource) && /pointermove/.test(appSource) && /islandDragged/.test(appSource), "地圖應支援滑鼠與手機 Pointer Events 拖曳並防止拖後誤觸");
+assert(/touch-action:\s*none/.test(islandStyles) && /cursor:\s*grab/.test(islandStyles), "地圖拖曳應關閉瀏覽器手勢衝突並顯示拖曳游標");
 assert.equal(RECIPE_CATALOG.dairyBatch.outputs.dairyBox, 1, "配方目錄應保留可擴充的資料驅動輸出");
 
 console.log("Island foundation checks passed.");

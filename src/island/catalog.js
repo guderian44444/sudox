@@ -7,106 +7,163 @@ export const ISLAND_TEST_MODE = true;
 const minutes = (value) => value * 60;
 const hours = (value) => minutes(value * 60);
 
+export const RECLAMATION_WORK_TAGS = Object.freeze(["civil", "heavy", "waterfront"]);
+
+export const BUILDING_CATEGORIES = Object.freeze([
+  Object.freeze({ id: "source", name: "農業與採集", icon: "🌱" }),
+  Object.freeze({ id: "processor", name: "加工與畜產", icon: "⚙️" }),
+  Object.freeze({ id: "market", name: "商業服務", icon: "🏪" }),
+  Object.freeze({ id: "utility", name: "公共工程", icon: "🛠️" }),
+  Object.freeze({ id: "decoration", name: "景觀遊樂", icon: "🌷" })
+]);
+
 export const ITEM_CATALOG = Object.freeze({
   vegetable: Object.freeze({ id: "vegetable", name: "蔬菜", icon: "🥬", marketCoins: 6, assetKey: "items/vegetable" }),
+  carrot: Object.freeze({ id: "carrot", name: "胡蘿蔔", icon: "🥕", marketCoins: 5, assetKey: "items/carrot" }),
+  tomato: Object.freeze({ id: "tomato", name: "番茄", icon: "🍅", marketCoins: 7, assetKey: "items/tomato" }),
+  strawberry: Object.freeze({ id: "strawberry", name: "草莓", icon: "🍓", marketCoins: 10, assetKey: "items/strawberry" }),
   corn: Object.freeze({ id: "corn", name: "玉米", icon: "🌽", marketCoins: 4, assetKey: "items/corn" }),
+  fruit: Object.freeze({ id: "fruit", name: "綜合水果", icon: "🍎", marketCoins: 9, assetKey: "items/fruit" }),
+  coffeeBean: Object.freeze({ id: "coffeeBean", name: "咖啡豆", icon: "🫘", marketCoins: 12, assetKey: "items/coffee-bean" }),
+  roastedCoffee: Object.freeze({ id: "roastedCoffee", name: "烘焙咖啡豆", icon: "☕", marketCoins: 28, assetKey: "items/roasted-coffee" }),
+  coffeeCup: Object.freeze({ id: "coffeeCup", name: "小島拿鐵", icon: "🥤", marketCoins: 65, assetKey: "items/coffee-cup" }),
+  cocoaBean: Object.freeze({ id: "cocoaBean", name: "可可豆", icon: "🟤", marketCoins: 14, assetKey: "items/cocoa-bean" }),
+  chocolate: Object.freeze({ id: "chocolate", name: "巧克力", icon: "🍫", marketCoins: 45, assetKey: "items/chocolate" }),
   milk: Object.freeze({ id: "milk", name: "牛奶", icon: "🥛", marketCoins: 14, assetKey: "items/milk" }),
+  egg: Object.freeze({ id: "egg", name: "雞蛋", icon: "🥚", marketCoins: 8, assetKey: "items/egg" }),
+  wool: Object.freeze({ id: "wool", name: "羊毛", icon: "🧶", marketCoins: 16, assetKey: "items/wool" }),
+  fabric: Object.freeze({ id: "fabric", name: "島花布", icon: "🪡", marketCoins: 50, assetKey: "items/fabric" }),
+  honey: Object.freeze({ id: "honey", name: "蜂蜜", icon: "🍯", marketCoins: 18, assetKey: "items/honey" }),
+  jam: Object.freeze({ id: "jam", name: "水果果醬", icon: "🫙", marketCoins: 36, assetKey: "items/jam" }),
+  cake: Object.freeze({ id: "cake", name: "蜂蜜蛋糕", icon: "🍰", marketCoins: 90, assetKey: "items/cake" }),
   dairyBox: Object.freeze({ id: "dairyBox", name: "乳製品箱", icon: "🧀", marketCoins: 50, assetKey: "items/dairy-box" })
 });
 
 export const RECIPE_CATALOG = Object.freeze({
-  vegetableHarvest: Object.freeze({
-    id: "vegetableHarvest",
-    name: "種植蔬菜",
-    kind: "source",
-    facilityId: "garden",
-    inputs: Object.freeze({}),
-    outputs: Object.freeze({ vegetable: 2 }),
-    durationSeconds: minutes(45)
-  }),
-  cornHarvest: Object.freeze({
-    id: "cornHarvest",
-    name: "種植玉米",
-    kind: "source",
-    facilityId: "cornField",
-    inputs: Object.freeze({}),
-    outputs: Object.freeze({ corn: 2 }),
-    durationSeconds: hours(1)
-  }),
-  milkBatch: Object.freeze({
-    id: "milkBatch",
-    name: "餵牛產奶",
-    kind: "processor",
-    facilityId: "ranch",
-    inputs: Object.freeze({ corn: 2 }),
-    outputs: Object.freeze({ milk: 1 }),
-    durationSeconds: hours(2)
-  }),
-  dairyBatch: Object.freeze({
-    id: "dairyBatch",
-    name: "加工乳製品",
-    kind: "processor",
-    facilityId: "foodFactory",
-    inputs: Object.freeze({ milk: 2 }),
-    outputs: Object.freeze({ dairyBox: 1 }),
-    durationSeconds: hours(3)
-  })
+  vegetableHarvest: Object.freeze({ id: "vegetableHarvest", name: "種植葉菜", kind: "source", facilityId: "garden", inputs: Object.freeze({}), outputs: Object.freeze({ vegetable: 2 }), durationSeconds: minutes(45) }),
+  carrotHarvest: Object.freeze({ id: "carrotHarvest", name: "種植胡蘿蔔", kind: "source", facilityId: "garden", inputs: Object.freeze({}), outputs: Object.freeze({ carrot: 3 }), durationSeconds: minutes(30) }),
+  tomatoHarvest: Object.freeze({ id: "tomatoHarvest", name: "種植番茄", kind: "source", facilityId: "garden", inputs: Object.freeze({}), outputs: Object.freeze({ tomato: 3 }), durationSeconds: hours(1) }),
+  strawberryHarvest: Object.freeze({ id: "strawberryHarvest", name: "種植草莓", kind: "source", facilityId: "garden", inputs: Object.freeze({}), outputs: Object.freeze({ strawberry: 3 }), durationSeconds: hours(2) }),
+  cornHarvest: Object.freeze({ id: "cornHarvest", name: "種植玉米", kind: "source", facilityId: "cornField", inputs: Object.freeze({}), outputs: Object.freeze({ corn: 2 }), durationSeconds: hours(1) }),
+  fruitHarvest: Object.freeze({ id: "fruitHarvest", name: "栽培果樹", kind: "source", facilityId: "orchard", inputs: Object.freeze({}), outputs: Object.freeze({ fruit: 3 }), durationSeconds: hours(2) }),
+  coffeeHarvest: Object.freeze({ id: "coffeeHarvest", name: "栽培咖啡", kind: "source", facilityId: "orchard", inputs: Object.freeze({}), outputs: Object.freeze({ coffeeBean: 3 }), durationSeconds: hours(3) }),
+  cocoaHarvest: Object.freeze({ id: "cocoaHarvest", name: "栽培可可", kind: "source", facilityId: "orchard", inputs: Object.freeze({}), outputs: Object.freeze({ cocoaBean: 3 }), durationSeconds: hours(4) }),
+  honeyHarvest: Object.freeze({ id: "honeyHarvest", name: "照顧蜜蜂採蜜", kind: "source", facilityId: "apiary", inputs: Object.freeze({}), outputs: Object.freeze({ honey: 2 }), durationSeconds: hours(2) }),
+  milkBatch: Object.freeze({ id: "milkBatch", name: "照顧乳牛擠奶", kind: "processor", facilityId: "ranch", inputs: Object.freeze({ corn: 2 }), outputs: Object.freeze({ milk: 1 }), durationSeconds: hours(2) }),
+  eggBatch: Object.freeze({ id: "eggBatch", name: "餵母雞收蛋", kind: "processor", facilityId: "ranch", inputs: Object.freeze({ corn: 1 }), outputs: Object.freeze({ egg: 3 }), durationSeconds: hours(1) }),
+  woolBatch: Object.freeze({ id: "woolBatch", name: "照顧綿羊剪毛", kind: "processor", facilityId: "ranch", inputs: Object.freeze({ vegetable: 2 }), outputs: Object.freeze({ wool: 1 }), durationSeconds: hours(3) }),
+  dairyBatch: Object.freeze({ id: "dairyBatch", name: "加工乳製品", kind: "processor", facilityId: "foodFactory", inputs: Object.freeze({ milk: 2 }), outputs: Object.freeze({ dairyBox: 1 }), durationSeconds: hours(3) }),
+  jamBatch: Object.freeze({ id: "jamBatch", name: "熬煮水果果醬", kind: "processor", facilityId: "foodFactory", inputs: Object.freeze({ fruit: 2 }), outputs: Object.freeze({ jam: 1 }), durationSeconds: hours(3) }),
+  chocolateBatch: Object.freeze({ id: "chocolateBatch", name: "製作牛奶巧克力", kind: "processor", facilityId: "foodFactory", inputs: Object.freeze({ cocoaBean: 2, milk: 1 }), outputs: Object.freeze({ chocolate: 1 }), durationSeconds: hours(4) }),
+  roastCoffee: Object.freeze({ id: "roastCoffee", name: "烘焙咖啡豆", kind: "processor", facilityId: "roastery", inputs: Object.freeze({ coffeeBean: 2 }), outputs: Object.freeze({ roastedCoffee: 1 }), durationSeconds: hours(2) }),
+  brewCoffee: Object.freeze({ id: "brewCoffee", name: "調製小島拿鐵", kind: "processor", facilityId: "cafe", inputs: Object.freeze({ roastedCoffee: 1, milk: 1 }), outputs: Object.freeze({ coffeeCup: 1 }), durationSeconds: hours(1) }),
+  weaveFabric: Object.freeze({ id: "weaveFabric", name: "織成島花布", kind: "processor", facilityId: "textileWorkshop", inputs: Object.freeze({ wool: 2 }), outputs: Object.freeze({ fabric: 1 }), durationSeconds: hours(3) }),
+  bakeCake: Object.freeze({ id: "bakeCake", name: "烘焙蜂蜜蛋糕", kind: "processor", facilityId: "bakery", inputs: Object.freeze({ egg: 2, milk: 1, honey: 1 }), outputs: Object.freeze({ cake: 1 }), durationSeconds: hours(4) })
 });
+
+const oneHex = Object.freeze([{ q: 0, r: 0 }]);
+const tags = (...values) => Object.freeze(values);
 
 export const BUILDING_CATALOG = Object.freeze({
   islandHome: Object.freeze({
     id: "islandHome", name: "島主小屋與倉庫", icon: "🏠", category: "starter", buildable: false,
-    footprint: Object.freeze([{ q: 0, r: 0 }]), costCoins: 0, durationSeconds: 0,
+    footprint: oneHex, costCoins: 0, durationSeconds: 0, workTags: tags("craft", "utility"),
     description: "小島的中心、伙伴休息處，也兼作無上限倉庫。", assetKey: "buildings/island-home"
   }),
   garden: Object.freeze({
-    id: "garden", name: "菜園", icon: "🥬", category: "source", buildable: true,
-    footprint: Object.freeze([{ q: 0, r: 0 }]), costCoins: 20, durationSeconds: minutes(20),
-    defaultRecipeId: "vegetableHarvest", description: "成熟後點擊收成，蔬菜會進入倉庫。", assetKey: "buildings/garden"
-  }),
-  market: Object.freeze({
-    id: "market", name: "小島市場", icon: "🏪", category: "market", buildable: true,
-    footprint: Object.freeze([{ q: 0, r: 0 }]), costCoins: 60, durationSeconds: hours(1),
-    description: "把倉庫中的產品直接換成金幣。", assetKey: "buildings/market"
+    id: "garden", name: "百變菜園", icon: "🥬", category: "source", buildable: true,
+    footprint: oneHex, costCoins: 20, durationSeconds: minutes(20), workTags: tags("farming"),
+    defaultRecipeId: "vegetableHarvest", recipeIds: Object.freeze(["vegetableHarvest", "carrotHarvest", "tomatoHarvest", "strawberryHarvest"]),
+    description: "可改種葉菜、胡蘿蔔、番茄或草莓。成熟後點擊收成進倉庫。", assetKey: "buildings/garden"
   }),
   cornField: Object.freeze({
     id: "cornField", name: "玉米田", icon: "🌽", category: "source", buildable: true,
-    footprint: Object.freeze([{ q: 0, r: 0 }]), costCoins: 50, durationSeconds: hours(1),
-    defaultRecipeId: "cornHarvest", description: "成熟後收成玉米，可直售或送去牧場。", assetKey: "buildings/corn-field"
+    footprint: oneHex, costCoins: 50, durationSeconds: hours(1), workTags: tags("farming", "heavy"),
+    defaultRecipeId: "cornHarvest", recipeIds: Object.freeze(["cornHarvest"]),
+    description: "穩定生產玉米，可直售或作為牧場飼料。", assetKey: "buildings/corn-field"
+  }),
+  orchard: Object.freeze({
+    id: "orchard", name: "熱帶果園", icon: "🌳", category: "source", buildable: true,
+    footprint: oneHex, costCoins: 90, durationSeconds: hours(2), workTags: tags("farming", "orchard"),
+    defaultRecipeId: "fruitHarvest", recipeIds: Object.freeze(["fruitHarvest", "coffeeHarvest", "cocoaHarvest"]),
+    description: "可切換栽培果樹、咖啡或可可，是多條高價加工鏈的起點。", assetKey: "buildings/orchard"
+  }),
+  apiary: Object.freeze({
+    id: "apiary", name: "友善蜂園", icon: "🐝", category: "source", buildable: true,
+    footprint: oneHex, costCoins: 120, durationSeconds: hours(3), workTags: tags("animal", "farming", "decoration"),
+    defaultRecipeId: "honeyHarvest", recipeIds: Object.freeze(["honeyHarvest"]),
+    description: "照顧蜜蜂收集蜂蜜，也讓周圍花草更熱鬧。", assetKey: "buildings/apiary"
   }),
   ranch: Object.freeze({
-    id: "ranch", name: "乳牛牧場", icon: "🐄", category: "processor", buildable: true,
-    footprint: Object.freeze([{ q: 0, r: 0 }]), costCoins: 180, durationSeconds: hours(4),
-    recipeIds: Object.freeze(["milkBatch"]), description: "投入玉米後開始產奶，多批可以平行進行。", assetKey: "buildings/ranch"
+    id: "ranch", name: "友善牧場", icon: "🐄", category: "processor", buildable: true,
+    footprint: oneHex, costCoins: 180, durationSeconds: hours(4), workTags: tags("animal", "farming", "heavy"),
+    recipeIds: Object.freeze(["milkBatch", "eggBatch", "woolBatch"]),
+    description: "只照顧乳牛、母雞與綿羊，收牛奶、雞蛋和羊毛；小島世界不殺生。", assetKey: "buildings/ranch"
   }),
   foodFactory: Object.freeze({
-    id: "foodFactory", name: "食品工廠", icon: "🏭", category: "processor", buildable: true,
-    footprint: Object.freeze([{ q: 0, r: 0 }]), costCoins: 320, durationSeconds: hours(8),
-    recipeIds: Object.freeze(["dairyBatch"]), description: "把牛奶加工成價值更高的乳製品箱。", assetKey: "buildings/food-factory"
+    id: "foodFactory", name: "食品工房", icon: "🏭", category: "processor", buildable: true,
+    footprint: oneHex, costCoins: 320, durationSeconds: hours(8), workTags: tags("factory", "food", "heavy"),
+    recipeIds: Object.freeze(["dairyBatch", "jamBatch", "chocolateBatch"]),
+    description: "加工乳製品、果醬與巧克力；完成品會累積等待領取。", assetKey: "buildings/food-factory"
   }),
-  flowerGarden: Object.freeze({
-    id: "flowerGarden", name: "花園", icon: "🌷", category: "decoration", buildable: true,
-    footprint: Object.freeze([{ q: 0, r: 0 }]), costCoins: 30, durationSeconds: minutes(30),
-    description: "純裝飾設施，讓小島更有生氣。", assetKey: "buildings/flower-garden"
+  roastery: Object.freeze({
+    id: "roastery", name: "咖啡烘焙坊", icon: "♨️", category: "processor", buildable: true,
+    footprint: oneHex, costCoins: 220, durationSeconds: hours(5), workTags: tags("coffee", "factory", "craft"),
+    recipeIds: Object.freeze(["roastCoffee"]), description: "把果園咖啡豆烘焙成更高價的熟豆。", assetKey: "buildings/roastery"
+  }),
+  cafe: Object.freeze({
+    id: "cafe", name: "海風咖啡館", icon: "☕", category: "processor", buildable: true,
+    footprint: oneHex, costCoins: 260, durationSeconds: hours(6), workTags: tags("coffee", "food", "commerce", "decoration"),
+    recipeIds: Object.freeze(["brewCoffee"]), description: "用烘焙豆與牛奶調製小島拿鐵。", assetKey: "buildings/cafe"
+  }),
+  textileWorkshop: Object.freeze({
+    id: "textileWorkshop", name: "織布工坊", icon: "🧵", category: "processor", buildable: true,
+    footprint: oneHex, costCoins: 240, durationSeconds: hours(6), workTags: tags("craft", "factory"),
+    recipeIds: Object.freeze(["weaveFabric"]), description: "把綿羊的羊毛織成有小島花紋的布料。", assetKey: "buildings/textile-workshop"
+  }),
+  bakery: Object.freeze({
+    id: "bakery", name: "蜂蜜烘焙屋", icon: "🥐", category: "processor", buildable: true,
+    footprint: oneHex, costCoins: 280, durationSeconds: hours(7), workTags: tags("food", "craft", "commerce"),
+    recipeIds: Object.freeze(["bakeCake"]), description: "把雞蛋、牛奶與蜂蜜烤成高價蜂蜜蛋糕。", assetKey: "buildings/bakery"
+  }),
+  market: Object.freeze({
+    id: "market", name: "小島市場", icon: "🏪", category: "market", buildable: true,
+    footprint: oneHex, costCoins: 60, durationSeconds: hours(1), workTags: tags("commerce", "craft"),
+    description: "把倉庫中的任何原料或加工品直接換成金幣。", assetKey: "buildings/market"
   }),
   workshed: Object.freeze({
     id: "workshed", name: "工務小屋", icon: "🛠️", category: "utility", buildable: true,
-    footprint: Object.freeze([{ q: 0, r: 0 }]), costCoins: 100, durationSeconds: hours(2),
-    description: "為後續增加施工欄位與工程功能預留。", assetKey: "buildings/workshed"
+    footprint: oneHex, costCoins: 100, durationSeconds: hours(2), workTags: tags("civil", "craft", "utility"),
+    description: "伙伴規劃工程與修繕工具的基地。", assetKey: "buildings/workshed"
+  }),
+  lighthouse: Object.freeze({
+    id: "lighthouse", name: "珊瑚燈塔", icon: "🗼", category: "utility", buildable: true,
+    footprint: oneHex, costCoins: 260, durationSeconds: hours(6), workTags: tags("civil", "heavy", "waterfront"),
+    description: "照亮外海的公共工程，也為未來航運任務預留接點。", assetKey: "buildings/lighthouse"
+  }),
+  flowerGarden: Object.freeze({
+    id: "flowerGarden", name: "花園", icon: "🌷", category: "decoration", buildable: true,
+    footprint: oneHex, costCoins: 30, durationSeconds: minutes(30), workTags: tags("decoration", "farming"),
+    description: "純裝飾設施，讓小島更有生氣。", assetKey: "buildings/flower-garden"
+  }),
+  pond: Object.freeze({
+    id: "pond", name: "睡蓮池", icon: "🪷", category: "decoration", buildable: true,
+    footprint: oneHex, costCoins: 70, durationSeconds: hours(1), workTags: tags("decoration", "waterfront", "farming"),
+    description: "小伙伴可以在池邊休息的自然景觀。", assetKey: "buildings/pond"
   }),
   playground: Object.freeze({
-    id: "playground", name: "遊樂場", icon: "🎠", category: "decoration", buildable: true,
-    footprint: Object.freeze([{ q: 0, r: 0 }]), costCoins: 160, durationSeconds: hours(4),
+    id: "playground", name: "伙伴遊樂場", icon: "🎠", category: "decoration", buildable: true,
+    footprint: oneHex, costCoins: 160, durationSeconds: hours(4), workTags: tags("decoration", "civil", "craft"),
     description: "伙伴完工後會來這裡玩。", assetKey: "buildings/playground"
   }),
   dock: Object.freeze({
     id: "dock", name: "碼頭", icon: "⚓", category: "logistics", buildable: false, comingSoon: true,
-    footprint: Object.freeze([{ q: 0, r: 0 }, { q: 1, r: 0 }]), costCoins: 350, durationSeconds: hours(8),
+    footprint: Object.freeze([{ q: 0, r: 0 }, { q: 1, r: 0 }]), costCoins: 350, durationSeconds: hours(8), workTags: tags("civil", "heavy", "waterfront"),
     description: "合作物流接點；後續版本開放跨島運輸。", assetKey: "buildings/dock"
   }),
   airport: Object.freeze({
     id: "airport", name: "機場", icon: "✈️", category: "logistics", buildable: false, comingSoon: true,
-    footprint: Object.freeze([{ q: 0, r: 0 }, { q: 1, r: 0 }, { q: 0, r: 1 }]), costCoins: 900, durationSeconds: hours(24),
+    footprint: Object.freeze([{ q: 0, r: 0 }, { q: 1, r: 0 }, { q: 0, r: 1 }]), costCoins: 900, durationSeconds: hours(24), workTags: tags("civil", "heavy", "utility"),
     description: "快速物流接點；資料模型已預留。", assetKey: "buildings/airport"
   })
 });

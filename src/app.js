@@ -15,15 +15,15 @@ import {
 import { ACHIEVEMENTS, achievementValue, recordAchievementGame } from "./game/achievements.js";
 import { chooseFriendPair, chooseGardenEel, choosePartyFriends, FRIEND_ROSTER, nextDanceVariants } from "./game/friends.js";
 import { ISLAND_TEST_MODE } from "./island/catalog.js";
-import { availableConstructionWorkerIds, availableHelperIds, collectFacility, createIslandState, finishIslandWork, hireConstructionHelper, marketSale, normalizeIslandState, settleIsland, startBuilding, startProcessing, startReclamation } from "./island/model.js";
+import { availableConstructionWorkerIds, availableHelperIds, collectFacility, createIslandState, finishIslandWork, hireConstructionHelper, marketSale, normalizeIslandState, selectSourceRecipe, settleIsland, startBuilding, startProcessing, startReclamation } from "./island/model.js";
 import { formatIslandDuration, renderIslandScreen } from "./island/renderer.js";
 import { cloudConfigured, loadCloudPin, loadCloudProgress, normalizePlayerName, renameCloudPlayer, saveCloudPin, saveCloudProgress, validCloudPin } from "./state/cloud.js";
 import { buildScore, fetchLeaderboard, flushPendingScores, leaderboardConfigured, normalizeLeaderboardTaunt, pendingScoreCount, queueLeaderboardScore, updateLeaderboardAvatar, updateLeaderboardTaunt } from "./state/leaderboard.js";
 import { addCard, clearSession, consumeCard, exportSaveCode, importSaveCode, loadProgress, loadSession, mergeProgressHighWater, nextFloorFromCompleted, parseSaveCode, preferSaveSide, raiseFloorProgress, rewardProgress, saveProgress, saveSession, saveTimestampMs, sessionFloorBehindProgress, spendCoins } from "./state/store.js";
 
 const app = document.querySelector("#app");
-const APP_VERSION = "v41";
-const APP_LAST_UPDATED = "2026-08-09T11:20:00+08:00";
+const APP_VERSION = "v42";
+const APP_LAST_UPDATED = "2026-08-09T13:10:00+08:00";
 let progress = loadProgress();
 const migratedAchievements = recordAchievementGame(progress);
 progress = migratedAchievements.progress;
@@ -70,6 +70,7 @@ let islandSelectedWorkerId = "";
 let islandZoom = innerWidth > 900
   ? Math.max(0.62, Math.min(0.98, (innerHeight - 240) / 504))
   : 0.78;
+let islandMapPosition = null;
 let islandStatus = "";
 let islandClockId;
 
@@ -588,6 +589,16 @@ function renderIslandView() {
     testMode: ISLAND_TEST_MODE,
     version: APP_VERSION
   });
+  const mapViewport = document.querySelector("[data-island-map-viewport]");
+  if (mapViewport) {
+    const target = islandMapPosition || {
+      left: Math.max(0, (mapViewport.scrollWidth - mapViewport.clientWidth) / 2),
+      top: Math.max(0, (mapViewport.scrollHeight - mapViewport.clientHeight) / 2)
+    };
+    mapViewport.scrollLeft = target.left;
+    mapViewport.scrollTop = target.top;
+    islandMapPosition = { left: mapViewport.scrollLeft, top: mapViewport.scrollTop };
+  }
   bindIslandEvents();
   refreshIslandClock();
 }
@@ -642,9 +653,57 @@ function changeIslandZoom(direction) {
   renderIslandView();
 }
 
+function bindIslandMapDrag(viewport) {
+  if (!viewport) return;
+  let pointerId = null;
+  let startX = 0;
+  let startY = 0;
+  let startLeft = 0;
+  let startTop = 0;
+  let dragged = false;
+
+  viewport.addEventListener("scroll", () => {
+    islandMapPosition = { left: viewport.scrollLeft, top: viewport.scrollTop };
+  }, { passive: true });
+  viewport.addEventListener("pointerdown", (event) => {
+    if (event.button !== 0 || event.target.closest(".island-map-zoom")) return;
+    pointerId = event.pointerId;
+    startX = event.clientX;
+    startY = event.clientY;
+    startLeft = viewport.scrollLeft;
+    startTop = viewport.scrollTop;
+    dragged = false;
+    viewport.setPointerCapture?.(pointerId);
+  });
+  viewport.addEventListener("pointermove", (event) => {
+    if (event.pointerId !== pointerId) return;
+    const deltaX = event.clientX - startX;
+    const deltaY = event.clientY - startY;
+    if (!dragged && Math.hypot(deltaX, deltaY) < 6) return;
+    dragged = true;
+    viewport.classList.add("is-dragging");
+    viewport.scrollLeft = startLeft - deltaX;
+    viewport.scrollTop = startTop - deltaY;
+    event.preventDefault();
+  });
+  const finishDrag = (event) => {
+    if (event.pointerId !== pointerId) return;
+    if (dragged) {
+      viewport.dataset.islandDragged = "true";
+      setTimeout(() => { delete viewport.dataset.islandDragged; }, 0);
+    }
+    viewport.classList.remove("is-dragging");
+    if (viewport.hasPointerCapture?.(pointerId)) viewport.releasePointerCapture(pointerId);
+    pointerId = null;
+  };
+  viewport.addEventListener("pointerup", finishDrag);
+  viewport.addEventListener("pointercancel", finishDrag);
+}
+
 function bindIslandEvents() {
   document.querySelector("#close-island")?.addEventListener("click", closeIsland);
   document.querySelectorAll("[data-island-cell]").forEach((button) => button.addEventListener("click", () => {
+    if (button.closest("[data-island-map-viewport]")?.dataset.islandDragged === "true") return;
     islandSelectedKey = button.dataset.islandCell;
     islandStatus = "";
     renderIslandView();
@@ -652,8 +711,11 @@ function bindIslandEvents() {
   document.querySelectorAll("[data-island-zoom]").forEach((button) => button.addEventListener("click", () => {
     changeIslandZoom(button.dataset.islandZoom);
   }));
-  document.querySelector("[data-island-map-viewport]")?.addEventListener("wheel", (event) => {
+  const mapViewport = document.querySelector("[data-island-map-viewport]");
+  bindIslandMapDrag(mapViewport);
+  mapViewport?.addEventListener("wheel", (event) => {
     event.preventDefault();
+    event.stopImmediatePropagation();
     changeIslandZoom(event.deltaY < 0 ? "in" : "out");
   }, { passive: false });
   document.querySelectorAll("[data-island-worker]").forEach((button) => button.addEventListener("click", () => {
@@ -686,6 +748,15 @@ function bindIslandEvents() {
       return;
     }
     commitIsland(result.state, { status: "產品已領取到無上限倉庫。" });
+  }));
+  document.querySelectorAll("[data-island-source-recipe]").forEach((button) => button.addEventListener("click", () => {
+    const result = selectSourceRecipe(island, { buildingInstanceId: button.dataset.islandBuilding, recipeId: button.dataset.islandSourceRecipe });
+    if (!result.ok) {
+      islandStatus = result.error;
+      renderIslandView();
+      return;
+    }
+    commitIsland(result.state, { status: `已改為「${result.recipe.name}」，本批時間重新計算。` });
   }));
   document.querySelectorAll("[data-island-process]").forEach((button) => button.addEventListener("click", () => {
     const result = startProcessing(island, { buildingInstanceId: button.dataset.islandBuilding, recipeId: button.dataset.islandProcess, ignoreInputs: ISLAND_TEST_MODE });

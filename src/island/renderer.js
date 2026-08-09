@@ -1,15 +1,18 @@
 import {
   BUILDABLE_BUILDINGS,
+  BUILDING_CATEGORIES,
   BUILDING_CATALOG,
   ITEM_CATALOG,
+  RECLAMATION_WORK_TAGS,
   RECIPE_CATALOG,
   reclamationQuote,
   recipeInputsLabel,
   recipeOutputsLabel
 } from "./catalog.js";
 import { islandSpriteMarkup } from "./assets.js";
+import { adjustedConstructionDuration, companionAbility, companionReductionPercent, constructionTeamRate } from "./companions.js";
 import { axialKey, axialToPixel, hexRange, mapPixelBounds } from "./hex.js";
-import { buildingAt, constructionAt, helperQuote, initialWorkerHireCost, isReclaimable } from "./model.js";
+import { buildingAt, constructionAt, constructionJobWorkTags, helperQuote, initialWorkerHireCost, isReclaimable } from "./model.js";
 
 const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({
   "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
@@ -75,25 +78,54 @@ function mapCellMarkup(state, cell, selectedKey, bounds) {
   return `<button class="${classes}" style="${style}" data-island-cell="${key}" aria-label="${escapeHtml(label)}">${content}</button>`;
 }
 
-function workerPicker(workers, selectedWorkerId, playerAvatar) {
-  return `<div class="island-worker-picker"><strong>指派施工伙伴</strong><small>每位伙伴同時只能參與一項工程</small><div>${workers.length ? workers.slice(0, 8).map((worker) => `
+function abilityLabel(workerId, workTags = []) {
+  const ability = companionAbility(workerId);
+  const reduction = companionReductionPercent(workerId, workTags);
+  return reduction ? `${ability.icon} ${ability.name}・本工程 -${reduction}%` : `${ability.icon} ${ability.name}`;
+}
+
+function workerPicker(workers, selectedWorkerId, playerAvatar, workTags = []) {
+  return `<div class="island-worker-picker"><strong>指派施工伙伴</strong><small>每位伙伴同時只能做一件事；專長符合工程時會直接縮短工期</small><div>${workers.length ? workers.map((worker) => `
     <button data-island-worker="${escapeHtml(worker.id)}" class="${worker.id === selectedWorkerId ? "selected" : ""}">
-      <img src="${friendAssetUrl(worker.id)}" alt=""><span>${escapeHtml(worker.name)}</span><em>${worker.id === playerAvatar ? "自己的伙伴" : "需雇用"}</em>
+      <img src="${friendAssetUrl(worker.id)}" alt=""><span>${escapeHtml(worker.name)}</span><em>${escapeHtml(abilityLabel(worker.id, workTags))}</em><small>${worker.id === playerAvatar ? "自己的伙伴" : "需雇用"}</small>
     </button>`).join("") : `<p>所有伙伴都在工作，請先等一項工程完成。</p>`}</div></div>`;
 }
 
 function constructionPanel(job, coins, helpers, now, testMode) {
   const definition = job.kind === "building" ? BUILDING_CATALOG[job.buildingId] : null;
   const helperCost = helperQuote(job);
+  const workTags = constructionJobWorkTags(job);
+  const teamRate = Number(job.teamRate) || constructionTeamRate(job.workerIds, workTags);
   return `<div class="island-selection-card">
     <p class="island-panel-kicker">施工進行中</p>
     <h3>${job.kind === "reclaim" ? "🌊 填海造陸" : `${definition?.icon || "🏗️"} ${escapeHtml(definition?.name || "建造設施")}`}</h3>
-    <p>由 ${job.workerIds.length} 位伙伴合作，離開遊戲後時間也會照常計算。</p>
+    <p>由 ${job.workerIds.length} 位伙伴合作，目前施工速度 ×${teamRate.toFixed(2)}；離開遊戲後時間也會照常計算。</p>
+    <div class="island-active-abilities">${job.workerIds.map((workerId) => `<span>${escapeHtml(abilityLabel(workerId, workTags))}</span>`).join("")}</div>
     <div class="island-time-row"><span>預計完成</span>${countdownMarkup(job.readyAt, now)}</div>
     ${testMode ? `<button class="island-test-finish" data-island-finish-kind="construction" data-island-finish-id="${escapeHtml(job.id)}">⚡ 測試：馬上完成</button>` : ""}
-    ${helperCost ? `<div class="island-helper-box"><strong>雇用伙伴加速</strong><small>${testMode ? "測試模式不扣資源" : `下一位伙伴需要 🪙 ${helperCost}`}</small><div>${helpers.length ? helpers.slice(0, 6).map((helper) => `
-      <button data-island-hire="${escapeHtml(job.id)}" data-island-helper="${escapeHtml(helper.id)}" ${!testMode && coins < helperCost ? "disabled" : ""}><img src="${friendAssetUrl(helper.id)}" alt=""><span>${escapeHtml(helper.name)}</span></button>`).join("") : `<em>伙伴目前都在忙</em>`}</div></div>` : `<p class="island-done-note">已達 3 位施工伙伴的加速上限。</p>`}
+    ${helperCost ? `<div class="island-helper-box"><strong>雇用伙伴加速</strong><small>${testMode ? "測試模式不扣資源" : `下一位伙伴需要 🪙 ${helperCost}`}</small><div>${helpers.length ? helpers.map((helper) => `
+      <button data-island-hire="${escapeHtml(job.id)}" data-island-helper="${escapeHtml(helper.id)}" ${!testMode && coins < helperCost ? "disabled" : ""}><img src="${friendAssetUrl(helper.id)}" alt=""><span>${escapeHtml(helper.name)}</span><em>${escapeHtml(abilityLabel(helper.id, workTags))}</em></button>`).join("") : `<em>伙伴目前都在忙</em>`}</div></div>` : `<p class="island-done-note">已達 3 位施工伙伴的加速上限。</p>`}
   </div>`;
+}
+
+function buildingChoiceMarkup(building, coins, selectedWorkerId, playerAvatar, workerAvailable, testMode) {
+  const hireCost = initialWorkerHireCost(selectedWorkerId, playerAvatar, building.costCoins);
+  const totalCost = building.costCoins + hireCost;
+  const adjustedDuration = adjustedConstructionDuration(building.durationSeconds, [selectedWorkerId], building.workTags);
+  const ability = companionAbility(selectedWorkerId);
+  const reduction = companionReductionPercent(selectedWorkerId, building.workTags);
+  return `<button data-island-build="${building.id}" ${!workerAvailable || (!testMode && coins < totalCost) ? "disabled" : ""}>
+    ${islandSpriteMarkup({ assetKey: building.assetKey, fallback: building.icon, className: "island-catalog-sprite", label: building.name })}
+    <span><strong>${building.name}</strong><small>${testMode ? "🧪 資源不扣" : `🪙 ${totalCost}${hireCost ? `（含雇用 ${hireCost}）` : ""}`}・${formatIslandDuration(adjustedDuration)}</small><em>${ability.icon} ${ability.name}${reduction ? ` 生效 -${reduction}%` : "（此工程無加速）"}</em></span>
+  </button>`;
+}
+
+function categorizedBuildingsMarkup(coins, selectedWorkerId, playerAvatar, workerAvailable, testMode) {
+  return `<div class="island-build-categories">${BUILDING_CATEGORIES.map((category, index) => {
+    const buildings = BUILDABLE_BUILDINGS.filter((building) => building.category === category.id);
+    if (!buildings.length) return "";
+    return `<details class="island-build-category" ${index === 0 ? "open" : ""}><summary><span>${category.icon} ${category.name}</span><small>${buildings.length} 項</small></summary><div class="island-build-grid">${buildings.map((building) => buildingChoiceMarkup(building, coins, selectedWorkerId, playerAvatar, workerAvailable, testMode)).join("")}</div></details>`;
+  }).join("")}</div>`;
 }
 
 function emptyLandPanel(q, r, coins, workers, selectedWorkerId, playerAvatar, testMode) {
@@ -102,25 +134,25 @@ function emptyLandPanel(q, r, coins, workers, selectedWorkerId, playerAvatar, te
     <p class="island-panel-kicker">可建設土地・座標 ${q},${r}</p>
     <h3>選擇要興建的設施</h3>
     ${workerPicker(workers, selectedWorkerId, playerAvatar)}
-    <div class="island-build-grid">${BUILDABLE_BUILDINGS.map((building) => {
-      const hireCost = initialWorkerHireCost(selectedWorkerId, playerAvatar, building.costCoins);
-      const totalCost = building.costCoins + hireCost;
-      return `<button data-island-build="${building.id}" ${!workerAvailable || (!testMode && coins < totalCost) ? "disabled" : ""}>
-        ${islandSpriteMarkup({ assetKey: building.assetKey, fallback: building.icon, className: "island-catalog-sprite", label: building.name })}
-        <span><strong>${building.name}</strong><small>${testMode ? "🧪 資源不扣" : `🪙 ${totalCost}${hireCost ? `（含雇用 ${hireCost}）` : ""}`}・${formatIslandDuration(building.durationSeconds)}</small></span>
-      </button>`;
-    }).join("")}</div>
+    ${categorizedBuildingsMarkup(coins, selectedWorkerId, playerAvatar, workerAvailable, testMode)}
   </div>`;
 }
 
 function sourcePanel(building, facility, now) {
   const recipe = RECIPE_CATALOG[facility?.recipeId];
   if (!recipe) return "";
+  const definition = BUILDING_CATALOG[building.buildingId];
+  const recipeIds = definition.recipeIds || [definition.defaultRecipeId];
   const ready = facility.state === "ready";
   return `<div class="island-facility-box">
     <strong>${ready ? "收成完成" : "正在生長"}</strong>
     <small>${ready ? outputMarkup(facility.readyOutput) : `產出 ${recipeOutputsLabel(recipe)}`}</small>
     ${ready ? `<button class="island-primary" data-island-collect="${building.id}">收成到小屋倉庫</button>` : countdownMarkup(facility.readyAt, now)}
+    <div class="island-source-recipes"><strong>${recipeIds.length > 1 ? "改種／改養" : "生產品項"}</strong><small>${ready ? "先收成才能更換" : "更換品項會重新計算本批時間"}</small>${recipeIds.map((recipeId) => {
+      const option = RECIPE_CATALOG[recipeId];
+      const current = recipeId === facility.recipeId;
+      return `<button data-island-source-recipe="${recipeId}" data-island-building="${building.id}" class="${current ? "selected" : ""}" ${current || ready ? "disabled" : ""}><span><b>${option.name}</b><small>${recipeOutputsLabel(option)}・${formatIslandDuration(option.durationSeconds)}</small></span></button>`;
+    }).join("")}</div>
   </div>`;
 }
 
@@ -180,7 +212,9 @@ function selectedPanel({ state, selectedKey, coins, helpers, workers, selectedWo
     const workerAvailable = workers.some((worker) => worker.id === selectedWorkerId);
     const hireCost = initialWorkerHireCost(selectedWorkerId, playerAvatar, quote.costCoins);
     const totalCost = quote.costCoins + hireCost;
-    return `<div class="island-selection-card"><p class="island-panel-kicker">可開發海域・座標 ${q},${r}</p><h3>🌊 填海造陸</h3><p>把這格海域變成永久土地，完工後即可興建設施。</p>${workerPicker(workers, selectedWorkerId, playerAvatar)}<button class="island-primary" data-island-reclaim ${!workerAvailable || (!testMode && coins < totalCost) ? "disabled" : ""}>開始填海・${testMode ? "🧪 資源不扣" : `🪙 ${totalCost}${hireCost ? `（含雇用 ${hireCost}）` : ""}`}・${formatIslandDuration(quote.durationSeconds)}</button></div>`;
+    const adjustedDuration = adjustedConstructionDuration(quote.durationSeconds, [selectedWorkerId], RECLAMATION_WORK_TAGS);
+    const reduction = companionReductionPercent(selectedWorkerId, RECLAMATION_WORK_TAGS);
+    return `<div class="island-selection-card"><p class="island-panel-kicker">可開發海域・座標 ${q},${r}</p><h3>🌊 填海造陸</h3><p>把這格海域變成永久土地，完工後即可興建設施。</p>${workerPicker(workers, selectedWorkerId, playerAvatar, RECLAMATION_WORK_TAGS)}<button class="island-primary" data-island-reclaim ${!workerAvailable || (!testMode && coins < totalCost) ? "disabled" : ""}>開始填海・${testMode ? "🧪 資源不扣" : `🪙 ${totalCost}${hireCost ? `（含雇用 ${hireCost}）` : ""}`}・${formatIslandDuration(adjustedDuration)}${reduction ? `（專長 -${reduction}%）` : ""}</button></div>`;
   }
   return `<div class="island-selection-card"><p class="island-panel-kicker">外海・座標 ${q},${r}</p><h3>尚未能開發</h3><p>先填海到相鄰格，之後就能逐步把小島向外擴張。</p></div>`;
 }
@@ -223,7 +257,7 @@ export function renderIslandScreen({ state, coins, selectedKey = "0,1", zoom = 0
     </header>
     <section class="island-workspace">
       <div class="island-map-column">
-        <div class="island-map-help"><span>點選格子操作・滾輪縮放</span><small>時間會在選取面板與工作列顯示</small></div>
+        <div class="island-map-help"><span>點選格子操作・按住拖曳地圖・滾輪縮放</span><small>手機可直接按住地圖拖動</small></div>
         <div class="island-map-viewport" data-island-map-viewport>
           <div class="island-map-zoom"><button data-island-zoom="out" aria-label="縮小地圖">－</button><span>${Math.round(safeZoom * 100)}%</span><button data-island-zoom="in" aria-label="放大地圖">＋</button></div>
           <div class="island-map-scale" style="width:${scaledWidth}px;height:${scaledHeight}px">

@@ -63,8 +63,13 @@
   flex: 1 1 auto;
   overflow: auto;
   overscroll-behavior: contain;
+  touch-action: none;
+  cursor: grab;
+  user-select: none;
   background: radial-gradient(circle at 50% 48%, rgba(255,255,255,.16), transparent 44%), repeating-radial-gradient(ellipse at 40% 40%, rgba(255,255,255,.12) 0 2px, transparent 3px 22px), #59bfd7;
 }
+.island-map-viewport.is-dragging, .island-map-viewport.is-dragging .island-hex { cursor: grabbing; }
+.island-map-viewport.is-dragging .island-map { transition: none; }
 .island-map-zoom {
   position: sticky;
   z-index: 20;
@@ -139,31 +144,55 @@
 .island-worker-picker > strong, .island-worker-picker > small { display: block; }
 .island-worker-picker > small { margin: 2px 0 7px; color: #7b9396; font-size: 9px; }
 .island-worker-picker > div { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; }
+.island-worker-picker > div { max-height: 205px; padding-right: 2px; overflow-y: auto; scrollbar-width: thin; }
 .island-worker-picker button { padding: 5px 2px; border: 1px solid transparent; border-radius: 10px; background: white; cursor: pointer; }
 .island-worker-picker button.selected { border-color: #f28a66; box-shadow: 0 0 0 2px rgba(242,138,102,.16); }
 .island-worker-picker img { display: block; width: 29px; height: 29px; margin: auto; object-fit: contain; }
-.island-worker-picker span, .island-worker-picker em { display: block; font-size: 8px; font-style: normal; }
-.island-worker-picker em { color: #8b9ca0; }
+.island-worker-picker span, .island-worker-picker em, .island-worker-picker button small { display: block; font-size: 8px; font-style: normal; }
+.island-worker-picker em { min-height: 20px; margin-top: 2px; color: #52747b; line-height: 1.2; }
+.island-worker-picker button small { margin-top: 2px; color: #9aa8aa; }
+.island-active-abilities { margin: -3px 0 8px; display: flex; flex-wrap: wrap; gap: 4px; }
+.island-active-abilities span { padding: 4px 6px; border-radius: 999px; color: #557078; background: #eaf5f4; font-size: 9px; font-weight: 850; }
+.island-build-categories { display: grid; gap: 7px; }
+.island-build-category { border: 1px solid #dbe9e5; border-radius: 13px; background: rgba(255,255,255,.58); overflow: hidden; }
+.island-build-category > summary { min-height: 42px; padding: 9px 11px; display: flex; justify-content: space-between; align-items: center; color: #395d66; font-size: 12px; font-weight: 950; cursor: pointer; list-style: none; }
+.island-build-category > summary::-webkit-details-marker { display: none; }
+.island-build-category > summary::after { content: "＋"; margin-left: 7px; color: #729096; }
+.island-build-category[open] > summary::after { content: "－"; }
+.island-build-category > summary small { margin-left: auto; color: #8ca0a3; font-size: 9px; }
+.island-build-category .island-build-grid { padding: 0 7px 7px; }
 .island-build-grid { display: grid; gap: 6px; }
 .island-build-grid > button, .island-recipe-list > button { width: 100%; min-height: 51px; padding: 7px 9px; display: flex; align-items: center; gap: 9px; border: 1px solid #dbe9e5; border-radius: 12px; background: rgba(255,255,255,.9); text-align: left; cursor: pointer; }
 .island-catalog-sprite { width: 35px; height: 35px; flex: 0 0 auto; font-size: 25px; }
 .island-build-grid strong, .island-build-grid small, .island-recipe-list strong, .island-recipe-list small { display: block; }
 .island-build-grid strong, .island-recipe-list strong { color: #34545e; font-size: 12px; }
 .island-build-grid small, .island-recipe-list small { margin-top: 2px; color: #799099; font-size: 9px; }
+.island-build-grid em { display: block; margin-top: 3px; color: #5c7f72; font-size: 8px; font-style: normal; }
 .island-time-row { margin: 9px 0; padding: 9px; display: flex; justify-content: space-between; border-radius: 11px; background: #e9f6f5; font-size: 11px; }
 .island-helper-box { margin-top: 10px; }
 .island-helper-box > strong, .island-helper-box > small { display: block; }
 .island-helper-box > small { margin: 2px 0 6px; color: #809397; font-size: 10px; }
 .island-helper-box > div { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; }
+.island-helper-box > div { max-height: 190px; padding-right: 2px; overflow-y: auto; scrollbar-width: thin; }
 .island-helper-box button { padding: 6px 3px; border: 1px solid #dce9e5; border-radius: 10px; background: white; cursor: pointer; }
 .island-helper-box img { display: block; width: 29px; height: 29px; margin: auto; object-fit: contain; }
 .island-helper-box span { display: block; font-size: 9px; }
+.island-helper-box em { display: block; min-height: 20px; margin-top: 2px; color: #668087; font-size: 8px; font-style: normal; line-height: 1.2; }
 .island-done-note { padding: 9px; border-radius: 11px; background: #fff6d9; color: #7e6e49 !important; }
 .island-facility-box { display: grid; gap: 7px; padding: 10px; border-radius: 13px; background: #eef9f3; }
 .island-facility-box > small { color: #6e8980; font-size: 10px; }
 .island-job-list { display: grid; gap: 4px; }
 .island-job-list > span { display: flex; justify-content: space-between; padding: 6px; border-radius: 8px; background: white; font-size: 9px; }
 .island-recipe-list { display: grid; gap: 5px; }
+.island-source-recipes { margin-top: 2px; padding-top: 8px; display: grid; gap: 5px; border-top: 1px solid #d8ebe1; }
+.island-source-recipes > strong, .island-source-recipes > small { display: block; }
+.island-source-recipes > strong { color: #45665d; font-size: 10px; }
+.island-source-recipes > small { color: #7d948d; font-size: 9px; }
+.island-source-recipes > button { min-height: 42px; padding: 6px 8px; border: 1px solid #d8e8e0; border-radius: 10px; background: white; text-align: left; cursor: pointer; }
+.island-source-recipes > button.selected { border-color: #76b99d; background: #def3e7; }
+.island-source-recipes b, .island-source-recipes button small { display: block; }
+.island-source-recipes b { color: #42655c; font-size: 10px; }
+.island-source-recipes button small { margin-top: 2px; color: #7b928a; font-size: 8px; }
 .island-home-inventory { padding: 10px; border-radius: 13px; background: #eef8f4; }
 .island-home-inventory > strong { display: block; margin-bottom: 7px; font-size: 11px; }
 .island-home-inventory > div { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
