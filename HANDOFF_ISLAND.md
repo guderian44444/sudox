@@ -2,7 +2,7 @@
 
 更新日期：2026-08-09
 開發分支：`feature/island-building`；正式部署分支：`main`
-目前版次：`v48`／Service Worker `sudox-shell-v48`
+目前版次：`v49`／Service Worker `sudox-shell-v49`
 狀態：正式模式 release 已封版；測試模式預設關閉；正式像素美術仍可後續逐批替換 fallback。
 
 ## 一句話狀態
@@ -20,7 +20,7 @@
 - `docs/island-production-launch-checklist.md`：正式模式切換、資料庫、PWA、雙玩家 smoke test、部署、回滾與上線後監測。
 - `npm.cmd run check:island-assets -- --list`：由目前 catalog 即時列出完整 assetKey，不維護容易過期的手抄清單。
 
-## v48 已完成
+## v49 已完成
 
 - 地圖半徑由 4 擴為 8，共 217 格；舊存檔進入時直接取得新範圍，既有陸地與建物不移位。
 - 初始島仍是半徑 1 的 7 格；只能填造相鄰海格，不會產生孤島。
@@ -75,7 +75,7 @@
 
 Migration：`supabase/island-logistics-migration.sql`
 
-Production project：`riradorayjziystoalyj`。v48 使用的 migration 已成功套用並驗證：
+Production project：`riradorayjziystoalyj`。v49 使用的 migration 已成功套用並驗證：
 
 - `island_recipe_catalog` 共 54 筆。
 - 其中 40 筆為可信任的跨島市場收購價。
@@ -111,7 +111,7 @@ Production project：`riradorayjziystoalyj`。v48 使用的 migration 已成功�
 - `supabase/island-logistics-migration.sql`：正式資料表、價格目錄與安全 RPC。
 - `scripts/test-island.mjs`：217 格、容量、升級、拆除、產業、船機、海路、交易、統計、感謝函與 SQL 回歸測試。
 - `scripts/check-island-assets.mjs`：catalog key、manifest 路徑、fallback 與 150 個伙伴直接素材的自動稽核。
-- `scripts/check-release.mjs`：正式模式、app 版次、更新時間、Service Worker cache 與 Handoff 一致性 release gate。
+- `scripts/check-release.mjs`：正式模式、app 版次、更新時間、Service Worker cache、入口／ES module 版次參數與 Handoff 一致性 release gate。
 - `docs/island-building-architecture.md`：完整產品、資料、免費方案負載與素材標準。
 - `docs/sudox-ai-art-style-guide.md`：可交給其他 AI 的角色與像素建築明確風格定義。
 - `docs/island-asset-integration-guide.md`：正式素材接點與應用方式的單一來源。
@@ -154,5 +154,6 @@ Production project：`riradorayjziystoalyj`。v48 使用的 migration 已成功�
 2. 確認畫面沒有「測試資源 ∞」、測試島友與「馬上完成」。
 3. 重跑 production 的 migration，確認 54／40／3／true／true 驗證結果。
 4. 每次發佈都同步提高可見版次與 Service Worker cache，並執行 `npm.cmd run check:release`。
+   `index.html`、所有相對 ES module import 與 `sw.js` 的 `RELEASE_QUERY` 必須使用同一個 `?v=vNN`；這是 GitHub Pages CDN 與舊 PWA 快取的必要破版接點。
 5. 依 `docs/island-production-launch-checklist.md` 完成桌面、390×844、PWA、舊存檔與兩位真實玩家端到端驗收。
 6. 明確確認目標遠端分支後才 PUSH／合併；不得默認直接覆蓋 `main`。

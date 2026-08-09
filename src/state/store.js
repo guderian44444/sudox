@@ -1,4 +1,4 @@
-import { normalizeSession } from "../game/flow.js";
+import { normalizeSession } from "../game/flow.js?v=v49";
 
 const STORAGE_KEY = "sudox-progress-v3";
 const SESSION_KEY = "sudox-session-v3";
