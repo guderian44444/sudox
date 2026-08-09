@@ -3,7 +3,7 @@
 更新日期：2026-08-09
 開發分支：`feature/island-building`
 分支起點：`f10946a`（建立分支時的 `main`）
-目前版次：`v39`／Service Worker `sudox-shell-v39`
+目前版次：`v40`／Service Worker `sudox-shell-v40`
 
 ## 一句話狀態
 
@@ -23,6 +23,7 @@
 - 市場：倉庫物品可賣 1 個或全賣，立即換成共用 SUDOX 金幣。
 - 存檔：小島放在 `progress.island`，會跟現有 `SUDOX3` 匯出碼與雲端完整存檔一起同步，不放進數獨 session。
 - PWA：新增小島模組與 CSS 到 app shell，cache 已升版。
+- Windows 本機啟動：直接開 `index.html` 會顯示說明；雙擊根目錄 `Start_SUDOX.cmd` 會啟動 4173 伺服器並開啟遊戲。
 - 素材：沒有正式圖時自動顯示 emoji／CSS 簡圖；正式 WebP 只要放到 `public/assets/island/v1/` 並登錄 manifest。
 
 ## 重要資料語意

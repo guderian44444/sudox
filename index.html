@@ -13,6 +13,23 @@
   </head>
   <body>
     <div id="app"></div>
-    <script type="module" src="./src/app.js"></script>
+    <script>
+      if (location.protocol === "file:") {
+        document.querySelector("#app").innerHTML = `
+          <main style="min-height:100vh;display:grid;place-items:center;padding:24px;font-family:Inter,'PingFang TC','Noto Sans TC',system-ui,sans-serif;background:#fff8ed;color:#344256">
+            <section style="width:min(520px,100%);padding:30px;border:1px solid #eadfd2;border-radius:26px;background:white;box-shadow:0 14px 35px rgba(103,76,49,.11);text-align:center">
+              <div style="font-size:52px">🏝️</div>
+              <h1 style="margin:8px 0 10px">需要用本機伺服器開啟</h1>
+              <p style="margin:0 0 18px;line-height:1.7;color:#756b62">瀏覽器會封鎖直接從檔案載入遊戲模組，所以不是遊戲資料消失。請關閉這個分頁，雙擊同資料夾內的 <strong>Start_SUDOX.cmd</strong>。</p>
+              <a href="http://127.0.0.1:4173/" style="display:inline-block;padding:12px 18px;border-radius:14px;background:#ff936f;color:white;font-weight:900;text-decoration:none">伺服器已啟動時，點這裡進入</a>
+            </section>
+          </main>`;
+      } else {
+        const moduleScript = document.createElement("script");
+        moduleScript.type = "module";
+        moduleScript.src = "./src/app.js";
+        document.body.append(moduleScript);
+      }
+    </script>
   </body>
 </html>

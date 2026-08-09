@@ -25,6 +25,8 @@ function assert(condition, message) {
 
 const stylesheet = readFileSync(new URL("../src/styles.css", import.meta.url), "utf8");
 const appSource = readFileSync(new URL("../src/app.js", import.meta.url), "utf8");
+const indexSource = readFileSync(new URL("../index.html", import.meta.url), "utf8");
+const launcherSource = readFileSync(new URL("../Start_SUDOX.cmd", import.meta.url), "utf8");
 const storeSource = readFileSync(new URL("../src/state/store.js", import.meta.url), "utf8");
 const leaderboardSource = readFileSync(new URL("../src/state/leaderboard.js", import.meta.url), "utf8");
 const leaderboardSql = readFileSync(new URL("../supabase/leaderboard.sql", import.meta.url), "utf8");
@@ -74,7 +76,9 @@ assert(/sanitizeQueuedScore|p_pin/.test(leaderboardSource) && !/p_pin: progress/
 const pinGuardSql = readFileSync(new URL("../supabase/pin-guard-migration.sql", import.meta.url), "utf8");
 assert(/updated_at/.test(leaderboardSource) && /formatLeaderboardUpdatedAt|最後更新/.test(appSource), "leaderboard rows should show their last update time");
 assert(/APP_VERSION/.test(appSource) && /APP_LAST_UPDATED/.test(appSource) && /app-footer/.test(appSource), "main page should show app version and last update time");
-assert(/sudox-shell-v39/.test(readFileSync(new URL("../sw.js", import.meta.url), "utf8")), "Service Worker cache version should match the visible app release");
+assert(/sudox-shell-v40/.test(readFileSync(new URL("../sw.js", import.meta.url), "utf8")), "Service Worker cache version should match the visible app release");
+assert(/location\.protocol === "file:"/.test(indexSource) && /Start_SUDOX\.cmd/.test(indexSource), "直接開啟 index.html 時應顯示本機伺服器提示，不可只留白畫面");
+assert(/npm\.cmd run dev/.test(launcherSource) && /127\.0\.0\.1:4173/.test(launcherSource), "雙擊啟動器應啟動正確的 SUDOX 本機網址");
 assert(/submit_leaderboard_score/.test(pinGuardSql) && /save_cloud_progress/.test(pinGuardSql), "existing projects need a PIN guard migration");
 assert(/a-z_/.test(storeSource) && /Math\.min\(7/.test(storeSource), "avatar persistence should support avatar IDs and all eight colors");
 assert(/hasLeaderboardRow \? row\.player_avatar : progress\.playerAvatar/.test(appSource), "leaderboard rows should use each player's own avatar");
