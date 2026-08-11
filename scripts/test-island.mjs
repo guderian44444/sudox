@@ -31,6 +31,7 @@ import { mergeProgressHighWater } from "../src/state/store.js";
 
 const T0 = Date.parse("2026-08-09T00:00:00.000Z");
 const appSource = readFileSync(new URL("../src/app.js", import.meta.url), "utf8");
+const rendererSource = readFileSync(new URL("../src/island/renderer.js", import.meta.url), "utf8");
 const islandStyles = readFileSync(new URL("../src/island/island.css", import.meta.url), "utf8");
 const logisticsSql = readFileSync(new URL("../supabase/island-logistics-migration.sql", import.meta.url), "utf8");
 const cloudConcurrencySql = readFileSync(new URL("../supabase/cloud-save-concurrency-migration.sql", import.meta.url), "utf8");
@@ -453,6 +454,7 @@ assert(/小島統計表/.test(statsMarkup) && /生產/.test(statsMarkup) && /送
 assert(/AIR MAIL/.test(letterMarkup) && /跨島感謝函/.test(letterMarkup) && /data-island-dismiss-letter/.test(letterMarkup), "到貨時應彈出可愛國際航空信件格式的簡短感謝函");
 assert(/island-attraction-visitors/.test(attractionMarkup) && /每 20 分鐘帶來 🪙 3/.test(attractionMarkup), "遊樂場應顯示隨機伙伴與定期門票收入說明");
 assert(/data-island-process="dairyBatch"[^>]*disabled/.test(noInputFactoryMarkup) && /原料不足/.test(noInputFactoryMarkup), "食品工房沒有牛奶時，即使測試模式也必須停用加工按鈕");
+assert(noInputFactoryMarkup.indexOf("data-island-process") < noInputFactoryMarkup.indexOf("island-production-guide"), "已完成設施應先顯示可操作的加工控制，再顯示產業鏈提示");
 assert(/island-production-guide/.test(noInputFactoryMarkup) && /生產鏈提示/.test(noInputFactoryMarkup), "選取加工設施時應顯示生產鏈提示面板");
 assert(/前端：原料從哪裡來/.test(noInputFactoryMarkup) && /後端：成品可以做什麼/.test(noInputFactoryMarkup), "生產鏈提示應同時顯示前端原料與後端用途");
 assert(/data-island-production-item="milk"/.test(noInputFactoryMarkup) && /data-island-production-item="dairyBox"/.test(noInputFactoryMarkup), "生產鏈提示應列出設施的原料與成品");
@@ -466,5 +468,9 @@ assert.equal(RECIPE_CATALOG.dairyBatch.outputs.dairyBox, 1, "配方目錄應保�
 assert(/data-island-confirm-build/.test(appSource) && /collectIslandFacilitySafely/.test(appSource) && /saveCloudProgressIfCurrent/.test(appSource), "設施施工應先確認，收成應走雲端安全同步流程");
 assert(/island-build-preview/.test(catalogMarkup) && /island-build-confirm-note/.test(islandStyles), "設施選擇後應顯示施工預覽與確認提示");
 assert(/save_cloud_progress_if_current/.test(cloudConcurrencySql) && /p_expected_save_code/.test(cloudConcurrencySql) && /for update/i.test(cloudConcurrencySql) && /return false/.test(cloudConcurrencySql), "雲端收成 migration 應以鎖定與預期版本避免競爭覆寫");
+assert(/islandViewScrollSnapshot/.test(appSource) && /workerPickerScrollTop/.test(appSource) && /restoreIslandViewScroll/.test(appSource), "小島面板重繪後應保留手機頁面與伙伴選擇器捲動位置");
+const actionMarkupPosition = rendererSource.indexOf('definition.category === "source" ? sourcePanel');
+const chainMarkupPosition = rendererSource.indexOf('${productionChainMarkup(building, facility)}');
+assert(actionMarkupPosition >= 0 && chainMarkupPosition > actionMarkupPosition, "已完成設施的實際操作區應排在產業鏈提示之前");
 
 console.log("Island foundation checks passed.");

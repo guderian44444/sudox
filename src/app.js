@@ -583,11 +583,39 @@ function ensureIslandSelectedWorker() {
   return workers;
 }
 
+function islandViewScrollSnapshot() {
+  const shell = document.querySelector(".island-shell");
+  if (!shell) return null;
+  const panel = shell.querySelector(".island-control-panel");
+  const workerPicker = shell.querySelector(".island-worker-picker > div");
+  return {
+    selectedKey: shell.querySelector(".island-hex.is-selected")?.dataset.islandCell || "",
+    windowX: window.scrollX,
+    windowY: window.scrollY,
+    panelScrollTop: panel?.scrollTop || 0,
+    workerPickerScrollTop: workerPicker?.scrollTop || 0,
+    buildCategories: [...shell.querySelectorAll(".island-build-category")].map((category) => category.open)
+  };
+}
+
+function restoreIslandViewScroll(snapshot) {
+  if (!snapshot || snapshot.selectedKey !== islandSelectedKey) return;
+  window.scrollTo(snapshot.windowX, snapshot.windowY);
+  const panel = document.querySelector(".island-control-panel");
+  const workerPicker = document.querySelector(".island-worker-picker > div");
+  if (panel) panel.scrollTop = snapshot.panelScrollTop;
+  if (workerPicker) workerPicker.scrollTop = snapshot.workerPickerScrollTop;
+  document.querySelectorAll(".island-build-category").forEach((category, index) => {
+    if (snapshot.buildCategories[index] !== undefined) category.open = snapshot.buildCategories[index];
+  });
+}
+
 function renderIslandView() {
   if (!island) ensureIsland();
   if (!islandClockId) islandClockId = setInterval(refreshIslandClock, 1000);
   settleIslandNow();
   const workers = ensureIslandSelectedWorker();
+  const scrollSnapshot = islandViewScrollSnapshot();
   app.innerHTML = renderIslandScreen({
     state: island,
     coins: progress.coins,
@@ -619,6 +647,11 @@ function renderIslandView() {
     islandMapPosition = { left: mapViewport.scrollLeft, top: mapViewport.scrollTop };
   }
   bindIslandEvents();
+  restoreIslandViewScroll(scrollSnapshot);
+  if (scrollSnapshot) {
+    requestAnimationFrame(() => restoreIslandViewScroll(scrollSnapshot));
+    setTimeout(() => restoreIslandViewScroll(scrollSnapshot), 120);
+  }
   refreshIslandClock();
 }
 
@@ -1639,7 +1672,6 @@ async function migrateAlinFloorProgress() {
 function adoptCloudSaveCode(saveCode, status = "") {
   const imported = importSaveCode(saveCode, { touch: false });
   applyImportedSave(imported);
-  islandSelectedBuildingId = "";
   if (activeScreen === "island") {
     islandStatus = status;
     renderIslandView();

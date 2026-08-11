@@ -436,7 +436,6 @@ function buildingPanel(state, building, now, testMode, coins, workers, selectedW
     <p class="island-panel-kicker">已完成設施</p>
     <h3>${definition.icon} ${definition.name}</h3>
     <p>${definition.description}</p>
-    ${productionChainMarkup(building, facility)}
     ${definition.id === "islandHome" ? inventoryMarkup(state) : ""}
     ${definition.id === "islandHome" ? homeUpgradeMarkup(state, coins, workers, selectedWorkerId, playerAvatar, testMode) : ""}
     ${definition.category === "source" ? sourcePanel(building, facility, now) : ""}
@@ -444,6 +443,7 @@ function buildingPanel(state, building, now, testMode, coins, workers, selectedW
     ${definition.category === "market" ? marketPanel(state) : ""}
     ${attractionPanel(building, definition, now)}
     ${definition.id !== "islandHome" ? demolitionMarkup(building, definition, coins, workers, selectedWorkerId, playerAvatar, testMode) : ""}
+    ${productionChainMarkup(building, facility)}
   </div>`;
 }
 
