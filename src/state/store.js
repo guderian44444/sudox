@@ -1,5 +1,5 @@
-import { normalizeSession } from "../game/flow.js?v=v54";
-import { mergeIslandStates } from "../island/model.js?v=v54";
+import { normalizeSession } from "../game/flow.js?v=v55";
+import { mergeIslandStates } from "../island/model.js?v=v55";
 
 const STORAGE_KEY = "sudox-progress-v3";
 const SESSION_KEY = "sudox-session-v3";
@@ -149,6 +149,16 @@ export function raiseFloorProgress(progress, difficulty, nextFloor) {
     ...progress,
     floors: { ...progress.floors, [key]: target }
   };
+}
+
+/** Raise every durable difficulty counter to match its highest completed leaderboard floor. */
+export function reconcileFloorsFromLeaderboardRows(progress, rows = []) {
+  return (Array.isArray(rows) ? rows : []).reduce((current, row) => {
+    const difficulty = row?.difficulty;
+    const completedFloor = Number(row?.floor);
+    if (!Object.prototype.hasOwnProperty.call(defaultProgress.floors, difficulty) || !Number.isFinite(completedFloor) || completedFloor < 1) return current;
+    return raiseFloorProgress(current, difficulty, nextFloorFromCompleted(completedFloor));
+  }, progress);
 }
 
 /** Return whether an active run is older than the saved next floor. */

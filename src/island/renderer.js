@@ -9,14 +9,14 @@ import {
   reclamationQuote,
   recipeInputsLabel,
   recipeOutputsLabel
-} from "./catalog.js?v=v54";
-import { currentAttractionVisitorIds } from "./attractions.js?v=v54";
-import { islandSpriteMarkup } from "./assets.js?v=v54";
-import { adjustedConstructionDuration, companionAbility, companionReductionPercent, constructionTeamRate } from "./companions.js?v=v54";
-import { FRIEND_ROSTER } from "../game/friends.js?v=v54";
-import { axialDistance, axialKey, axialToPixel, footprintCells, HEX_DIRECTIONS, HEX_HEIGHT, HEX_WIDTH, hexRange, mapPixelBounds } from "./hex.js?v=v54";
-import { availableTransportMethods, buildingName, LOGISTICS_METHODS, partnerAcceptedItems, partnerLogisticsOffers, shipmentQuote } from "./logistics.js?v=v54";
-import { availableInventoryQuantity, buildingAnchorAt, buildingAt, constructionAnchorAt, constructionAt, constructionJobWorkTags, helperQuote, initialWorkerHireCost, islandHomeLevel, islandInventoryCapacity, islandInventoryUsed, isReclaimable } from "./model.js?v=v54";
+} from "./catalog.js?v=v55";
+import { currentAttractionVisitorIds } from "./attractions.js?v=v55";
+import { islandSpriteMarkup } from "./assets.js?v=v55";
+import { adjustedConstructionDuration, companionAbility, companionReductionPercent, constructionTeamRate } from "./companions.js?v=v55";
+import { FRIEND_ROSTER } from "../game/friends.js?v=v55";
+import { axialDistance, axialKey, axialToPixel, footprintCells, HEX_DIRECTIONS, HEX_HEIGHT, HEX_WIDTH, hexRange, mapPixelBounds } from "./hex.js?v=v55";
+import { availableTransportMethods, buildingName, LOGISTICS_METHODS, partnerAcceptedItems, partnerLogisticsOffers, shipmentQuote } from "./logistics.js?v=v55";
+import { availableInventoryQuantity, buildingAnchorAt, buildingAt, constructionAnchorAt, constructionAt, constructionJobWorkTags, helperQuote, initialWorkerHireCost, islandHomeLevel, islandInventoryCapacity, islandInventoryUsed, isReclaimable } from "./model.js?v=v55";
 
 const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({
   "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
