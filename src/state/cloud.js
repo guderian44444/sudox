@@ -1,4 +1,4 @@
-import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "../config.js?v=v50";
+import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "../config.js?v=v52";
 
 const CLOUD_PIN_KEY = "sudox-cloud-pin-v1";
 
@@ -38,6 +38,9 @@ export async function callRpc(name, body) {
     if (/Insufficient island inventory/i.test(detail)) throw new Error("小屋倉庫的貨物數量不足");
     if (/Invalid island shipment route/i.test(detail)) throw new Error("對方設施或你的運輸設施已變更，請重新整理物流名單");
     if (/Invalid island shipment|Invalid island network profile/i.test(detail)) throw new Error("跨島物流資料不正確，請重新整理後再試");
+    if (/PGRST202|Could not find the function/i.test(detail) && /save_cloud_progress_if_current/i.test(name)) {
+      throw new Error("雲端防重複收成尚未安裝，請先執行 cloud-save-concurrency-migration.sql");
+    }
     if (/PGRST202|Could not find the function|island_network_profiles|island_shipments/i.test(detail) && /island/i.test(name)) {
       throw new Error("跨島物流雲端尚未安裝，請先執行 island-logistics-migration.sql");
     }
@@ -56,6 +59,18 @@ export async function saveCloudProgress({ playerId, playerName, pin, saveCode })
     p_player_name: playerName,
     p_pin: pin,
     p_save_code: saveCode
+  });
+}
+
+/** Save only if the cloud still contains the exact version read by this device. */
+export async function saveCloudProgressIfCurrent({ playerId, playerName, pin, saveCode, expectedSaveCode }) {
+  if (!navigator.onLine) throw new Error("目前離線，進度已先保存在這台裝置");
+  return callRpc("save_cloud_progress_if_current", {
+    p_player_id: playerId,
+    p_player_name: playerName,
+    p_pin: pin,
+    p_save_code: saveCode,
+    p_expected_save_code: expectedSaveCode
   });
 }
 

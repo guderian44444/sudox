@@ -27,11 +27,13 @@ import {
   startReclamation
 } from "../src/island/model.js";
 import { renderIslandScreen } from "../src/island/renderer.js";
+import { mergeProgressHighWater } from "../src/state/store.js";
 
 const T0 = Date.parse("2026-08-09T00:00:00.000Z");
 const appSource = readFileSync(new URL("../src/app.js", import.meta.url), "utf8");
 const islandStyles = readFileSync(new URL("../src/island/island.css", import.meta.url), "utf8");
 const logisticsSql = readFileSync(new URL("../supabase/island-logistics-migration.sql", import.meta.url), "utf8");
+const cloudConcurrencySql = readFileSync(new URL("../supabase/cloud-save-concurrency-migration.sql", import.meta.url), "utf8");
 const pointerDownSource = appSource.slice(appSource.indexOf('viewport.addEventListener("pointerdown"'), appSource.indexOf('viewport.addEventListener("pointermove"'));
 const pointerMoveSource = appSource.slice(appSource.indexOf('viewport.addEventListener("pointermove"'), appSource.indexOf("const finishDrag"));
 let now = T0;
@@ -152,6 +154,8 @@ assert(process.ok, "食品工廠應消耗 2 牛奶開始乳製品加工");
 state = process.state;
 finish("processing", process.job.id);
 collectNow(factory);
+const duplicateCollect = collectFacility(state, { buildingInstanceId: factory.id, now });
+assert(!duplicateCollect.ok, "同一批產品在同一裝置上第二次收成應被拒絕");
 assert.equal(state.inventory.dairyBox, 1, "三層產業鏈最後應產出乳製品箱");
 assert(state.statistics.produced.vegetable >= 2 && state.statistics.produced.milk >= 2 && state.statistics.sold.vegetable === 2, "生產完成與市場成交應累積到統計事件，不可只由目前庫存倒推");
 assert(BUILDING_CATALOG.ranch.description.includes("不殺生") && BUILDING_CATALOG.ranch.recipeIds.includes("eggBatch") && BUILDING_CATALOG.ranch.recipeIds.includes("woolBatch"), "牧場應採牛奶、雞蛋、羊毛的非殺生設計");
@@ -299,6 +303,21 @@ assert(/'marketSale:corn', 'market', 'corn'/.test(logisticsSql) && /market_facil
 assert(/vehicle_item := 'boat'/.test(logisticsSql) && /busy_vehicle_count/.test(logisticsSql), "雲端出貨也必須驗證物流船與飛機的持有量及併發占用");
 assert(/jsonb_array_length\(p_buildings\) > 250/.test(logisticsSql) && /pg_column_size\(p_buildings\) > 100000/.test(logisticsSql), "半徑 8 地圖的雲端建物快照限制應同步放寬");
 
+const logSource = createIslandState({ playerId: "log-source", now });
+const logBuild = startBuilding(logSource, { buildingId: "garden", q: 0, r: 1, workerId: "cat", now });
+const logCompleted = finishIslandWork(logBuild.state, { kind: "construction", id: logBuild.job.id, now: now + 1 }).state;
+assert(logCompleted.constructionLog.some((entry) => entry.id === logBuild.job.id && entry.status === "completed"), "小島建設完工後應保留可同步的 LOG 事件");
+const legacyLogState = JSON.parse(JSON.stringify(logCompleted));
+delete legacyLogState.constructionLog;
+assert(normalizeIslandState(legacyLogState, { now }).constructionLog.some((entry) => entry.buildingInstanceId && entry.status === "completed"), "舊版小島存檔應由現有建物補出建設 LOG");
+const newerNonIslandSave = { island: createIslandState({ playerId: "log-source", now: now + 10_000 }), floors: { easy: 1, medium: 1, hard: 1, alin: 1 }, coins: 20 };
+const mergedIslandSave = mergeProgressHighWater(newerNonIslandSave, { island: logCompleted, floors: newerNonIslandSave.floors, coins: 20 });
+assert(Object.values(mergedIslandSave.island.buildings).some((building) => building.buildingId === "garden"), "較新的非小島存檔不可覆蓋另一台裝置已完工的建物");
+assert(mergedIslandSave.island.constructionLog.some((entry) => entry.id === logBuild.job.id && entry.status === "completed"), "跨裝置合併後仍應保留小島建設 LOG");
+const activeLogSource = createIslandState({ playerId: "active-log-source", now });
+const activeLogBuild = startBuilding(activeLogSource, { buildingId: "garden", q: 0, r: 1, workerId: "cat", now });
+const mergedActiveIsland = mergeProgressHighWater(newerNonIslandSave, { island: activeLogBuild.state, floors: newerNonIslandSave.floors, coins: 20 }).island;
+assert(mergedActiveIsland.constructionJobs[activeLogBuild.job.id], "跨裝置合併也應保留尚未完工的小島工程");
 const normalized = normalizeIslandState(JSON.parse(JSON.stringify(state)), { playerId: "test-player", now });
 assert.equal(normalized.inventory.dairyBox, 1, "小島資料序列化後應可完整還原");
 const legacyRadius = normalizeIslandState({ ...JSON.parse(JSON.stringify(state)), schemaVersion: 2, radius: 4 }, { playerId: "test-player", now });
@@ -324,6 +343,7 @@ const catalogMarkup = renderIslandScreen({
   helpers: [],
   workers: [{ id: "cat", name: "貓" }, { id: "bear", name: "熊" }],
   selectedWorkerId: "cat",
+  selectedBuildingId: "flowerGarden",
   playerAvatar: "cat",
   testMode: true,
   now,
@@ -433,11 +453,18 @@ assert(/小島統計表/.test(statsMarkup) && /生產/.test(statsMarkup) && /送
 assert(/AIR MAIL/.test(letterMarkup) && /跨島感謝函/.test(letterMarkup) && /data-island-dismiss-letter/.test(letterMarkup), "到貨時應彈出可愛國際航空信件格式的簡短感謝函");
 assert(/island-attraction-visitors/.test(attractionMarkup) && /每 20 分鐘帶來 🪙 3/.test(attractionMarkup), "遊樂場應顯示隨機伙伴與定期門票收入說明");
 assert(/data-island-process="dairyBatch"[^>]*disabled/.test(noInputFactoryMarkup) && /原料不足/.test(noInputFactoryMarkup), "食品工房沒有牛奶時，即使測試模式也必須停用加工按鈕");
+assert(/island-production-guide/.test(noInputFactoryMarkup) && /生產鏈提示/.test(noInputFactoryMarkup), "選取加工設施時應顯示生產鏈提示面板");
+assert(/前端：原料從哪裡來/.test(noInputFactoryMarkup) && /後端：成品可以做什麼/.test(noInputFactoryMarkup), "生產鏈提示應同時顯示前端原料與後端用途");
+assert(/data-island-production-item="milk"/.test(noInputFactoryMarkup) && /data-island-production-item="dairyBox"/.test(noInputFactoryMarkup), "生產鏈提示應列出設施的原料與成品");
 assert(/pointerdown/.test(appSource) && /pointermove/.test(appSource) && /islandDragged/.test(appSource), "地圖應支援滑鼠與手機 Pointer Events 拖曳並防止拖後誤觸");
 assert(!/setPointerCapture/.test(pointerDownSource) && /setPointerCapture/.test(pointerMoveSource), "一般點擊不可在 pointerdown 時被地圖接管，只有超過拖曳門檻後才能 capture");
 assert(/touch-action:\s*none/.test(islandStyles) && /cursor:\s*grab/.test(islandStyles), "地圖拖曳應關閉瀏覽器手勢衝突並顯示拖曳游標");
 assert(/\.island-hex\.is-ready\s*{[^}]*z-index:\s*12/.test(islandStyles), "可領取狀態的六角格必須高於選取與相鄰格");
 assert(/\.island-ready-badge\s*{[^}]*z-index:\s*30[^}]*left:\s*50%/.test(islandStyles) && /translateX\(-50%\)[^}]*translateY\(-3px\)/.test(islandStyles), "驚嘆號應固定在六角格上緣中央且動畫不可破壞置中");
 assert.equal(RECIPE_CATALOG.dairyBatch.outputs.dairyBox, 1, "配方目錄應保留可擴充的資料驅動輸出");
+
+assert(/data-island-confirm-build/.test(appSource) && /collectIslandFacilitySafely/.test(appSource) && /saveCloudProgressIfCurrent/.test(appSource), "設施施工應先確認，收成應走雲端安全同步流程");
+assert(/island-build-preview/.test(catalogMarkup) && /island-build-confirm-note/.test(islandStyles), "設施選擇後應顯示施工預覽與確認提示");
+assert(/save_cloud_progress_if_current/.test(cloudConcurrencySql) && /p_expected_save_code/.test(cloudConcurrencySql) && /for update/i.test(cloudConcurrencySql) && /return false/.test(cloudConcurrencySql), "雲端收成 migration 應以鎖定與預期版本避免競爭覆寫");
 
 console.log("Island foundation checks passed.");

@@ -8,19 +8,108 @@ import {
   RECIPE_CATALOG,
   STARTER_LAND_RADIUS,
   reclamationQuote
-} from "./catalog.js?v=v50";
-import { attractionVisitorIds } from "./attractions.js?v=v50";
-import { constructionTeamRate } from "./companions.js?v=v50";
-import { axialDistance, axialKey, axialNeighbors, footprintCells, hexRange, parseAxialKey } from "./hex.js?v=v50";
+} from "./catalog.js?v=v52";
+import { attractionVisitorIds } from "./attractions.js?v=v52";
+import { constructionTeamRate } from "./companions.js?v=v52";
+import { axialDistance, axialKey, axialNeighbors, footprintCells, hexRange, parseAxialKey } from "./hex.js?v=v52";
 
 const clone = (value) => JSON.parse(JSON.stringify(value));
 const safeObject = (value) => value && typeof value === "object" && !Array.isArray(value) ? value : {};
 const safeInt = (value, fallback = 0) => Number.isFinite(Number(value)) ? Math.max(0, Math.floor(Number(value))) : fallback;
 const safeTime = (value, fallback = 0) => Number.isFinite(Number(value)) ? Math.max(0, Number(value)) : fallback;
+const CONSTRUCTION_LOG_LIMIT = 400;
+const CONSTRUCTION_KINDS = new Set(["reclaim", "building", "homeUpgrade", "demolition"]);
+const CONSTRUCTION_STATUS_RANK = Object.freeze({ building: 1, completed: 2, demolished: 3 });
 
 function operationId(prefix = "island") {
   if (globalThis.crypto?.randomUUID) return `${prefix}-${globalThis.crypto.randomUUID()}`;
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function constructionLogEntryFromJob(job, { status = "building", completedAt = 0, updatedAt = Date.now() } = {}) {
+  const kind = CONSTRUCTION_KINDS.has(job?.kind) ? job.kind : "";
+  const normalizedStatus = status === "demolished" ? "demolished" : status === "completed" ? "completed" : "building";
+  const workerIds = Array.isArray(job?.workerIds)
+    ? [...new Set(job.workerIds.filter((id) => typeof id === "string" && /^[a-z_][a-z0-9_-]{0,31}$/i.test(id)))].slice(0, 3)
+    : [];
+  return {
+    id: String(job?.id || "").slice(0, 120),
+    kind,
+    status: normalizedStatus,
+    buildingId: typeof job?.buildingId === "string" ? job.buildingId.slice(0, 80) : "",
+    buildingInstanceId: typeof job?.buildingInstanceId === "string" ? job.buildingInstanceId.slice(0, 120) : "",
+    q: Math.trunc(Number(job?.q) || 0),
+    r: Math.trunc(Number(job?.r) || 0),
+    orientation: safeInt(job?.orientation) % 6,
+    level: Math.max(1, safeInt(job?.level, 1)),
+    targetLevel: safeInt(job?.targetLevel),
+    costCoins: safeInt(job?.costCoins),
+    workerHireCost: safeInt(job?.workerHireCost),
+    startedAt: safeTime(job?.startedAt),
+    readyAt: safeTime(job?.readyAt),
+    completedAt: safeTime(completedAt || job?.completedAt),
+    baseDurationSeconds: safeTime(job?.baseDurationSeconds),
+    workTags: Array.isArray(job?.workTags) ? job.workTags.filter((tag) => typeof tag === "string").slice(0, 8) : [],
+    teamRate: Number(job?.teamRate) > 0 ? Number(job.teamRate) : 1,
+    workerIds,
+    updatedAt: safeTime(updatedAt || job?.updatedAt || job?.readyAt || job?.startedAt)
+  };
+}
+
+function recordConstructionLog(state, job, status = "building", now = Date.now(), completedAt = 0) {
+  const entry = constructionLogEntryFromJob(job, { status, completedAt, updatedAt: now });
+  if (!entry.id || !entry.kind) return;
+  const log = Array.isArray(state.constructionLog) ? state.constructionLog : [];
+  const index = log.findIndex((item) => item?.id === entry.id);
+  if (index < 0) log.push(entry);
+  else {
+    const previous = log[index];
+    const previousRank = CONSTRUCTION_STATUS_RANK[previous.status] || 0;
+    const nextRank = CONSTRUCTION_STATUS_RANK[entry.status] || 0;
+    if (nextRank >= previousRank || entry.updatedAt >= safeTime(previous.updatedAt)) log[index] = { ...previous, ...entry };
+  }
+  state.constructionLog = log.slice(-CONSTRUCTION_LOG_LIMIT);
+}
+
+function legacyBuildingLogEntry(building) {
+  const completedAt = safeTime(building?.completedAt);
+  return constructionLogEntryFromJob({
+    id: `legacy-building-${building?.id || "unknown"}`,
+    kind: "building",
+    buildingId: building?.buildingId,
+    buildingInstanceId: building?.id,
+    q: building?.q,
+    r: building?.r,
+    orientation: building?.orientation,
+    level: building?.level,
+    startedAt: completedAt,
+    readyAt: completedAt,
+    completedAt
+  }, { status: "completed", completedAt, updatedAt: completedAt });
+}
+
+function normalizeConstructionLog(rawLog, buildings = {}, jobs = {}) {
+  const entries = [];
+  if (Array.isArray(rawLog)) {
+    rawLog.forEach((raw) => {
+      const entry = constructionLogEntryFromJob(raw, {
+        status: raw?.status,
+        completedAt: raw?.completedAt,
+        updatedAt: raw?.updatedAt || raw?.completedAt || raw?.readyAt || raw?.startedAt
+      });
+      if (!entry.id || !entry.kind) return;
+      if (entry.kind === "building" && !BUILDING_CATALOG[entry.buildingId]) return;
+      entries.push(entry);
+    });
+  }
+  Object.values(buildings).forEach((building) => {
+    if (!entries.some((entry) => entry.buildingInstanceId === building.id)) entries.push(legacyBuildingLogEntry(building));
+  });
+  Object.values(jobs).forEach((job) => {
+    const entry = constructionLogEntryFromJob(job, { status: "building", updatedAt: job?.updatedAt || job?.startedAt });
+    if (entry.id && entry.kind && !entries.some((item) => item.id === entry.id)) entries.push(entry);
+  });
+  return entries.slice(-CONSTRUCTION_LOG_LIMIT);
 }
 
 const normalizeInventory = (inventory = {}) => Object.fromEntries(Object.keys(ITEM_CATALOG).map((itemId) => [
@@ -96,6 +185,7 @@ export function createIslandState({ playerId = "", playerName = "", playerAvatar
     tiles: starterTiles(),
     buildings: starterBuildings(),
     constructionJobs: {},
+    constructionLog: [],
     facilities: {},
     processingJobs: {},
     outgoingShipments: {},
@@ -150,6 +240,7 @@ export function normalizeIslandState(raw, owner = {}) {
   });
   if (!buildings["starter-home"]) buildings["starter-home"] = base.buildings["starter-home"];
 
+  const constructionJobs = safeObject(raw.constructionJobs);
   return {
     ...base,
     ...raw,
@@ -159,7 +250,8 @@ export function normalizeIslandState(raw, owner = {}) {
     radius,
     tiles,
     buildings,
-    constructionJobs: safeObject(raw.constructionJobs),
+    constructionJobs,
+    constructionLog: normalizeConstructionLog(raw.constructionLog, buildings, constructionJobs),
     facilities: safeObject(raw.facilities),
     processingJobs: safeObject(raw.processingJobs),
     outgoingShipments: safeObject(raw.outgoingShipments),
@@ -184,6 +276,146 @@ export function normalizeIslandState(raw, owner = {}) {
     lastSettledAt: safeTime(raw.lastSettledAt, owner.now || Date.now()),
     updatedAt: safeTime(raw.updatedAt, owner.now || Date.now())
   };
+}
+
+function constructionLogTime(entry) {
+  return Math.max(safeTime(entry?.updatedAt), safeTime(entry?.completedAt), safeTime(entry?.readyAt), safeTime(entry?.startedAt));
+}
+
+function mergeConstructionLogs(primary = [], secondary = []) {
+  const merged = new Map();
+  [...primary, ...secondary].forEach((raw) => {
+    const entry = constructionLogEntryFromJob(raw, {
+      status: raw?.status,
+      completedAt: raw?.completedAt,
+      updatedAt: raw?.updatedAt || raw?.completedAt || raw?.readyAt || raw?.startedAt
+    });
+    if (!entry.id || !entry.kind) return;
+    const previous = merged.get(entry.id);
+    if (!previous) {
+      merged.set(entry.id, entry);
+      return;
+    }
+    const previousRank = CONSTRUCTION_STATUS_RANK[previous.status] || 0;
+    const nextRank = CONSTRUCTION_STATUS_RANK[entry.status] || 0;
+    const useNext = nextRank > previousRank || (nextRank === previousRank && constructionLogTime(entry) >= constructionLogTime(previous));
+    const winner = useNext ? entry : previous;
+    merged.set(entry.id, {
+      ...previous,
+      ...entry,
+      ...winner,
+      level: Math.max(previous.level || 1, entry.level || 1),
+      targetLevel: Math.max(previous.targetLevel || 0, entry.targetLevel || 0)
+    });
+  });
+  return [...merged.values()].sort((left, right) => constructionLogTime(left) - constructionLogTime(right)).slice(-CONSTRUCTION_LOG_LIMIT);
+}
+
+function buildingOccupiesAnchor(state, entry) {
+  return Object.values(state.buildings || {}).some((building) => building.buildingId === entry.buildingId
+    && building.q === entry.q && building.r === entry.r);
+}
+
+function materializeConstructionLogEntry(state, entry) {
+  const terminal = entry.status !== "building";
+  if (!terminal) {
+    if (state.constructionJobs[entry.id]) return;
+    if (entry.kind === "reclaim" && state.tiles[axialKey(entry.q, entry.r)]) return;
+    if (entry.kind === "building" && (state.buildings[entry.buildingInstanceId] || buildingOccupiesAnchor(state, entry))) return;
+    state.constructionJobs[entry.id] = {
+      id: entry.id,
+      kind: entry.kind,
+      q: entry.q,
+      r: entry.r,
+      costCoins: entry.costCoins,
+      startedAt: entry.startedAt,
+      readyAt: entry.readyAt,
+      baseDurationSeconds: entry.baseDurationSeconds,
+      workTags: [...entry.workTags],
+      teamRate: entry.teamRate,
+      workerIds: [...entry.workerIds],
+      status: "building",
+      buildingId: entry.buildingId,
+      buildingInstanceId: entry.buildingInstanceId,
+      orientation: entry.orientation,
+      targetLevel: entry.targetLevel,
+      workerHireCost: entry.workerHireCost
+    };
+    return;
+  }
+
+  delete state.constructionJobs[entry.id];
+  if (entry.kind === "reclaim") {
+    const key = axialKey(entry.q, entry.r);
+    if (!state.tiles[key]) {
+      state.tiles[key] = { terrain: "reclaimed", reclaimedAt: entry.completedAt || entry.readyAt || entry.updatedAt };
+      state.reclaimedCount = safeInt(state.reclaimedCount) + 1;
+    }
+    return;
+  }
+  if (entry.kind === "homeUpgrade") {
+    const home = state.buildings[entry.buildingInstanceId] || islandHomeBuilding(state);
+    if (home) home.level = Math.max(home.level || 1, Math.min(HOME_LEVELS.length, entry.targetLevel || 1));
+    return;
+  }
+  if (entry.kind === "demolition" && entry.status === "demolished") {
+    const building = state.buildings[entry.buildingInstanceId]
+      || Object.values(state.buildings).find((candidate) => candidate.q === entry.q && candidate.r === entry.r && candidate.buildingId === entry.buildingId);
+    if (building && building.buildingId !== "islandHome") {
+      delete state.facilities[building.id];
+      delete state.buildings[building.id];
+    }
+    return;
+  }
+  if (entry.kind !== "building" || !BUILDING_CATALOG[entry.buildingId]) return;
+  const instanceId = entry.buildingInstanceId || `building-${entry.id}`;
+  if (state.buildings[instanceId] || buildingOccupiesAnchor(state, entry)) return;
+  const definition = BUILDING_CATALOG[entry.buildingId];
+  const building = {
+    id: instanceId,
+    buildingId: entry.buildingId,
+    q: entry.q,
+    r: entry.r,
+    orientation: entry.orientation,
+    level: entry.level,
+    completedAt: entry.completedAt || entry.readyAt || entry.updatedAt
+  };
+  const waterIndexes = new Set(definition.waterFootprintIndexes || []);
+  const cells = footprintCells(building, definition.footprint, building.orientation);
+  const valid = cells.every((cell, index) => waterIndexes.has(index)
+    ? !state.tiles[axialKey(cell.q, cell.r)] && axialDistance(cell) <= state.radius
+    : Boolean(state.tiles[axialKey(cell.q, cell.r)]));
+  if (!valid || cells.some((cell) => buildingAt(state, cell.q, cell.r))) return;
+  state.buildings[building.id] = building;
+  if (definition.defaultRecipeId || definition.recipeIds?.length) state.facilities[building.id] = createFacility(building, building.completedAt);
+}
+
+/** Merge island construction history so a newer non-island save cannot erase buildings. */
+export function mergeIslandStates(primary, secondary) {
+  if (!primary && !secondary) return null;
+  const primaryState = primary ? normalizeIslandState(primary, { now: Date.now() }) : null;
+  const secondaryState = secondary ? normalizeIslandState(secondary, { now: Date.now() }) : null;
+  const next = clone(primaryState || secondaryState);
+  const other = primaryState && secondaryState && primaryState !== secondaryState ? secondaryState : null;
+  if (other) {
+    Object.entries(other.tiles || {}).forEach(([key, tile]) => {
+      if (!next.tiles[key] || tile?.terrain === "reclaimed") next.tiles[key] = tile;
+    });
+    next.reclaimedCount = Math.max(safeInt(next.reclaimedCount), safeInt(other.reclaimedCount));
+    next.lastSettledAt = Math.max(safeTime(next.lastSettledAt), safeTime(other.lastSettledAt));
+    next.updatedAt = Math.max(safeTime(next.updatedAt), safeTime(other.updatedAt));
+  }
+  next.constructionLog = mergeConstructionLogs(primaryState?.constructionLog, secondaryState?.constructionLog);
+  next.constructionLog.forEach((entry) => materializeConstructionLogEntry(next, entry));
+  if (other) {
+    Object.entries(other.facilities || {}).forEach(([buildingInstanceId, facility]) => {
+      if (!next.buildings[buildingInstanceId]) return;
+      const current = next.facilities[buildingInstanceId];
+      if (!current || (current.state === "idle" && facility?.state !== "idle")) next.facilities[buildingInstanceId] = clone(facility);
+    });
+  }
+  next.constructionLog = normalizeConstructionLog(next.constructionLog, next.buildings, next.constructionJobs);
+  return next;
 }
 
 export function islandHomeBuilding(state) {
@@ -314,6 +546,7 @@ export function startReclamation(state, { q, r, workerId = "cat", playerAvatar =
   const job = baseJob({ kind: "reclaim", q, r, ...quote, workerId, workTags: RECLAMATION_WORK_TAGS, now });
   job.workerHireCost = workerHireCost;
   next.constructionJobs[job.id] = job;
+  recordConstructionLog(next, job, "building", now);
   next.updatedAt = now;
   return { ok: true, state: next, costCoins: quote.costCoins + workerHireCost, workerHireCost, job };
 }
@@ -332,7 +565,9 @@ export function startBuilding(state, { buildingId, q, r, orientation = null, wor
     workerHireCost,
     orientation: resolvedOrientation
   };
+  job.buildingInstanceId = `building-${job.id}`;
   next.constructionJobs[job.id] = job;
+  recordConstructionLog(next, job, "building", now);
   next.updatedAt = now;
   return { ok: true, state: next, costCoins: definition.costCoins + workerHireCost, workerHireCost, job };
 }
@@ -354,6 +589,7 @@ export function startHomeUpgrade(state, { workerId = "cat", playerAvatar = "cat"
     workerHireCost
   };
   next.constructionJobs[job.id] = job;
+  recordConstructionLog(next, job, "building", now);
   next.updatedAt = now;
   return { ok: true, state: next, costCoins: target.costCoins + workerHireCost, workerHireCost, job, target };
 }
@@ -383,6 +619,7 @@ export function startDemolition(state, { buildingInstanceId, workerId = "cat", p
     workerHireCost
   };
   next.constructionJobs[job.id] = job;
+  recordConstructionLog(next, job, "building", now);
   next.updatedAt = now;
   return { ok: true, state: next, costCoins: workerHireCost, workerHireCost, job };
 }
@@ -418,6 +655,7 @@ export function hireConstructionHelper(state, { jobId, helperId, now = Date.now(
   job.workTags = [...workTags];
   job.teamRate = constructionTeamRate(job.workerIds, workTags);
   job.readyAt = now + remainingWorkMs / job.teamRate;
+  recordConstructionLog(next, job, "building", now);
   next.updatedAt = now;
   return { ok: true, state: next, costCoins, job };
 }
@@ -489,13 +727,15 @@ export function settleIsland(state, now = Date.now()) {
 
   Object.entries(next.constructionJobs).forEach(([jobId, job]) => {
     if (safeTime(job.readyAt) > now) return;
+    let constructionStatus = "completed";
+    if (job.kind === "building" && !job.buildingInstanceId) job.buildingInstanceId = `building-${job.id}`;
     if (job.kind === "reclaim") {
       next.tiles[axialKey(job.q, job.r)] = { terrain: "reclaimed", reclaimedAt: job.readyAt };
       next.reclaimedCount = safeInt(next.reclaimedCount) + 1;
       completed.push({ kind: "reclaim", name: "填海造陸", q: job.q, r: job.r });
     } else if (job.kind === "building" && BUILDING_CATALOG[job.buildingId]) {
       const building = {
-        id: operationId("building"),
+        id: job.buildingInstanceId || `building-${job.id}`,
         buildingId: job.buildingId,
         q: job.q,
         r: job.r,
@@ -515,6 +755,7 @@ export function settleIsland(state, now = Date.now()) {
         completed.push({ kind: "homeUpgrade", name: `${target.name}升級`, q: home.q, r: home.r });
       }
     } else if (job.kind === "demolition") {
+      constructionStatus = "demolished";
       const building = next.buildings[job.buildingInstanceId];
       const definition = BUILDING_CATALOG[building?.buildingId];
       if (building && building.buildingId !== "islandHome") {
@@ -524,6 +765,7 @@ export function settleIsland(state, now = Date.now()) {
         completed.push({ kind: "demolition", name: `拆除${definition?.name || "設施"}`, q: building.q, r: building.r });
       }
     }
+    recordConstructionLog(next, job, constructionStatus, now, job.readyAt);
     delete next.constructionJobs[jobId];
     changed = true;
   });

@@ -1,9 +1,9 @@
 # 小島建設正式上線 Checklist
 
 - 適用分支：`feature/island-building`
-- 目前基準：app `v50`、Service Worker `sudox-shell-v50`
+- 目前基準：app `v51`、Service Worker `sudox-shell-v51`
 - Production Supabase project：`riradorayjziystoalyj`
-- 更新日期：2026-08-09
+- 更新日期：2026-08-11
 
 本文件是可執行的上線 runbook。玩法與資料設計請看 `docs/island-building-architecture.md`，素材請看 `docs/island-asset-integration-guide.md`。
 
@@ -73,8 +73,8 @@ export const ISLAND_TEST_MODE = false;
 
 - `src/app.js`：`APP_VERSION`。
 - `src/app.js`：`APP_LAST_UPDATED`，使用含 `+08:00` 的 ISO 時間。
-- `sw.js`：`CACHE_NAME`，例如 `sudox-shell-v50`。
-- `index.html`、所有 ES module import 與 `sw.js` 的 `RELEASE_QUERY` 必須同步使用 `?v=v50`，避免 GitHub Pages CDN 或舊 PWA 快取混用跨版模組。
+- `sw.js`：`CACHE_NAME`，例如 `sudox-shell-v51`。
+- `index.html`、所有 ES module import 與 `sw.js` 的 `RELEASE_QUERY` 必須同步使用 `?v=v51`，避免 GitHub Pages CDN 或舊 PWA 快取混用跨版模組。
 - `HANDOFF_ISLAND.md` 與本文件的目前基準。
 
 若有新增「首屏必要」檔案才加入 `APP_SHELL`。大量伙伴動畫、建築與產品維持 runtime 按需抓取，fetch handler 會在成功下載後放入 cache。
@@ -207,7 +207,7 @@ npm.cmd run dev
 - [ ] 若要合併至線上分支，先確認該分支沒有別人的新提交，再使用非破壞性 merge。
 - [ ] 部署完成後以線上網址做同一組最小 smoke test，並確認 footer 版次。
 
-本次 v50 尚未取得正式 PUSH／部署授權；完成雲端 migration 與驗證後，仍須由使用者明確指示。
+本次 v51 尚未取得正式 PUSH／部署授權；完成雲端 migration 與驗證後，仍須由使用者明確指示。
 
 ## 9. 回滾
 

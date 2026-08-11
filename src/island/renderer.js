@@ -9,14 +9,14 @@ import {
   reclamationQuote,
   recipeInputsLabel,
   recipeOutputsLabel
-} from "./catalog.js?v=v50";
-import { currentAttractionVisitorIds } from "./attractions.js?v=v50";
-import { islandSpriteMarkup } from "./assets.js?v=v50";
-import { adjustedConstructionDuration, companionAbility, companionReductionPercent, constructionTeamRate } from "./companions.js?v=v50";
-import { FRIEND_ROSTER } from "../game/friends.js?v=v50";
-import { axialDistance, axialKey, axialToPixel, footprintCells, HEX_DIRECTIONS, HEX_HEIGHT, HEX_WIDTH, hexRange, mapPixelBounds } from "./hex.js?v=v50";
-import { availableTransportMethods, buildingName, LOGISTICS_METHODS, partnerAcceptedItems, partnerLogisticsOffers, shipmentQuote } from "./logistics.js?v=v50";
-import { availableInventoryQuantity, buildingAnchorAt, buildingAt, constructionAnchorAt, constructionAt, constructionJobWorkTags, helperQuote, initialWorkerHireCost, islandHomeLevel, islandInventoryCapacity, islandInventoryUsed, isReclaimable } from "./model.js?v=v50";
+} from "./catalog.js?v=v52";
+import { currentAttractionVisitorIds } from "./attractions.js?v=v52";
+import { islandSpriteMarkup } from "./assets.js?v=v52";
+import { adjustedConstructionDuration, companionAbility, companionReductionPercent, constructionTeamRate } from "./companions.js?v=v52";
+import { FRIEND_ROSTER } from "../game/friends.js?v=v52";
+import { axialDistance, axialKey, axialToPixel, footprintCells, HEX_DIRECTIONS, HEX_HEIGHT, HEX_WIDTH, hexRange, mapPixelBounds } from "./hex.js?v=v52";
+import { availableTransportMethods, buildingName, LOGISTICS_METHODS, partnerAcceptedItems, partnerLogisticsOffers, shipmentQuote } from "./logistics.js?v=v52";
+import { availableInventoryQuantity, buildingAnchorAt, buildingAt, constructionAnchorAt, constructionAt, constructionJobWorkTags, helperQuote, initialWorkerHireCost, islandHomeLevel, islandInventoryCapacity, islandInventoryUsed, isReclaimable } from "./model.js?v=v52";
 
 const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({
   "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
@@ -231,34 +231,119 @@ function constructionPanel(job, coins, helpers, now, testMode) {
   </div>`;
 }
 
-function buildingChoiceMarkup(building, coins, selectedWorkerId, playerAvatar, workerAvailable, testMode) {
+function buildingChoiceMarkup(building, coins, selectedWorkerId, playerAvatar, workerAvailable, testMode, selectedBuildingId = "") {
   const hireCost = initialWorkerHireCost(selectedWorkerId, playerAvatar, building.costCoins);
   const totalCost = building.costCoins + hireCost;
   const adjustedDuration = adjustedConstructionDuration(building.durationSeconds, [selectedWorkerId], building.workTags);
   const ability = companionAbility(selectedWorkerId);
   const reduction = companionReductionPercent(selectedWorkerId, building.workTags);
-  return `<button data-island-build="${building.id}" ${!workerAvailable || (!testMode && coins < totalCost) ? "disabled" : ""}>
+  return `<button data-island-build="${building.id}" class="${building.id === selectedBuildingId ? "is-selected" : ""}" aria-pressed="${building.id === selectedBuildingId}" ${!workerAvailable || (!testMode && coins < totalCost) ? "disabled" : ""}>
     ${islandSpriteMarkup({ assetKey: building.assetKey, fallback: building.icon, className: "island-catalog-sprite", label: building.name })}
     <span><strong>${building.name}</strong><small>${testMode ? "🧪 資源不扣" : `🪙 ${totalCost}${hireCost ? `（含雇用 ${hireCost}）` : ""}`}・${formatIslandDuration(adjustedDuration)}</small><em>${ability.icon} ${ability.name}${reduction ? ` 生效 -${reduction}%` : "（此工程無加速）"}</em></span>
   </button>`;
 }
 
-function categorizedBuildingsMarkup(coins, selectedWorkerId, playerAvatar, workerAvailable, testMode) {
+function categorizedBuildingsMarkup(coins, selectedWorkerId, playerAvatar, workerAvailable, testMode, selectedBuildingId = "") {
   return `<div class="island-build-categories">${BUILDING_CATEGORIES.map((category, index) => {
     const buildings = BUILDABLE_BUILDINGS.filter((building) => building.category === category.id);
     if (!buildings.length) return "";
-    return `<details class="island-build-category" ${index === 0 ? "open" : ""}><summary><span>${category.icon} ${category.name}</span><small>${buildings.length} 項</small></summary><div class="island-build-grid">${buildings.map((building) => buildingChoiceMarkup(building, coins, selectedWorkerId, playerAvatar, workerAvailable, testMode)).join("")}</div></details>`;
+    return `<details class="island-build-category" ${index === 0 ? "open" : ""}><summary><span>${category.icon} ${category.name}</span><small>${buildings.length} 項</small></summary><div class="island-build-grid">${buildings.map((building) => buildingChoiceMarkup(building, coins, selectedWorkerId, playerAvatar, workerAvailable, testMode, selectedBuildingId)).join("")}</div></details>`;
   }).join("")}</div>`;
 }
 
-function emptyLandPanel(q, r, coins, workers, selectedWorkerId, playerAvatar, testMode) {
+function buildPreviewMarkup(buildingId, coins, selectedWorkerId, playerAvatar, workerAvailable, testMode) {
+  const building = BUILDABLE_BUILDINGS.find((entry) => entry.id === buildingId);
+  if (!building) return "";
+  const hireCost = initialWorkerHireCost(selectedWorkerId, playerAvatar, building.costCoins);
+  const totalCost = building.costCoins + hireCost;
+  const adjustedDuration = adjustedConstructionDuration(building.durationSeconds, [selectedWorkerId], building.workTags);
+  const chain = productionChainMarkup({ buildingId: building.id }, { recipeId: building.defaultRecipeId || "" });
+  return `<section class="island-build-preview" aria-live="polite">
+    <p class="island-panel-kicker">已選擇設施</p>
+    <h4>${building.icon} ${building.name}</h4>
+    <p>${building.description || "完成後可查看這座設施的生產與物流用途。"}</p>
+    <div class="island-build-preview-summary"><span>施工成本</span><strong>${testMode ? "🧪 測試資源不扣" : `🪙 ${totalCost}${hireCost ? `（含雇用 ${hireCost}）` : ""}`}</strong><span>預計時間</span><strong>${formatIslandDuration(adjustedDuration)}</strong></div>
+    ${chain || `<p class="island-build-no-chain">這座設施完成後會提供島嶼營運功能。</p>`}
+    <p class="island-build-confirm-note">先確認施工後，才會消耗資源並讓伙伴開始工作。</p>
+    <button class="island-primary" data-island-confirm-build="${building.id}" ${!workerAvailable || (!testMode && coins < totalCost) ? "disabled" : ""}>確認開始施工</button>
+  </section>`;
+}
+
+function emptyLandPanel(q, r, coins, workers, selectedWorkerId, playerAvatar, testMode, selectedBuildingId = "") {
   const workerAvailable = workers.some((worker) => worker.id === selectedWorkerId);
   return `<div class="island-selection-card">
     <p class="island-panel-kicker">可建設土地・座標 ${q},${r}</p>
     <h3>選擇要興建的設施</h3>
     ${workerPicker(workers, selectedWorkerId, playerAvatar)}
-    ${categorizedBuildingsMarkup(coins, selectedWorkerId, playerAvatar, workerAvailable, testMode)}
+    ${buildPreviewMarkup(selectedBuildingId, coins, selectedWorkerId, playerAvatar, workerAvailable, testMode)}
+    ${categorizedBuildingsMarkup(coins, selectedWorkerId, playerAvatar, workerAvailable, testMode, selectedBuildingId)}
   </div>`;
+}
+
+function productionRecipeIds(building) {
+  const definition = BUILDING_CATALOG[building?.buildingId];
+  return [...new Set(definition?.recipeIds || (definition?.defaultRecipeId ? [definition.defaultRecipeId] : []))]
+    .filter((recipeId) => RECIPE_CATALOG[recipeId]);
+}
+
+function productionRouteName(recipe) {
+  const definition = BUILDING_CATALOG[recipe.facilityId];
+  return `${definition?.icon || "🏭"} ${definition?.name || recipe.facilityId}`;
+}
+
+function productionItemName(itemId) {
+  const item = ITEM_CATALOG[itemId];
+  return `${item?.icon || "📦"} ${escapeHtml(item?.name || itemId)}`;
+}
+
+function productionChainMarkup(building, facility) {
+  const definition = BUILDING_CATALOG[building?.buildingId];
+  const recipes = productionRecipeIds(building).map((recipeId) => RECIPE_CATALOG[recipeId]);
+  if (!definition || !recipes.length) return "";
+
+  const upstream = new Map();
+  const downstream = new Map();
+  const addRelation = (map, itemId, recipe, count) => {
+    if (!map.has(itemId)) map.set(itemId, { counts: new Set() });
+    const relation = map.get(itemId);
+    relation.counts.add(count);
+  };
+
+  recipes.forEach((recipe) => {
+    Object.entries(recipe.inputs).forEach(([itemId, count]) => addRelation(upstream, itemId, recipe, count));
+    Object.entries(recipe.outputs).forEach(([itemId, count]) => addRelation(downstream, itemId, recipe, count));
+  });
+
+  const allRecipes = Object.values(RECIPE_CATALOG);
+  const producersFor = (itemId) => allRecipes.filter((recipe) => recipe.outputs[itemId] && recipe.facilityId !== definition.id);
+  const consumersFor = (itemId) => allRecipes.filter((recipe) => recipe.inputs[itemId] && recipe.facilityId !== definition.id);
+  const quantities = (counts) => [...counts].sort((left, right) => left - right).map((count) => `×${count}`).join(" / ");
+  const relationMarkup = (relations, lookup, emptyText) => {
+    if (!relations.size) return `<p class="island-production-empty">${emptyText}</p>`;
+    return `<div class="island-production-routes">${[...relations.entries()].map(([itemId, relation]) => {
+      const routes = lookup(itemId);
+      return `<article class="island-production-route" data-island-production-item="${escapeHtml(itemId)}">
+        <strong>${productionItemName(itemId)} <em>${quantities(relation.counts)}</em></strong>
+        ${routes.length ? `<div>${routes.map((recipe) => `<span><b>${escapeHtml(productionRouteName(recipe))}</b><small>${escapeHtml(recipe.name)}</small></span>`).join("")}</div>` : `<small class="island-production-no-route">${emptyText}</small>`}
+      </article>`;
+    }).join("")}</div>`;
+  };
+
+  const recipeFlow = recipes.map((recipe) => `<li class="${recipe.id === facility?.recipeId ? "is-current" : ""}">
+    <span>${Object.keys(recipe.inputs).length ? Object.entries(recipe.inputs).map(([itemId, count]) => `${productionItemName(itemId)} ×${count}`).join(" ＋ ") : "直接採集"}</span>
+    <b>→</b>
+    <span>${Object.entries(recipe.outputs).map(([itemId, count]) => `${productionItemName(itemId)} ×${count}`).join(" ＋ ")}</span>
+    <small>${escapeHtml(recipe.name)}・${formatIslandDuration(recipe.durationSeconds)}</small>
+  </li>`).join("");
+
+  return `<section class="island-production-guide" aria-label="生產鏈提示">
+    <header class="island-production-guide-header"><div><span class="island-panel-kicker">生產鏈提示</span><h4>前端原料與後端用途</h4></div><span>共 ${recipes.length} 種配方</span></header>
+    <ol class="island-production-flow">${recipeFlow}</ol>
+    <div class="island-production-branches">
+      <section class="island-production-branch is-upstream"><strong>← 前端：原料從哪裡來</strong>${relationMarkup(upstream, producersFor, "這是產業鏈起點，可直接採集。")}</section>
+      <section class="island-production-branch is-downstream"><strong>後端：成品可以做什麼 →</strong>${relationMarkup(downstream, consumersFor, "目前沒有後續配方，可販售或送往合作島。")}</section>
+    </div>
+  </section>`;
 }
 
 function sourcePanel(building, facility, now) {
@@ -351,6 +436,7 @@ function buildingPanel(state, building, now, testMode, coins, workers, selectedW
     <p class="island-panel-kicker">已完成設施</p>
     <h3>${definition.icon} ${definition.name}</h3>
     <p>${definition.description}</p>
+    ${productionChainMarkup(building, facility)}
     ${definition.id === "islandHome" ? inventoryMarkup(state) : ""}
     ${definition.id === "islandHome" ? homeUpgradeMarkup(state, coins, workers, selectedWorkerId, playerAvatar, testMode) : ""}
     ${definition.category === "source" ? sourcePanel(building, facility, now) : ""}
@@ -421,7 +507,7 @@ function statisticsPanel(state) {
   </div>`;
 }
 
-function selectedPanel({ state, selectedKey, selectedPartner, selectedShipment, showStats, networkStatus, networkBusy, coins, helpers, workers, selectedWorkerId, playerAvatar, now, testMode }) {
+function selectedPanel({ state, selectedKey, selectedPartner, selectedShipment, showStats, networkStatus, networkBusy, coins, helpers, workers, selectedWorkerId, playerAvatar, selectedBuildingId, now, testMode }) {
   if (showStats) return statisticsPanel(state);
   if (selectedShipment) return shipmentPanel(selectedShipment, now);
   if (selectedPartner) return logisticsPanel(state, selectedPartner, networkStatus, networkBusy, testMode);
@@ -431,7 +517,7 @@ function selectedPanel({ state, selectedKey, selectedPartner, selectedShipment, 
   const building = buildingAt(state, q, r);
   if (job) return constructionPanel(job, coins, helpers, now, testMode);
   if (building) return buildingPanel(state, building, now, testMode, coins, workers, selectedWorkerId, playerAvatar);
-  if (tile) return emptyLandPanel(q, r, coins, workers, selectedWorkerId, playerAvatar, testMode);
+  if (tile) return emptyLandPanel(q, r, coins, workers, selectedWorkerId, playerAvatar, testMode, selectedBuildingId);
   if (isReclaimable(state, q, r)) {
     const quote = reclamationQuote(state.reclaimedCount);
     const workerAvailable = workers.some((worker) => worker.id === selectedWorkerId);
@@ -490,7 +576,7 @@ function thankYouLetterMarkup(state) {
   </section></div>`;
 }
 
-export function renderIslandScreen({ state, coins, selectedKey = "0,1", zoom = 0.8, status = "", partners = [], selectedPartnerId = "", selectedShipmentId = "", showStats = false, networkStatus = "", networkBusy = false, helpers = [], workers = [], selectedWorkerId = "", playerAvatar = "cat", testMode = false, now = Date.now(), version = "" }) {
+export function renderIslandScreen({ state, coins, selectedKey = "0,1", zoom = 0.8, status = "", partners = [], selectedPartnerId = "", selectedShipmentId = "", showStats = false, networkStatus = "", networkBusy = false, helpers = [], workers = [], selectedWorkerId = "", selectedBuildingId = "", playerAvatar = "cat", testMode = false, now = Date.now(), version = "" }) {
   const cells = hexRange(state.radius);
   const bounds = mapPixelBounds(cells);
   const safeZoom = Math.max(0.55, Math.min(1.25, Number(zoom) || 0.8));
@@ -518,7 +604,7 @@ export function renderIslandScreen({ state, coins, selectedKey = "0,1", zoom = 0
       <aside class="island-control-panel">
         ${status ? `<p class="island-status" role="status">${escapeHtml(status)}</p>` : ""}
         <div class="island-network-strip"><span>🌐 ${partners.length ? `${partners.length} 位可合作島友` : "目前沒有相容島友"}</span><div><button data-island-open-stats>📊 統計</button><button data-island-refresh-network ${networkBusy ? "disabled" : ""}>${networkBusy ? "連線中…" : "重新整理"}</button></div></div>
-        ${selectedPanel({ state, selectedKey, selectedPartner, selectedShipment, showStats, networkStatus, networkBusy, coins, helpers, workers, selectedWorkerId, playerAvatar, now, testMode })}
+        ${selectedPanel({ state, selectedKey, selectedPartner, selectedShipment, showStats, networkStatus, networkBusy, coins, helpers, workers, selectedWorkerId, selectedBuildingId, playerAvatar, now, testMode })}
       </aside>
     </section>
     ${thankYouLetterMarkup(state)}

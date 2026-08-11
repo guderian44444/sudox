@@ -1,4 +1,5 @@
-import { normalizeSession } from "../game/flow.js?v=v50";
+import { normalizeSession } from "../game/flow.js?v=v52";
+import { mergeIslandStates } from "../island/model.js?v=v52";
 
 const STORAGE_KEY = "sudox-progress-v3";
 const SESSION_KEY = "sudox-session-v3";
@@ -125,7 +126,8 @@ export function mergeProgressHighWater(primary, secondary = {}) {
     completedGames: Math.max(0, Math.floor(Number(base.completedGames) || 0), Math.floor(Number(other.completedGames) || 0)),
     totalStars: Math.max(0, Math.floor(Number(base.totalStars) || 0), Math.floor(Number(other.totalStars) || 0)),
     level: Math.max(1, Math.floor(Number(base.level) || 1), Math.floor(Number(other.level) || 1)),
-    coins: Math.max(0, Math.floor(Number(base.coins) || 0))
+    coins: Math.max(0, Math.floor(Number(base.coins) || 0)),
+    island: mergeIslandStates(base.island, other.island)
   };
 }
 
