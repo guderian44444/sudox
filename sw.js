@@ -1,6 +1,6 @@
-const CACHE_NAME = "sudox-shell-v52";
+const CACHE_NAME = "sudox-shell-v53";
 const BASE_PATH = new URL("./", self.location.href).pathname;
-const RELEASE_QUERY = "?v=v52";
+const RELEASE_QUERY = "?v=v53";
 const APP_SHELL = [
   BASE_PATH,
   `${BASE_PATH}index.html`,

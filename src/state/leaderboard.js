@@ -1,5 +1,5 @@
-import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "../config.js?v=v52";
-import { loadCloudPin, validCloudPin } from "./cloud.js?v=v52";
+import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "../config.js?v=v53";
+import { loadCloudPin, validCloudPin } from "./cloud.js?v=v53";
 
 const QUEUE_KEY = "sudox-score-queue-v1";
 const difficulties = new Set(["easy", "medium", "hard", "alin"]);

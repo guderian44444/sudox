@@ -1,5 +1,5 @@
-import { DIFFICULTIES, relatedCells } from "./game/sudoku.js?v=v52";
-import { activateAutomaticTreasures, ADVENTURE_RULES, applyHintTreasure, applyImmediateTreasure, strongestEquippedRevive, sudokuUnitCells, TREASURE_AUTO_EFFECTS, TREASURE_CARDS } from "./game/adventure.js?v=v52";
+import { DIFFICULTIES, relatedCells } from "./game/sudoku.js?v=v53";
+import { activateAutomaticTreasures, ADVENTURE_RULES, applyHintTreasure, applyImmediateTreasure, strongestEquippedRevive, sudokuUnitCells, TREASURE_AUTO_EFFECTS, TREASURE_CARDS } from "./game/adventure.js?v=v53";
 import {
   applyHintFill,
   applyPlayerDigit,
@@ -11,21 +11,21 @@ import {
   removeRelatedNotes,
   RUN_MILESTONES,
   settleCompletedGame
-} from "./game/flow.js?v=v52";
-import { ACHIEVEMENTS, achievementValue, recordAchievementGame } from "./game/achievements.js?v=v52";
-import { chooseFriendPair, chooseGardenEel, choosePartyFriends, FRIEND_ROSTER, nextDanceVariants } from "./game/friends.js?v=v52";
-import { ISLAND_TEST_MODE } from "./island/catalog.js?v=v52";
-import { availableInventoryQuantity, dismissIslandLetter, availableConstructionWorkerIds, availableHelperIds, collectFacility, createIslandState, finishIslandWork, hireConstructionHelper, marketSale, normalizeIslandState, selectSourceRecipe, settleIsland, startBuilding, startDemolition, startHomeUpgrade, startProcessing, startReclamation } from "./island/model.js?v=v52";
-import { DEMO_ISLAND_PARTNERS, dispatchDemoShipment, LOGISTICS_METHODS, mergeCloudLogistics, networkProfileSnapshot, normalizeIslandPartner, partnerLogisticsOffers, recordDispatchedShipment, shipmentQuote } from "./island/logistics.js?v=v52";
-import { formatIslandDuration, renderIslandScreen } from "./island/renderer.js?v=v52";
-import { cloudConfigured, loadCloudPin, loadCloudProgress, normalizePlayerName, renameCloudPlayer, saveCloudPin, saveCloudProgress, saveCloudProgressIfCurrent, validCloudPin } from "./state/cloud.js?v=v52";
-import { acknowledgeIslandLogistics, dispatchIslandShipment, getIslandLogistics, listIslandPartners, publishIslandNetwork } from "./state/island-cloud.js?v=v52";
-import { buildScore, fetchLeaderboard, fetchPlayerLeaderboardRows, flushPendingScores, leaderboardConfigured, normalizeLeaderboardTaunt, pendingScoreCount, queueLeaderboardScore, updateLeaderboardAvatar, updateLeaderboardTaunt } from "./state/leaderboard.js?v=v52";
-import { addCard, clearSession, consumeCard, exportSaveCode, importSaveCode, loadProgress, loadSession, mergeProgressHighWater, nextFloorFromCompleted, parseSaveCode, preferSaveSide, raiseFloorProgress, rewardProgress, saveProgress, saveSession, saveTimestampMs, sessionFloorBehindProgress, spendCoins } from "./state/store.js?v=v52";
+} from "./game/flow.js?v=v53";
+import { ACHIEVEMENTS, achievementValue, recordAchievementGame } from "./game/achievements.js?v=v53";
+import { chooseFriendPair, chooseGardenEel, choosePartyFriends, FRIEND_ROSTER, nextDanceVariants } from "./game/friends.js?v=v53";
+import { ISLAND_TEST_MODE } from "./island/catalog.js?v=v53";
+import { availableInventoryQuantity, dismissIslandLetter, availableConstructionWorkerIds, availableHelperIds, collectFacility, createIslandState, finishIslandWork, hireConstructionHelper, marketSale, normalizeIslandState, selectSourceRecipe, settleIsland, startBuilding, startDemolition, startHomeUpgrade, startProcessing, startReclamation } from "./island/model.js?v=v53";
+import { DEMO_ISLAND_PARTNERS, dispatchDemoShipment, LOGISTICS_METHODS, mergeCloudLogistics, networkProfileSnapshot, normalizeIslandPartner, partnerLogisticsOffers, recordDispatchedShipment, shipmentQuote } from "./island/logistics.js?v=v53";
+import { formatIslandDuration, renderIslandScreen } from "./island/renderer.js?v=v53";
+import { cloudConfigured, loadCloudPin, loadCloudProgress, normalizePlayerName, renameCloudPlayer, saveCloudPin, saveCloudProgress, saveCloudProgressIfCurrent, validCloudPin } from "./state/cloud.js?v=v53";
+import { acknowledgeIslandLogistics, dispatchIslandShipment, getIslandLogistics, listIslandPartners, publishIslandNetwork } from "./state/island-cloud.js?v=v53";
+import { buildScore, fetchLeaderboard, fetchPlayerLeaderboardRows, flushPendingScores, leaderboardConfigured, normalizeLeaderboardTaunt, pendingScoreCount, queueLeaderboardScore, updateLeaderboardAvatar, updateLeaderboardTaunt } from "./state/leaderboard.js?v=v53";
+import { addCard, clearSession, consumeCard, exportSaveCode, importSaveCode, loadProgress, loadSession, mergeProgressHighWater, nextFloorFromCompleted, parseSaveCode, preferSaveSide, raiseFloorProgress, rewardProgress, saveProgress, saveSession, saveTimestampMs, sessionFloorBehindProgress, spendCoins } from "./state/store.js?v=v53";
 
 const app = document.querySelector("#app");
-const APP_VERSION = "v52";
-const APP_LAST_UPDATED = "2026-08-11T15:47:16+08:00";
+const APP_VERSION = "v53";
+const APP_LAST_UPDATED = "2026-08-11T20:02:31+08:00";
 let progress = loadProgress();
 const migratedAchievements = recordAchievementGame(progress);
 progress = migratedAchievements.progress;
@@ -1787,7 +1787,10 @@ async function syncCloudNowInternal(showFeedback = false) {
     const remote = parseSaveCode(remoteSaveCode);
     const localTime = saveTimestampMs(progress);
     const remoteTime = saveTimestampMs(remote.progress, remote.exportedAt);
-    if (remoteTime >= localTime) {
+    // Equal timestamps can still contain different active Sudoku sessions.
+    // Keep the local session and let the CAS write decide real cross-device conflicts;
+    // only a strictly newer cloud save may replace the current board.
+    if (remoteTime > localTime) {
       adoptCloudSaveCode(remoteSaveCode, "已同步其他裝置的最新進度，未覆蓋雲端資料。");
       cloudSyncStatus = "已採用雲端較新版本";
       return true;
@@ -2215,5 +2218,5 @@ window.addEventListener("online", () => {
 flushPendingScores().catch(() => {});
 
 if ("serviceWorker" in navigator && location.protocol !== "file:") {
-  navigator.serviceWorker.register(new URL("sw.js?v=v52", document.baseURI), { updateViaCache: "none" }).catch(() => {});
+  navigator.serviceWorker.register(new URL("sw.js?v=v53", document.baseURI), { updateViaCache: "none" }).catch(() => {});
 }
