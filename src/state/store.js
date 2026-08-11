@@ -1,5 +1,5 @@
-import { normalizeSession } from "../game/flow.js?v=v53";
-import { mergeIslandStates } from "../island/model.js?v=v53";
+import { normalizeSession } from "../game/flow.js?v=v54";
+import { mergeIslandStates } from "../island/model.js?v=v54";
 
 const STORAGE_KEY = "sudox-progress-v3";
 const SESSION_KEY = "sudox-session-v3";

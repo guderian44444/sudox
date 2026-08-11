@@ -80,7 +80,7 @@ assert(/sanitizeQueuedScore|p_pin/.test(leaderboardSource) && !/p_pin: progress/
 const pinGuardSql = readFileSync(new URL("../supabase/pin-guard-migration.sql", import.meta.url), "utf8");
 assert(/updated_at/.test(leaderboardSource) && /formatLeaderboardUpdatedAt|最後更新/.test(appSource), "leaderboard rows should show their last update time");
 assert(/APP_VERSION/.test(appSource) && /APP_LAST_UPDATED/.test(appSource) && /app-footer/.test(appSource), "main page should show app version and last update time");
-assert(/sudox-shell-v53/.test(readFileSync(new URL("../sw.js", import.meta.url), "utf8")), "Service Worker cache version should match the visible app release");
+assert(/sudox-shell-v54/.test(readFileSync(new URL("../sw.js", import.meta.url), "utf8")), "Service Worker cache version should match the visible app release");
 assert(/location\.protocol === "file:"/.test(indexSource) && /Start_SUDOX\.cmd/.test(indexSource), "直接開啟 index.html 時應顯示本機伺服器提示，不可只留白畫面");
 assert(/npm\.cmd run dev/.test(launcherSource) && /127\.0\.0\.1:4173/.test(launcherSource), "雙擊啟動器應啟動正確的 SUDOX 本機網址");
 assert(/submit_leaderboard_score/.test(pinGuardSql) && /save_cloud_progress/.test(pinGuardSql), "existing projects need a PIN guard migration");
@@ -105,7 +105,7 @@ assert(/\.topbar \{ height: auto; min-height: 48px; flex-wrap: wrap;/.test(style
 assert(/if \(!progress\.playerAvatar\) \{\s*showAvatarPicker = true/.test(appSource), "a new game should require an avatar selection");
 assert(appSource.indexOf('<div class="number-pad"') < appSource.indexOf('<div class="tools">'), "number pad should sit immediately before the tool buttons");
 assert(/\.notes i \{[^}]*font-size:\s*clamp\(7px, 1\.2vw, 10px\)/.test(stylesheet) && /\.notes i \{ font-size: clamp\(8px, 2\.5vw, 10px\); \}/.test(stylesheet), "note digits should be larger on desktop and mobile");
-assert(/from "\.\/game\/flow\.js\?v=v53"/.test(appSource) && /applyPlayerDigit|settleCompletedGame/.test(appSource), "app 應透過版次化 flow 模組處理填格與完局規則");
+assert(/from "\.\/game\/flow\.js\?v=v54"/.test(appSource) && /applyPlayerDigit|settleCompletedGame/.test(appSource), "app 應透過版次化 flow 模組處理填格與完局規則");
 assert(/createAdventureGame/.test(appSource) && !/createGame\(/.test(appSource), "app 應以 createAdventureGame 建立完整局，不再直接 createGame");
 assert(/normalizeSession/.test(storeSource), "session 載入應走完整 runtime 正規化");
 assert(/src\/game\/flow\.js/.test(readFileSync(new URL("../sw.js", import.meta.url), "utf8")), "Service Worker 應快取 flow 模組");
@@ -131,9 +131,12 @@ assert(!/unlockedDifficulty/.test(appSource), "UI 不應依賴已廢棄的 unloc
 assert(/let cloudHydrationPending = cloudConfigured\(\) && Boolean\(progress\.playerName\) && validCloudPin\(loadCloudPin\(\)\)/.test(appSource), "cloud progress hydration should start when local cloud credentials exist");
 assert(/function scheduleCloudSync\(\) \{\s*if \(cloudHydrationPending\) return;/.test(appSource), "startup cloud hydration should block automatic upload until finished");
 assert(/parseSaveCode\(saveCode\)/.test(appSource) && /preferSaveSide\(/.test(appSource), "cloud hydration should compare local and cloud saves before writing");
-assert(/importSaveCode\(saveCode, \{ touch: false \}\)/.test(appSource), "cloud hydration should preserve cloud updatedAt when cloud wins");
+assert(/const cloud = parseSaveCode\(saveCode\)/.test(appSource) && /const imported = \{ \.\.\.cloud, session: null \}/.test(appSource), "cloud hydration should keep cloud progress timestamp while ignoring active sessions");
 assert(/winner === "cloud"/.test(appSource) && /scheduleCloudSync\(\)/.test(appSource), "cloud hydration should keep newer local progress and sync upward");
 assert(/remoteTime\s*>\s*localTime/.test(appSource) && !/remoteTime\s*>=\s*localTime/.test(appSource), "相同時間戳的本機中途局不可被舊雲端盤面反覆重置");
+const persistSessionBlock = appSource.slice(appSource.indexOf("function persistSession"), appSource.indexOf("function islandOwner"));
+assert(/cloudProgressSaveCode\(progress\)/.test(appSource) && /exportSaveCode\(nextProgress, null\)/.test(appSource), "雲端存檔應只保存永久進度，不可攜帶數獨中途盤面");
+assert(/cloudHasSession: false/.test(appSource) && /function persistSession[\s\S]*saveSession\(session\)[\s\S]*clearSession\(\)/.test(appSource) && !/scheduleCloudSync\(\)/.test(persistSessionBlock), "數獨遊戲過程應只寫本機 session，不可觸發小島雲端同步");
 
 function validSolution(solution) {
   const target = "123456789";
@@ -409,8 +412,8 @@ assert(leaderboardConfigured(), "Supabase 專案設定後排行榜應啟用雲�
 const score = buildScore(imported.progress, { difficulty: "easy", floor: 9, stars: 3, elapsed: 120, mistakes: 0 });
 assert(score.p_player_name === "阿霖" && score.p_floor === 9 && score.p_score > 90000, "排行榜成績應包含玩家、層數與計算分數");
 assert(!("p_pin" in score), "成績佇列物件不可內嵌家庭 PIN");
-const loggedScore = buildScore({ ...imported.progress, floors: { ...imported.progress.floors, hard: 19, alin: 18 } }, { difficulty: "hard", floor: 18, stars: 1, elapsed: 830, mistakes: 3 }, false, { appVersion: "v53" });
-assert(loggedScore.p_floor === 18 && loggedScore.p_next_floor === 19 && loggedScore.p_app_version === "v53", "排行榜 LOG 應帶完成層、當時下一層與 app 版次");
+const loggedScore = buildScore({ ...imported.progress, floors: { ...imported.progress.floors, hard: 19, alin: 18 } }, { difficulty: "hard", floor: 18, stars: 1, elapsed: 830, mistakes: 3 }, false, { appVersion: "v54" });
+assert(loggedScore.p_floor === 18 && loggedScore.p_next_floor === 19 && loggedScore.p_app_version === "v54", "排行榜 LOG 應帶完成層、當時下一層與 app 版次");
 assert(scoreOutranks({ p_floor: 18, p_score: 180000 }, { p_floor: 17, p_score: 999999 }), "較高層必須優先於分數");
 assert(!scoreOutranks({ p_floor: 17, p_score: 999999 }, { p_floor: 18, p_score: 180000 }), "較低層不可只因分數較高覆蓋佇列中的高層");
 assert(scoreOutranks({ p_floor: 18, p_score: 181000 }, { p_floor: 18, p_score: 180000 }), "同層才比較分數");

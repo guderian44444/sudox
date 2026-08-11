@@ -1,5 +1,5 @@
-import { DIFFICULTIES, relatedCells } from "./game/sudoku.js?v=v53";
-import { activateAutomaticTreasures, ADVENTURE_RULES, applyHintTreasure, applyImmediateTreasure, strongestEquippedRevive, sudokuUnitCells, TREASURE_AUTO_EFFECTS, TREASURE_CARDS } from "./game/adventure.js?v=v53";
+import { DIFFICULTIES, relatedCells } from "./game/sudoku.js?v=v54";
+import { activateAutomaticTreasures, ADVENTURE_RULES, applyHintTreasure, applyImmediateTreasure, strongestEquippedRevive, sudokuUnitCells, TREASURE_AUTO_EFFECTS, TREASURE_CARDS } from "./game/adventure.js?v=v54";
 import {
   applyHintFill,
   applyPlayerDigit,
@@ -11,20 +11,20 @@ import {
   removeRelatedNotes,
   RUN_MILESTONES,
   settleCompletedGame
-} from "./game/flow.js?v=v53";
-import { ACHIEVEMENTS, achievementValue, recordAchievementGame } from "./game/achievements.js?v=v53";
-import { chooseFriendPair, chooseGardenEel, choosePartyFriends, FRIEND_ROSTER, nextDanceVariants } from "./game/friends.js?v=v53";
-import { ISLAND_TEST_MODE } from "./island/catalog.js?v=v53";
-import { availableInventoryQuantity, dismissIslandLetter, availableConstructionWorkerIds, availableHelperIds, collectFacility, createIslandState, finishIslandWork, hireConstructionHelper, marketSale, normalizeIslandState, selectSourceRecipe, settleIsland, startBuilding, startDemolition, startHomeUpgrade, startProcessing, startReclamation } from "./island/model.js?v=v53";
-import { DEMO_ISLAND_PARTNERS, dispatchDemoShipment, LOGISTICS_METHODS, mergeCloudLogistics, networkProfileSnapshot, normalizeIslandPartner, partnerLogisticsOffers, recordDispatchedShipment, shipmentQuote } from "./island/logistics.js?v=v53";
-import { formatIslandDuration, renderIslandScreen } from "./island/renderer.js?v=v53";
-import { cloudConfigured, loadCloudPin, loadCloudProgress, normalizePlayerName, renameCloudPlayer, saveCloudPin, saveCloudProgress, saveCloudProgressIfCurrent, validCloudPin } from "./state/cloud.js?v=v53";
-import { acknowledgeIslandLogistics, dispatchIslandShipment, getIslandLogistics, listIslandPartners, publishIslandNetwork } from "./state/island-cloud.js?v=v53";
-import { buildScore, fetchLeaderboard, fetchPlayerLeaderboardRows, flushPendingScores, leaderboardConfigured, normalizeLeaderboardTaunt, pendingScoreCount, queueLeaderboardScore, updateLeaderboardAvatar, updateLeaderboardTaunt } from "./state/leaderboard.js?v=v53";
-import { addCard, clearSession, consumeCard, exportSaveCode, importSaveCode, loadProgress, loadSession, mergeProgressHighWater, nextFloorFromCompleted, parseSaveCode, preferSaveSide, raiseFloorProgress, rewardProgress, saveProgress, saveSession, saveTimestampMs, sessionFloorBehindProgress, spendCoins } from "./state/store.js?v=v53";
+} from "./game/flow.js?v=v54";
+import { ACHIEVEMENTS, achievementValue, recordAchievementGame } from "./game/achievements.js?v=v54";
+import { chooseFriendPair, chooseGardenEel, choosePartyFriends, FRIEND_ROSTER, nextDanceVariants } from "./game/friends.js?v=v54";
+import { ISLAND_TEST_MODE } from "./island/catalog.js?v=v54";
+import { availableInventoryQuantity, dismissIslandLetter, availableConstructionWorkerIds, availableHelperIds, collectFacility, createIslandState, finishIslandWork, hireConstructionHelper, marketSale, normalizeIslandState, selectSourceRecipe, settleIsland, startBuilding, startDemolition, startHomeUpgrade, startProcessing, startReclamation } from "./island/model.js?v=v54";
+import { DEMO_ISLAND_PARTNERS, dispatchDemoShipment, LOGISTICS_METHODS, mergeCloudLogistics, networkProfileSnapshot, normalizeIslandPartner, partnerLogisticsOffers, recordDispatchedShipment, shipmentQuote } from "./island/logistics.js?v=v54";
+import { formatIslandDuration, renderIslandScreen } from "./island/renderer.js?v=v54";
+import { cloudConfigured, loadCloudPin, loadCloudProgress, normalizePlayerName, renameCloudPlayer, saveCloudPin, saveCloudProgress, saveCloudProgressIfCurrent, validCloudPin } from "./state/cloud.js?v=v54";
+import { acknowledgeIslandLogistics, dispatchIslandShipment, getIslandLogistics, listIslandPartners, publishIslandNetwork } from "./state/island-cloud.js?v=v54";
+import { buildScore, fetchLeaderboard, fetchPlayerLeaderboardRows, flushPendingScores, leaderboardConfigured, normalizeLeaderboardTaunt, pendingScoreCount, queueLeaderboardScore, updateLeaderboardAvatar, updateLeaderboardTaunt } from "./state/leaderboard.js?v=v54";
+import { addCard, clearSession, consumeCard, exportSaveCode, importSaveCode, loadProgress, loadSession, mergeProgressHighWater, nextFloorFromCompleted, parseSaveCode, preferSaveSide, raiseFloorProgress, rewardProgress, saveProgress, saveSession, saveTimestampMs, sessionFloorBehindProgress, spendCoins } from "./state/store.js?v=v54";
 
 const app = document.querySelector("#app");
-const APP_VERSION = "v53";
+const APP_VERSION = "v54";
 const APP_LAST_UPDATED = "2026-08-11T20:02:31+08:00";
 let progress = loadProgress();
 const migratedAchievements = recordAchievementGame(progress);
@@ -507,11 +507,16 @@ function sessionSnapshot() {
   return { game, equippedCards, alinMode };
 }
 
+// Sudoku boards and timers stay on this device. Cloud saves carry durable progress
+// (including floors and island state) but never an active in-progress session.
+function cloudProgressSaveCode(nextProgress = progress) {
+  return exportSaveCode(nextProgress, null);
+}
+
 function persistSession() {
   const session = sessionSnapshot();
   if (session) saveSession(session);
   else clearSession();
-  scheduleCloudSync();
 }
 
 function islandOwner(now = Date.now()) {
@@ -894,12 +899,12 @@ async function collectIslandFacilitySafely(buildingInstanceId) {
     return;
   }
 
-  const expectedSaveCode = exportSaveCode(progress, sessionSnapshot());
+  const expectedSaveCode = cloudProgressSaveCode(progress);
   const nextProgress = { ...progress, island: result.state };
   progress = nextProgress;
   island = result.state;
   saveProgress(progress);
-  const nextSaveCode = exportSaveCode(progress, sessionSnapshot());
+  const nextSaveCode = cloudProgressSaveCode(progress);
   try {
     const committed = await saveCloudProgressIfCurrent({
       playerId: progress.playerId,
@@ -1531,7 +1536,7 @@ async function unlockFamilyPin() {
           playerId: progress.playerId,
           playerName: progress.playerName,
           pin,
-          saveCode: exportSaveCode(progress, sessionSnapshot())
+          saveCode: cloudProgressSaveCode(progress)
         });
       }
     }
@@ -1567,7 +1572,7 @@ async function renamePlayer() {
     await renameCloudPlayer({ playerId: progress.playerId, pin, playerName });
     progress = { ...progress, playerName };
     saveProgress(progress);
-    await saveCloudProgress({ playerId: progress.playerId, playerName, pin, saveCode: exportSaveCode(progress, sessionSnapshot()) });
+    await saveCloudProgress({ playerId: progress.playerId, playerName, pin, saveCode: cloudProgressSaveCode(progress) });
     cloudSyncStatus = `改名完成・現在是 ${playerName}`;
     render();
     showCelebration("✏️", "玩家名稱更新完成！", "雲端存檔與排行榜已同步");
@@ -1584,7 +1589,7 @@ async function createPlayer() {
     if (cloudConfigured() && navigator.onLine) {
       nameSetupStatus = "正在建立家庭雲端存檔…";
       document.querySelector(".name-status").textContent = nameSetupStatus;
-      await saveCloudProgress({ playerId: nextProgress.playerId, playerName, pin, saveCode: exportSaveCode(nextProgress, sessionSnapshot()) });
+      await saveCloudProgress({ playerId: nextProgress.playerId, playerName, pin, saveCode: cloudProgressSaveCode(nextProgress) });
     }
     progress = nextProgress;
     saveProgress(progress);
@@ -1614,6 +1619,7 @@ function applyImportedSave(imported, { mergeWithLocal = null } = {}) {
       progress = raiseFloorProgress(progress, progressDifficulty(game.difficulty, alinMode), game.floor);
     }
   } else {
+    clearSession();
     equippedCards = [];
     const fallbackDifficulty = game?.difficulty && game.difficulty !== "alin" ? game.difficulty : "easy";
     const fallbackProgressDifficulty = progressDifficulty(fallbackDifficulty, alinMode);
@@ -1670,14 +1676,18 @@ async function migrateAlinFloorProgress() {
 }
 
 function adoptCloudSaveCode(saveCode, status = "") {
-  const imported = importSaveCode(saveCode, { touch: false });
-  applyImportedSave(imported);
+  const imported = parseSaveCode(saveCode);
+  progress = mergeProgressHighWater(imported.progress, progress);
+  saveProgress(progress, { touch: false });
+  island = null;
+  const sessionReset = reconcileActiveSessionFloor();
   if (activeScreen === "island") {
     islandStatus = status;
     renderIslandView();
   } else {
     render();
   }
+  return sessionReset;
 }
 
 async function loadExistingPlayer() {
@@ -1686,7 +1696,7 @@ async function loadExistingPlayer() {
     nameSetupStatus = "正在尋找雲端存檔…";
     document.querySelector(".name-status").textContent = nameSetupStatus;
     const saveCode = await loadCloudProgress(playerName, pin);
-    applyImportedSave(importSaveCode(saveCode));
+    applyImportedSave({ ...parseSaveCode(saveCode), session: null });
     saveCloudPin(pin);
     showNameSetup = false;
     nameSetupStatus = "";
@@ -1712,17 +1722,16 @@ async function hydrateCloudProgress() {
     const winner = preferSaveSide(progress, cloud.progress, {
       cloudExportedAt: cloud.exportedAt,
       localHasSession,
-      cloudHasSession: Boolean(cloud.session)
+      // Cloud stores durable progress only; ignore active sessions from pre-v54 saves.
+      cloudHasSession: false
     });
 
     if (winner === "cloud") {
-      const imported = importSaveCode(saveCode, { touch: false });
-      clearInterval(timerId);
-      // Cloud wins base fields, but never drop higher local floors / lifetime counters.
-      applyImportedSave(imported, { mergeWithLocal: progress });
+      const imported = { ...cloud, session: null };
+      // Cloud wins durable fields, but never replaces the local Sudoku board.
+      progress = mergeProgressHighWater(imported.progress, progress);
       saveProgress(progress, { touch: false });
       reconcileActiveSessionFloor();
-      if (imported.session?.game) startTimer();
       cloudSyncStatus = "已載入雲端的較新進度";
       cloudHydrationPending = false;
       scheduleCloudSync();
@@ -1776,7 +1785,7 @@ async function syncCloudNowInternal(showFeedback = false) {
     render();
   }
   try {
-    const localSaveCode = exportSaveCode(progress, sessionSnapshot());
+    const localSaveCode = cloudProgressSaveCode(progress);
     const remoteSaveCode = await loadCloudProgress(progress.playerName, pin);
     if (remoteSaveCode === localSaveCode) {
       cloudSyncStatus = `同步完成・${new Date().toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit" })}`;
@@ -2218,5 +2227,5 @@ window.addEventListener("online", () => {
 flushPendingScores().catch(() => {});
 
 if ("serviceWorker" in navigator && location.protocol !== "file:") {
-  navigator.serviceWorker.register(new URL("sw.js?v=v53", document.baseURI), { updateViaCache: "none" }).catch(() => {});
+  navigator.serviceWorker.register(new URL("sw.js?v=v54", document.baseURI), { updateViaCache: "none" }).catch(() => {});
 }

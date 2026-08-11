@@ -2,7 +2,7 @@
 
 更新日期：2026-08-11
 開發分支：`feature/island-building`；正式部署分支：`main`
-目前版次：`v53`／Service Worker `sudox-shell-v53`
+目前版次：`v54`／Service Worker `sudox-shell-v54`
 狀態：正式模式 release 已封版；測試模式預設關閉；正式像素美術仍可後續逐批替換 fallback。
 
 ## 一句話狀態
