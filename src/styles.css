@@ -223,6 +223,14 @@ button:focus-visible { outline: 3px solid #4f9dd9; outline-offset: 2px; }
 .celebration-toast small { margin-top: 3px; color: #8d7956; font-size: 11px; font-weight: 700; }
 
 .game-effect { position: fixed; z-index: 40; top: 50%; left: 50%; width: min(calc(100% - 32px), 390px); display: flex; align-items: center; justify-content: center; gap: 12px; transform: translate(-50%, -50%); pointer-events: none; animation: game-effect-life 1.75s ease both; }
+.game-effect.board-edge { position: fixed; z-index: 40; top: var(--board-edge-y, 50%); bottom: auto; left: var(--board-edge-x, 50%); width: min(calc(100% - 12px), 360px); gap: 8px; transform: translate(-50%, -100%); animation-name: board-edge-effect-life; }
+.game-effect.board-edge.has-friends .effect-character { width: 108px; height: 76px; border-width: 3px; border-radius: 22px; }
+.game-effect.board-edge .animated-friends { width: 96px; height: 68px; }
+.game-effect.board-edge .animated-animal,
+.game-effect.board-edge .animated-animal.sticker-animal { width: 46px; height: 64px; }
+.game-effect.board-edge .effect-bubble { padding: 10px 13px; border-width: 2px; border-radius: 17px 17px 17px 6px; }
+.game-effect.board-edge .effect-bubble strong { font-size: 15px; }
+.game-effect.board-edge .effect-bubble small { font-size: 11px; }
 .effect-character { width: 78px; height: 78px; display: grid; place-items: center; flex: 0 0 auto; border: 4px solid rgba(255,255,255,.9); border-radius: 50%; background: #fff8e9; box-shadow: 0 15px 35px rgba(54, 45, 40, .2); font-size: 46px; animation: character-bounce .55s ease both; }
 .effect-bubble { position: relative; min-width: 0; padding: 15px 18px; display: grid; gap: 4px; border: 3px solid white; border-radius: 22px 22px 22px 7px; background: #fff; box-shadow: 0 15px 38px rgba(54, 45, 40, .2); text-align: left; }
 .effect-bubble::before { content: ""; position: absolute; left: -12px; bottom: 8px; border-width: 9px 12px 3px 0; border-style: solid; border-color: transparent white transparent transparent; }
@@ -412,6 +420,7 @@ button:focus-visible { outline: 3px solid #4f9dd9; outline-offset: 2px; }
 @keyframes celebration-in { from { opacity: 0; transform: translateY(-14px) scale(.96); } }
 @keyframes celebration-out { to { opacity: 0; transform: translateY(-8px) scale(.97); } }
 @keyframes game-effect-life { 0% { opacity: 0; transform: translate(-50%, -42%) scale(.7); } 14%, 76% { opacity: 1; transform: translate(-50%, -50%) scale(1); } 100% { opacity: 0; transform: translate(-50%, -58%) scale(.94); } }
+@keyframes board-edge-effect-life { 0% { opacity: 0; transform: translate(-50%, calc(-100% + 4px)) scale(.8); } 14%, 76% { opacity: 1; transform: translate(-50%, -100%) scale(1); } 100% { opacity: 0; transform: translate(-50%, calc(-100% - 7px)) scale(.96); } }
 @keyframes character-bounce { 0% { transform: rotate(-12deg) scale(.55); } 65% { transform: rotate(7deg) scale(1.1); } 100% { transform: rotate(0) scale(1); } }
 @keyframes spark-float { to { transform: translateY(-9px) rotate(18deg) scale(1.2); } }
 @keyframes board-flash-success { 35% { box-shadow: 0 0 0 8px rgba(79, 191, 151, .22), 0 18px 48px rgba(79, 191, 151, .28); } }

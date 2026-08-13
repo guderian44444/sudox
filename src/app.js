@@ -24,8 +24,8 @@ import { buildScore, fetchLeaderboard, fetchPlayerLeaderboardRows, flushPendingS
 import { addCard, clearSession, consumeCard, exportSaveCode, importSaveCode, loadProgress, loadSession, mergeProgressHighWater, nextFloorFromCompleted, parseSaveCode, preferSaveSide, raiseFloorProgress, reconcileFloorsFromLeaderboardRows, rewardProgress, saveProgress, saveSession, saveTimestampMs, sessionFloorBehindProgress, spendCoins } from "./state/store.js?v=v57";
 
 const app = document.querySelector("#app");
-const APP_VERSION = "v57";
-const APP_LAST_UPDATED = "2026-08-13T12:00:00+08:00";
+const APP_VERSION = "v58";
+const APP_LAST_UPDATED = "2026-08-13T20:37:14+08:00";
 let progress = loadProgress();
 const migratedAchievements = recordAchievementGame(progress);
 progress = migratedAchievements.progress;
@@ -395,18 +395,31 @@ function showCelebration(icon, title, detail) {
   }, 2600);
 }
 
-function showGameEffect(icon, title, detail, tone = "success", motion = "") {
-  gameEffectQueue.push({ icon, title, detail, tone, motion });
+function showGameEffect(icon, title, detail, tone = "success", motion = "", placement = "viewport") {
+  gameEffectQueue.push({ icon, title, detail, tone, motion, placement });
   playNextGameEffect();
 }
 
 function playNextGameEffect() {
   if (gameEffectActive || !gameEffectQueue.length) return;
   gameEffectActive = true;
-  const { icon, title, detail, tone, motion } = gameEffectQueue.shift();
+  const { icon, title, detail, tone, motion, placement } = gameEffectQueue.shift();
   const hasFriends = icon === "friends";
+  const boardEdge = placement === "board-edge";
   const effect = document.createElement("section");
-  effect.className = `game-effect ${tone}${hasFriends ? " has-friends" : ""}${motion ? ` motion-${motion}` : ""}`;
+  effect.className = `game-effect ${tone}${hasFriends ? " has-friends" : ""}${boardEdge ? " board-edge" : ""}${motion ? ` motion-${motion}` : ""}`;
+  if (boardEdge) {
+    const board = document.querySelector(".sudoku-board");
+    let boardRect = board?.getBoundingClientRect();
+    if (boardRect && boardRect.top < 104) {
+      window.scrollBy({ top: boardRect.top - 104, behavior: "instant" });
+      boardRect = board.getBoundingClientRect();
+    }
+    if (boardRect) {
+      effect.style.setProperty("--board-edge-x", `${boardRect.left + boardRect.width / 2}px`);
+      effect.style.setProperty("--board-edge-y", `${boardRect.top - 10}px`);
+    }
+  }
   effect.setAttribute("role", "status");
   effect.setAttribute("aria-live", "polite");
   const friendsMarkup = hasFriends
@@ -1951,7 +1964,7 @@ function presentBoardProgressEvents(events) {
       detail = `${detail}・${event.reward}`;
       showCelebration("🎉", `首次完成${event.type === "row" ? "一行" : "一宮"}！`, event.reward);
     }
-    showGameEffect("friends", `${event.label}完成，好朋友上場！`, detail, "success", `${event.type}-${variant}`);
+    showGameEffect("friends", `${event.label}完成，好朋友上場！`, detail, "success", `${event.type}-${variant}`, "board-edge");
     triggerAvatarAnim("jump");
     const totalCompleted = game.completedUnits.rows.length + game.completedUnits.columns.length + game.completedUnits.boxes.length;
     if (totalCompleted >= 18) setAvatarFace("excited", 3000);
@@ -2227,5 +2240,5 @@ window.addEventListener("online", () => {
 flushPendingScores().catch(() => {});
 
 if ("serviceWorker" in navigator && location.protocol !== "file:") {
-  navigator.serviceWorker.register(new URL("sw.js?v=v57", document.baseURI), { updateViaCache: "none" }).catch(() => {});
+  navigator.serviceWorker.register(new URL("sw.js?v=v58", document.baseURI), { updateViaCache: "none" }).catch(() => {});
 }
