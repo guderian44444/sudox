@@ -1,0 +1,20 @@
+{
+  "assetId": "terrain-reclaimable-complete-v1",
+  "kind": "terrain",
+  "sourceKey": "terrain/reclaimable",
+  "styleId": "SUDOX Buddy & Island Style v1",
+  "width": 128,
+  "height": 128,
+  "frames": 1,
+  "fps": 0,
+  "anchor": {
+    "x": 64,
+    "y": 64
+  },
+  "footprint": "tile",
+  "prompt": "Pixel-art island terrain tile, reclaimable, no face, no eyes, no mouth, no character, SUDOX Buddy & Island Style v1.",
+  "negativePrompt": "face, eyes, mouth, anthropomorphic character, text, logo, watermark, photorealism, UI frame",
+  "seedOrJobId": "exec-0f1e3c23-e4f2-4298-a553-9d9ebc731dcd",
+  "generatedAt": "2026-08-12T00:00:00+08:00",
+  "reviewedAt390x844": false
+}

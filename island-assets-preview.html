@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SUDOX 小島素材總覽</title>
+  <link rel="stylesheet" href="./src/island/asset-gallery.css?v=v57">
+</head>
+<body>
+  <header class="gallery-hero">
+    <div>
+      <p>SUDOX ISLAND・ASSET REVIEW</p>
+      <h1>小島素材總覽</h1>
+      <span>建築、原物料／產品、施工與地形；小夥伴不包含在本頁。</span>
+    </div>
+    <a href="./?islandTest=1">回到小島測試</a>
+  </header>
+
+  <nav class="gallery-tools" aria-label="素材篩選">
+    <label>
+      <span>搜尋</span>
+      <input id="asset-search" type="search" placeholder="輸入名稱或 asset key">
+    </label>
+    <div id="asset-filters" class="gallery-filters"></div>
+    <output id="asset-status">準備素材中…</output>
+  </nav>
+
+  <main id="asset-gallery" class="asset-gallery"></main>
+
+  <dialog id="asset-dialog" class="asset-dialog">
+    <button class="dialog-close" type="button" aria-label="關閉">×</button>
+    <div class="dialog-image-wrap"><img alt=""></div>
+    <section>
+      <p class="dialog-category"></p>
+      <h2></h2>
+      <code></code>
+      <dl></dl>
+      <details>
+        <summary>查看生成規格</summary>
+        <p class="dialog-prompt"></p>
+        <p class="dialog-negative"></p>
+      </details>
+    </section>
+  </dialog>
+
+  <script type="module" src="./src/island/asset-gallery.js?v=v57"></script>
+</body>
+</html>

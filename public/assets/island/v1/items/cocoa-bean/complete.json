@@ -1,0 +1,20 @@
+{
+  "assetId": "item-cocoa-bean-complete-v1",
+  "kind": "item",
+  "sourceKey": "items/cocoa-bean",
+  "styleId": "SUDOX Buddy & Island Style v1",
+  "width": 128,
+  "height": 128,
+  "frames": 1,
+  "fps": 0,
+  "anchor": {
+    "x": 64,
+    "y": 64
+  },
+  "footprint": "icon",
+  "prompt": "Pixel-art island item icon, cocoa bean, natural object, transparent background, strictly no face, no eyes, no mouth, no cheeks, no expression, no character, no face, no eyes, no mouth, no expression, no character, SUDOX Buddy & Island Style v1.",
+  "negativePrompt": "face, eyes, mouth, nose, cheeks, expression, anthropomorphic, character, text, logo, watermark",
+  "seedOrJobId": "exec-b68a0507-c02a-4425-87f3-efebf8b4f1f8",
+  "generatedAt": "2026-08-12T00:00:00+08:00",
+  "reviewedAt390x844": false
+}

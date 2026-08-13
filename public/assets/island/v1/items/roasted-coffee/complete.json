@@ -1,0 +1,20 @@
+{
+  "assetId": "item-roasted-coffee-complete-v1",
+  "kind": "item",
+  "sourceKey": "items/roasted-coffee",
+  "styleId": "SUDOX Buddy & Island Style v1",
+  "width": 128,
+  "height": 128,
+  "frames": 1,
+  "fps": 0,
+  "anchor": {
+    "x": 64,
+    "y": 64
+  },
+  "footprint": "icon",
+  "prompt": "Pixel-art island item icon, roasted coffee, natural object, transparent background, strictly no face, no eyes, no mouth, no cheeks, no expression, no character, no face, no eyes, no mouth, no expression, no character, SUDOX Buddy & Island Style v1.",
+  "negativePrompt": "face, eyes, mouth, nose, cheeks, expression, anthropomorphic, character, text, logo, watermark",
+  "seedOrJobId": "exec-6e9c52b2-a474-43ec-ac72-ef912e0f2026",
+  "generatedAt": "2026-08-12T00:00:00+08:00",
+  "reviewedAt390x844": false
+}

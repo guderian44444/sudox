@@ -1,0 +1,20 @@
+{
+  "assetId": "building-flower-garden-complete-v1",
+  "kind": "building",
+  "sourceKey": "buildings/flower-garden",
+  "styleId": "SUDOX Buddy & Island Style v1",
+  "width": 192,
+  "height": 192,
+  "frames": 1,
+  "fps": 0,
+  "anchor": {
+    "x": 96,
+    "y": 174
+  },
+  "footprint": "1x1",
+  "prompt": "Extremely simplified SUDOX island game asset, bold silhouette, broad flat color shapes, optimized for clarity at 45 pixels, no tiny decorative detail, no face or anthropomorphic features.",
+  "negativePrompt": "face, eyes, mouth, nose, cheeks, expression, anthropomorphic, character, companions, text, logo, watermark, tiny detail, clutter, individual bricks, shingles, flowers, cast shadow",
+  "seedOrJobId": "exec-cac43650-b3b3-4489-8cb0-cf1d0b03bb75",
+  "generatedAt": "2026-08-13T00:00:00+08:00",
+  "reviewedAt390x844": false
+}

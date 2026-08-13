@@ -21,6 +21,13 @@ const constructionEntries = ["building", "reclaim", "homeUpgrade", "demolition"]
   fallback: true
 }));
 
+const terrainEntries = ["water", "reclaimable", "grass", "reclaimed"].map((id) => ({
+  kind: "active terrain",
+  id,
+  key: `terrain/${id}`,
+  fallback: true
+}));
+
 const entries = [
   ...Object.values(BUILDING_CATALOG).map((building) => ({
     kind: "active building",
@@ -35,6 +42,7 @@ const entries = [
     fallback: Boolean(level.icon)
   })),
   ...constructionEntries,
+  ...terrainEntries,
   ...Object.values(ITEM_CATALOG).map((item) => ({
     kind: "reserved item",
     id: item.id,
@@ -54,7 +62,7 @@ for (const entry of entries) {
 
 const problems = [];
 const warnings = [];
-const keyPattern = /^(?:(?:buildings|items)\/[a-z0-9]+(?:-[a-z0-9]+)*|construction\/(?:building|reclaim|homeUpgrade|demolition))$/;
+const keyPattern = /^(?:(?:buildings|items|terrain)\/[a-z0-9]+(?:-[a-z0-9]+)*|construction\/(?:building|reclaim|homeUpgrade|demolition))$/;
 for (const entry of uniqueEntries) {
   if (!entry.key || !keyPattern.test(entry.key)) problems.push(`${entry.kind} ${entry.id} 的 assetKey 不合法：${entry.key || "<empty>"}`);
   if (!entry.fallback) problems.push(`${entry.kind} ${entry.id} 缺少 emoji fallback`);

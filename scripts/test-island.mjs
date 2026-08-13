@@ -443,7 +443,8 @@ assert(/金穗麥田/.test(catalogMarkup) && /星空溫泉/.test(catalogMarkup) 
 assert(/靈巧佈置|大力土木/.test(catalogMarkup), "施工伙伴選擇器應顯示伙伴能力");
 assert(/island-partner-node/.test(logisticsMarkup) && /data-island-logistics-form/.test(logisticsMarkup) && /高價收購/.test(logisticsMarkup), "相容玩家應顯示在地圖邊緣，點選後提供加工或高價市場、物料、載具、數量、時間與報酬選單");
 assert(/island-shore-foam/.test(logisticsMarkup), "陸地與海洋交界的六角邊應顯示白色浪花");
-assert(!/island-shore-foam[^>]*>≈/.test(logisticsMarkup) && /radial-gradient\(ellipse at center/.test(islandStyles), "岸線應使用漸層海沫，不再以重複的波浪文字描邊");
+assert(!/island-shore-foam[^>]*>≈/.test(logisticsMarkup) && /linear-gradient\(to bottom,\s*#f3d88a/.test(islandStyles), "沙灘與浪線只應貼在陸海交界，不可用額外一圈海灘格");
+assert(/--island-terrain-position/.test(rendererSource) && /--island-terrain-size/.test(rendererSource) && !/reclaimable\s*\?\s*"reclaimable"/.test(rendererSource), "地面應使用共享座標的連續草地，可填海格仍顯示普通海面");
 assert(/clip-path:\s*polygon\(24% 0, 76% 0/.test(islandStyles), "陸地六角形應完整覆蓋格線，避免島中央露出藍色海縫");
 assert(/island-transport-route is-boat/.test(logisticsMarkup) && /island-transport is-boat/.test(logisticsMarkup) && /從合作碼頭出發/.test(logisticsMarkup), "在途船運應從合作碼頭畫出點點路線並朝合作玩家移動");
 const boatRouteCells = (logisticsMarkup.match(/class="island-transport-route is-boat"[^>]*data-island-route-cells="([^"]+)"/)?.[1] || "").split(";").filter(Boolean);
@@ -462,7 +463,7 @@ assert(/pointerdown/.test(appSource) && /pointermove/.test(appSource) && /island
 assert(!/setPointerCapture/.test(pointerDownSource) && /setPointerCapture/.test(pointerMoveSource), "一般點擊不可在 pointerdown 時被地圖接管，只有超過拖曳門檻後才能 capture");
 assert(/touch-action:\s*none/.test(islandStyles) && /cursor:\s*grab/.test(islandStyles), "地圖拖曳應關閉瀏覽器手勢衝突並顯示拖曳游標");
 assert(/\.island-hex\.is-ready\s*{[^}]*z-index:\s*12/.test(islandStyles), "可領取狀態的六角格必須高於選取與相鄰格");
-assert(/\.island-ready-badge\s*{[^}]*z-index:\s*30[^}]*left:\s*50%/.test(islandStyles) && /translateX\(-50%\)[^}]*translateY\(-3px\)/.test(islandStyles), "驚嘆號應固定在六角格上緣中央且動畫不可破壞置中");
+assert(/\.island-ready-badge,\s*\.island-job-badge\s*{[^}]*z-index:\s*110/.test(islandStyles) && /\.island-ready-badge\s*{[^}]*left:\s*50%[^}]*transform:\s*translateX\(-50%\)/.test(islandStyles) && /@keyframes island-ready-pop[\s\S]*translateX\(-50%\)[\s\S]*translateY\(-3px\)/.test(islandStyles), "驚嘆號應固定在六角格上緣中央、位於最上層且動畫不可破壞置中");
 assert.equal(RECIPE_CATALOG.dairyBatch.outputs.dairyBox, 1, "配方目錄應保留可擴充的資料驅動輸出");
 
 assert(/data-island-confirm-build/.test(appSource) && /collectIslandFacilitySafely/.test(appSource) && /saveCloudProgressIfCurrent/.test(appSource), "設施施工應先確認，收成應走雲端安全同步流程");

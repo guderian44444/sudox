@@ -1,0 +1,20 @@
+{
+  "assetId": "construction-homeUpgrade-complete-v1",
+  "kind": "construction",
+  "sourceKey": "construction/homeUpgrade",
+  "styleId": "SUDOX Buddy & Island Style v1",
+  "width": 192,
+  "height": 192,
+  "frames": 1,
+  "fps": 0,
+  "anchor": {
+    "x": 96,
+    "y": 174
+  },
+  "footprint": "1x1",
+  "prompt": "Pixel-art island construction overlay homeUpgrade, transparent background, no face, no eyes, no mouth, no character, no text, SUDOX Buddy & Island Style v1.",
+  "negativePrompt": "face, eyes, mouth, anthropomorphic character, text, logo, watermark, photorealism, gray background, UI frame",
+  "seedOrJobId": "exec-8bd3251f-8158-4d12-a1bb-9b392a3c7342",
+  "generatedAt": "2026-08-12T00:00:00+08:00",
+  "reviewedAt390x844": false
+}

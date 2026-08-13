@@ -1,0 +1,20 @@
+{
+  "assetId": "item-honey-complete-v1",
+  "kind": "item",
+  "sourceKey": "items/honey",
+  "styleId": "SUDOX Buddy & Island Style v1",
+  "width": 128,
+  "height": 128,
+  "frames": 1,
+  "fps": 0,
+  "anchor": {
+    "x": 64,
+    "y": 64
+  },
+  "footprint": "icon",
+  "prompt": "Pixel-art island item icon, honey, natural object, transparent background, strictly no face, no eyes, no mouth, no cheeks, no expression, no character, no face, no eyes, no mouth, no expression, no character, SUDOX Buddy & Island Style v1.",
+  "negativePrompt": "face, eyes, mouth, nose, cheeks, expression, anthropomorphic, character, text, logo, watermark",
+  "seedOrJobId": "exec-0eaab1e8-b5b3-4cc2-9ca9-c0908f63d58d",
+  "generatedAt": "2026-08-12T00:00:00+08:00",
+  "reviewedAt390x844": false
+}

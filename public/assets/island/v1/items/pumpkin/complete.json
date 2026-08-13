@@ -1,0 +1,20 @@
+{
+  "assetId": "item-pumpkin-complete-v1",
+  "kind": "item",
+  "sourceKey": "items/pumpkin",
+  "styleId": "SUDOX Buddy & Island Style v1",
+  "width": 128,
+  "height": 128,
+  "frames": 1,
+  "fps": 0,
+  "anchor": {
+    "x": 64,
+    "y": 64
+  },
+  "footprint": "icon",
+  "prompt": "Plain natural orange pumpkin, green stem and leaves, transparent background, strictly no face, no eyes, no mouth, no cheeks, no expression, no character.",
+  "negativePrompt": "face, eyes, mouth, nose, cheeks, expression, anthropomorphic, character, text, logo, watermark",
+  "seedOrJobId": "exec-ec1c77f6-bcb1-41e9-b86c-11b83eb5a282",
+  "generatedAt": "2026-08-12T00:00:00+08:00",
+  "reviewedAt390x844": false
+}

@@ -1,0 +1,52 @@
+:root { color-scheme: light; font-family: Inter, "Noto Sans TC", system-ui, sans-serif; background: #eaf7f2; color: #244c50; }
+* { box-sizing: border-box; }
+body { margin: 0; min-height: 100vh; background: radial-gradient(circle at 15% 0, #fffbd9, transparent 25rem), linear-gradient(145deg, #e8f8f1, #d9f0f3); }
+button, input { font: inherit; }
+.gallery-hero { padding: 28px clamp(20px, 5vw, 72px) 22px; display: flex; align-items: end; justify-content: space-between; gap: 20px; border-bottom: 1px solid rgba(48,106,105,.14); background: rgba(255,255,255,.58); }
+.gallery-hero p { margin: 0 0 6px; color: #6e9290; font-size: 11px; font-weight: 950; letter-spacing: .18em; }
+.gallery-hero h1 { margin: 0; font-size: clamp(28px, 5vw, 48px); letter-spacing: -.045em; }
+.gallery-hero span { display: block; margin-top: 8px; color: #638482; font-size: 13px; }
+.gallery-hero a { padding: 11px 15px; border-radius: 14px; color: #326b68; background: #fff; box-shadow: 0 7px 22px rgba(42,94,91,.13); font-size: 12px; font-weight: 900; text-decoration: none; white-space: nowrap; }
+.gallery-tools { position: sticky; z-index: 10; top: 0; padding: 13px clamp(20px, 5vw, 72px); display: grid; grid-template-columns: minmax(180px, 300px) 1fr auto; gap: 14px; align-items: end; border-bottom: 1px solid rgba(48,106,105,.14); background: rgba(239,251,247,.92); backdrop-filter: blur(12px); }
+.gallery-tools label span { display: block; margin-bottom: 4px; color: #678986; font-size: 9px; font-weight: 900; }
+.gallery-tools input { width: 100%; padding: 9px 12px; border: 1px solid #cae2db; border-radius: 12px; outline: none; background: #fff; }
+.gallery-tools input:focus { border-color: #58a995; box-shadow: 0 0 0 3px rgba(88,169,149,.14); }
+.gallery-filters { display: flex; flex-wrap: wrap; gap: 6px; }
+.gallery-filters button { padding: 8px 11px; border: 0; border-radius: 999px; color: #507773; background: #fff; cursor: pointer; font-size: 10px; font-weight: 900; }
+.gallery-filters button.selected { color: #fff; background: #438f7d; }
+.gallery-tools output { color: #6c8987; font-size: 10px; font-weight: 850; white-space: nowrap; }
+.gallery-tools output.has-error { color: #bd594b; }
+.asset-gallery { padding: 24px clamp(16px, 4vw, 62px) 60px; display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 13px; }
+.asset-card { position: relative; min-width: 0; padding: 13px; display: grid; grid-template-columns: 88px minmax(0, 1fr) 54px; grid-template-rows: 1fr; gap: 10px; align-items: center; border: 1px solid rgba(65,121,113,.15); border-radius: 18px; color: inherit; background: rgba(255,255,255,.82); box-shadow: 0 5px 18px rgba(43,91,84,.08); text-align: left; cursor: zoom-in; transition: transform .15s ease, box-shadow .15s ease; }
+.asset-card:hover { transform: translateY(-2px); box-shadow: 0 10px 24px rgba(43,91,84,.15); }
+.asset-card[hidden] { display: none; }
+.asset-card.failed { outline: 2px solid #d86152; }
+.asset-large { width: 88px; height: 88px; display: grid; place-items: center; border-radius: 14px; background-color: #a9d98e; background-image: linear-gradient(45deg, rgba(255,255,255,.18) 25%, transparent 25%, transparent 75%, rgba(255,255,255,.18) 75%), linear-gradient(45deg, rgba(255,255,255,.18) 25%, transparent 25%, transparent 75%, rgba(255,255,255,.18) 75%); background-position: 0 0, 8px 8px; background-size: 16px 16px; overflow: hidden; }
+.asset-large img { max-width: 80px; max-height: 80px; object-fit: contain; image-rendering: auto; }
+.is-terrain .asset-large img { width: 100%; height: 100%; max-width: none; max-height: none; object-fit: cover; }
+.asset-copy { min-width: 0; align-self: center; }
+.asset-copy b { display: block; overflow: hidden; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.asset-copy code { display: block; margin-top: 6px; overflow: hidden; color: #79938f; font-size: 8px; line-height: 1.35; text-overflow: ellipsis; }
+.asset-actual { align-self: stretch; display: grid; grid-template-rows: auto 1fr auto; place-items: center; gap: 4px; border-left: 1px dashed #d6e5df; color: #6d8985; }
+.asset-actual i, .asset-actual em { font-size: 8px; font-style: normal; font-weight: 850; }
+.asset-actual > span { width: 48px; height: 58px; display: grid; place-items: center; overflow: hidden; }
+.asset-actual img { width: var(--actual-size); height: var(--actual-size); object-fit: contain; }
+.is-terrain .asset-actual img { clip-path: polygon(24% 0, 76% 0, 100% 50%, 76% 100%, 24% 100%, 0 50%); object-fit: cover; }
+.asset-dialog { width: min(850px, calc(100vw - 28px)); padding: 0; grid-template-columns: minmax(280px, .9fr) 1.1fr; border: 0; border-radius: 24px; color: #284c4d; background: #f8fffb; box-shadow: 0 30px 90px rgba(21,61,62,.34); overflow: hidden; }
+.asset-dialog[open] { display: grid; }
+.asset-dialog::backdrop { background: rgba(21,49,51,.58); backdrop-filter: blur(5px); }
+.dialog-close { position: absolute; z-index: 2; top: 12px; right: 12px; width: 34px; height: 34px; border: 0; border-radius: 50%; color: #4a716d; background: rgba(255,255,255,.9); font-size: 22px; cursor: pointer; }
+.dialog-image-wrap { min-height: 430px; display: grid; place-items: center; background-color: #9bd084; background-image: linear-gradient(45deg, rgba(255,255,255,.18) 25%, transparent 25%, transparent 75%, rgba(255,255,255,.18) 75%), linear-gradient(45deg, rgba(255,255,255,.18) 25%, transparent 25%, transparent 75%, rgba(255,255,255,.18) 75%); background-position: 0 0, 14px 14px; background-size: 28px 28px; }
+.dialog-image-wrap img { width: min(85%, 360px); height: min(85%, 360px); object-fit: contain; }
+.asset-dialog section { padding: 45px 34px 34px; overflow: auto; }
+.dialog-category { margin: 0 0 5px; color: #6d918d; font-size: 10px; font-weight: 950; letter-spacing: .14em; }
+.asset-dialog h2 { margin: 0 0 8px; font-size: 29px; }
+.asset-dialog code { color: #538078; font-size: 11px; }
+.asset-dialog dl { display: grid; grid-template-columns: 70px 1fr; gap: 7px; margin: 25px 0; padding: 16px; border-radius: 14px; background: #e9f6ef; font-size: 11px; }
+.asset-dialog dt { color: #74908b; font-weight: 900; }.asset-dialog dd { margin: 0; overflow-wrap: anywhere; }
+.asset-dialog details { color: #607c78; font-size: 11px; line-height: 1.65; }.asset-dialog summary { font-weight: 900; cursor: pointer; }
+@media (max-width: 760px) {
+  .gallery-hero { align-items: start; }.gallery-tools { position: static; grid-template-columns: 1fr; }.gallery-tools output { white-space: normal; }
+  .asset-gallery { grid-template-columns: 1fr; padding-inline: 12px; }
+  .asset-dialog[open] { display: block; }.dialog-image-wrap { min-height: 280px; }.asset-dialog section { padding: 26px 22px; }
+}

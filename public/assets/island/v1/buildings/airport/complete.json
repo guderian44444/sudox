@@ -1,0 +1,25 @@
+{
+  "styleId": "SUDOX Buddy & Island Style v1",
+  "assetId": "buildings/airport/complete",
+  "sourceKey": "buildings/airport",
+  "reference": "",
+  "width": 192,
+  "height": 192,
+  "frames": 1,
+  "fps": 0,
+  "anchor": {
+    "x": 96,
+    "y": 174
+  },
+  "footprint": [
+    {
+      "q": 0,
+      "r": 0
+    }
+  ],
+  "prompt": "Extremely simplified SUDOX island game asset, bold silhouette, broad flat color shapes, optimized for clarity at 45 pixels, no tiny decorative detail, no face or anthropomorphic features.",
+  "negativePrompt": "face, eyes, mouth, nose, cheeks, expression, anthropomorphic, character, companions, text, logo, watermark, tiny detail, clutter, individual bricks, shingles, flowers, cast shadow",
+  "seedOrJobId": "exec-ac27e6d2-4969-400d-83ca-c73dbb1c0a0c",
+  "generatedAt": "2026-08-13T00:00:00+08:00",
+  "reviewedAt390x844": false
+}

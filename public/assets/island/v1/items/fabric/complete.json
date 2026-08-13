@@ -1,0 +1,20 @@
+{
+  "assetId": "item-fabric-complete-v1",
+  "kind": "item",
+  "sourceKey": "items/fabric",
+  "styleId": "SUDOX Buddy & Island Style v1",
+  "width": 128,
+  "height": 128,
+  "frames": 1,
+  "fps": 0,
+  "anchor": {
+    "x": 64,
+    "y": 64
+  },
+  "footprint": "icon",
+  "prompt": "Pixel-art island item icon, fabric, natural object, transparent background, strictly no face, no eyes, no mouth, no cheeks, no expression, no character, no face, no eyes, no mouth, no expression, no character, SUDOX Buddy & Island Style v1.",
+  "negativePrompt": "face, eyes, mouth, nose, cheeks, expression, anthropomorphic, character, text, logo, watermark",
+  "seedOrJobId": "exec-2b0c2adb-092c-456a-9c3f-ad4a248c38e8",
+  "generatedAt": "2026-08-12T00:00:00+08:00",
+  "reviewedAt390x844": false
+}

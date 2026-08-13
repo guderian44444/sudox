@@ -1,0 +1,20 @@
+{
+  "assetId": "terrain-grass-complete-v1",
+  "kind": "terrain",
+  "sourceKey": "terrain/grass",
+  "styleId": "SUDOX Buddy & Island Style v1",
+  "width": 128,
+  "height": 128,
+  "frames": 1,
+  "fps": 0,
+  "anchor": {
+    "x": 64,
+    "y": 64
+  },
+  "footprint": "tile",
+  "prompt": "Shared continuous top-down grass texture with broad flat green patches, no border, no hexagon, no coastline, no objects, low detail.",
+  "negativePrompt": "face, eyes, mouth, nose, cheeks, expression, anthropomorphic, character, companions, text, logo, watermark, tiny detail, clutter, individual bricks, shingles, flowers, cast shadow",
+  "seedOrJobId": "exec-6bcc8fc5-7f70-424a-9b10-7b5309f0c4da",
+  "generatedAt": "2026-08-13T00:00:00+08:00",
+  "reviewedAt390x844": false
+}

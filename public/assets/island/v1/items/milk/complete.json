@@ -1,0 +1,20 @@
+{
+  "assetId": "item-milk-complete-v1",
+  "kind": "item",
+  "sourceKey": "items/milk",
+  "styleId": "SUDOX Buddy & Island Style v1",
+  "width": 128,
+  "height": 128,
+  "frames": 1,
+  "fps": 0,
+  "anchor": {
+    "x": 64,
+    "y": 64
+  },
+  "footprint": "icon",
+  "prompt": "Pixel-art island item icon, milk, natural object, transparent background, strictly no face, no eyes, no mouth, no cheeks, no expression, no character, no face, no eyes, no mouth, no expression, no character, SUDOX Buddy & Island Style v1.",
+  "negativePrompt": "face, eyes, mouth, nose, cheeks, expression, anthropomorphic, character, text, logo, watermark",
+  "seedOrJobId": "exec-cc30bcbb-b31a-41ba-9864-df783be75a19",
+  "generatedAt": "2026-08-12T00:00:00+08:00",
+  "reviewedAt390x844": false
+}

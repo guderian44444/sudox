@@ -9,14 +9,14 @@ import {
   reclamationQuote,
   recipeInputsLabel,
   recipeOutputsLabel
-} from "./catalog.js?v=v55";
-import { currentAttractionVisitorIds } from "./attractions.js?v=v55";
-import { islandSpriteMarkup } from "./assets.js?v=v55";
-import { adjustedConstructionDuration, companionAbility, companionReductionPercent, constructionTeamRate } from "./companions.js?v=v55";
-import { FRIEND_ROSTER } from "../game/friends.js?v=v55";
-import { axialDistance, axialKey, axialToPixel, footprintCells, HEX_DIRECTIONS, HEX_HEIGHT, HEX_WIDTH, hexRange, mapPixelBounds } from "./hex.js?v=v55";
-import { availableTransportMethods, buildingName, LOGISTICS_METHODS, partnerAcceptedItems, partnerLogisticsOffers, shipmentQuote } from "./logistics.js?v=v55";
-import { availableInventoryQuantity, buildingAnchorAt, buildingAt, constructionAnchorAt, constructionAt, constructionJobWorkTags, helperQuote, initialWorkerHireCost, islandHomeLevel, islandInventoryCapacity, islandInventoryUsed, isReclaimable } from "./model.js?v=v55";
+} from "./catalog.js?v=v57";
+import { currentAttractionVisitorIds } from "./attractions.js?v=v57";
+import { islandItemMarkup, islandSpriteMarkup, islandTerrainUrl } from "./assets.js?v=v57";
+import { adjustedConstructionDuration, companionAbility, companionReductionPercent, constructionTeamRate } from "./companions.js?v=v57";
+import { FRIEND_ROSTER } from "../game/friends.js?v=v57";
+import { axialDistance, axialKey, axialToPixel, footprintCells, HEX_DIRECTIONS, HEX_HEIGHT, HEX_WIDTH, hexRange, mapPixelBounds } from "./hex.js?v=v57";
+import { availableTransportMethods, buildingName, LOGISTICS_METHODS, partnerAcceptedItems, partnerLogisticsOffers, shipmentQuote } from "./logistics.js?v=v57";
+import { availableInventoryQuantity, buildingAnchorAt, buildingAt, constructionAnchorAt, constructionAt, constructionJobWorkTags, helperQuote, initialWorkerHireCost, islandHomeLevel, islandInventoryCapacity, islandInventoryUsed, isReclaimable } from "./model.js?v=v57";
 
 const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({
   "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
@@ -40,7 +40,7 @@ const countdownMarkup = (readyAt, now) => readyAt
 
 const outputMarkup = (items = {}) => Object.entries(items).map(([itemId, count]) => {
   const item = ITEM_CATALOG[itemId];
-  return item ? `${item.icon} ${item.name} ×${count}` : "";
+  return item ? `${islandItemMarkup(item)} ${item.name} ×${count}` : "";
 }).filter(Boolean).join("、");
 
 function workerMarkup(workerIds = []) {
@@ -76,9 +76,13 @@ function mapCellMarkup(state, cell, selectedKey, bounds, now) {
     ready ? "is-ready" : "",
     (occupyingBuilding && !building) || (occupyingJob && !job) ? "is-footprint" : ""
   ].filter(Boolean).join(" ");
-  const style = `left:${bounds.offsetX + position.x}px;top:${bounds.offsetY + position.y}px`;
+  const terrainKey = tile ? "grass" : "water";
+  const terrainUrl = islandTerrainUrl(terrainKey);
+  const left = bounds.offsetX + position.x;
+  const top = bounds.offsetY + position.y;
+  const style = `left:${left}px;top:${top}px;--island-terrain-image:url('${terrainUrl}');--island-terrain-position:${-left}px ${-top}px;--island-terrain-size:${bounds.width}px ${bounds.height}px`;
   const label = definition?.name || (occupyingJob ? (occupyingJob.kind === "reclaim" ? "填海施工中" : occupyingJob.kind === "demolition" ? "設施拆除中" : `${BUILDING_CATALOG[occupyingJob.buildingId]?.name || "設施"}施工中`) : tile ? "空地" : reclaimable ? "可填海" : "海域");
-  let content = tile ? `<span class="island-ground-detail" aria-hidden="true">${tile.terrain === "reclaimed" ? "·" : "✦"}</span>` : `<span class="island-wave" aria-hidden="true">≈</span>`;
+  let content = tile ? "" : `<span class="island-wave" aria-hidden="true">≈</span>`;
   if (tile) content += HEX_DIRECTIONS.map((direction, index) => state.tiles[axialKey(cell.q + direction.q, cell.r + direction.r)] ? "" : `<span class="island-shore-foam dir-${index}" aria-hidden="true"></span>`).join("");
   if (building && definition) {
     const homeLevel = definition.id === "islandHome" ? HOME_LEVELS[Math.max(0, Math.min(HOME_LEVELS.length - 1, Number(building.level || 1) - 1))] : null;
@@ -188,13 +192,13 @@ function transportMarkup(state, partners, bounds, now) {
     if (points.length) points.push(destination);
     const path = routePath(points);
     if (!path) return null;
-    const icon = LOGISTICS_METHODS[shipment.methodId]?.icon || "📦";
+    const vehicleItem = ITEM_CATALOG[shipment.methodId === "boat" ? "boat" : "plane"];
     const duration = Math.max(1, Number(shipment.arrivesAt) - Number(shipment.departedAt));
     const progress = Math.max(0, Math.min(1, (now - Number(shipment.departedAt)) / duration));
     const vehicleStyle = `offset-path:path('${path}');--travel-delay:${(-progress * 4.2 - (index % 4) * .12).toFixed(2)}s`;
     return {
       path: `<path class="island-transport-route is-${escapeHtml(shipment.methodId)}" d="${path}" data-island-route-cells="${routeCells.map((cell) => axialKey(cell.q, cell.r)).join(";")}"></path>`,
-      vehicle: `<span class="island-transport is-${escapeHtml(shipment.methodId)}" style="${vehicleStyle}" title="從${escapeHtml(BUILDING_CATALOG[LOGISTICS_METHODS[shipment.methodId]?.buildingId]?.name || "物流設施")}出發・${escapeHtml(shipment.partnerName)}・${ITEM_CATALOG[shipment.itemId]?.name || "貨物"}">${icon}</span>`
+      vehicle: `<span class="island-transport is-${escapeHtml(shipment.methodId)}" style="${vehicleStyle}" title="從${escapeHtml(BUILDING_CATALOG[LOGISTICS_METHODS[shipment.methodId]?.buildingId]?.name || "物流設施")}出發・${escapeHtml(shipment.partnerName)}・${ITEM_CATALOG[shipment.itemId]?.name || "貨物"}">${islandItemMarkup(vehicleItem, "island-transport-sprite")}</span>`
     };
   }).filter(Boolean);
   if (!routes.length) return "";
@@ -293,7 +297,7 @@ function productionRouteName(recipe) {
 
 function productionItemName(itemId) {
   const item = ITEM_CATALOG[itemId];
-  return `${item?.icon || "📦"} ${escapeHtml(item?.name || itemId)}`;
+  return `${islandItemMarkup(item)} ${escapeHtml(item?.name || itemId)}`;
 }
 
 function productionChainMarkup(building, facility) {
@@ -396,7 +400,7 @@ function inventoryMarkup(state) {
     <strong>${level.icon} ${level.name}倉庫・${used} / ${capacity}</strong>
     <div class="island-capacity-bar"><i style="width:${Math.min(100, Math.round(used / capacity * 100))}%"></i></div>
     <div class="island-inventory-items">${items.length ? items.map(([itemId, item]) => `
-      <article title="市場單價 ${item.marketCoins} 金幣"><span>${item.icon}</span><b>${state.inventory[itemId] || 0}</b><small>${item.name}${item.vehicleMethodId ? `・${availableInventoryQuantity(state, itemId)} 可用` : ""}</small></article>`).join("") : `<p>倉庫目前是空的。</p>`}</div>
+      <article title="市場單價 ${item.marketCoins} 金幣"><span>${islandItemMarkup(item)}</span><b>${state.inventory[itemId] || 0}</b><small>${item.name}${item.vehicleMethodId ? `・${availableInventoryQuantity(state, itemId)} 可用` : ""}</small></article>`).join("") : `<p>倉庫目前是空的。</p>`}</div>
   </div>`;
 }
 
@@ -405,7 +409,7 @@ function marketPanel(state) {
   return `<div class="island-market-list">${available.length ? available.map(([itemId, count]) => {
     const item = ITEM_CATALOG[itemId];
     const sellable = availableInventoryQuantity(state, itemId);
-    return `<div><span>${item.icon} ${item.name} ×${count}${sellable < count ? `（${count - sellable} 使用中）` : ""}</span><span><button data-island-sell="${itemId}" data-island-quantity="1" ${sellable < 1 ? "disabled" : ""}>賣 1・🪙${item.marketCoins}</button><button data-island-sell="${itemId}" data-island-quantity="${sellable}" ${sellable < 1 ? "disabled" : ""}>可售全賣・🪙${item.marketCoins * sellable}</button></span></div>`;
+    return `<div><span>${islandItemMarkup(item)} ${item.name} ×${count}${sellable < count ? `（${count - sellable} 使用中）` : ""}</span><span><button data-island-sell="${itemId}" data-island-quantity="1" ${sellable < 1 ? "disabled" : ""}>賣 1・🪙${item.marketCoins}</button><button data-island-sell="${itemId}" data-island-quantity="${sellable}" ${sellable < 1 ? "disabled" : ""}>可售全賣・🪙${item.marketCoins * sellable}</button></span></div>`;
   }).join("") : `<p>小屋倉庫目前沒有可販售的產品。</p>`}</div>`;
 }
 
@@ -485,7 +489,7 @@ function shipmentPanel(shipment, now) {
   return `<div class="island-selection-card island-shipment-card">
     <p class="island-panel-kicker">已送出物流明細</p><h3>${method?.icon || "📦"} 前往 ${escapeHtml(shipment.partnerName || "合作小島")}</h3>
     <div class="island-readonly-banner">🔒 已送出的送貨任務只能查看，不能修改或取消。</div>
-    <dl><div><dt>貨物</dt><dd>${item?.icon || "📦"} ${escapeHtml(item?.name || shipment.itemId)} ×${shipment.quantity}</dd></div><div><dt>用途</dt><dd>${shipment.buildingId === "market" || shipment.offerKind === "market" ? "賣到對方市場" : `送往${escapeHtml(buildingName(shipment.buildingId))}`}</dd></div><div><dt>方式</dt><dd>${method?.icon || ""} ${method?.name || shipment.methodId}</dd></div><div><dt>出發</dt><dd>${formatIslandDate(shipment.departedAt)}</dd></div><div><dt>抵達</dt><dd>${formatIslandDate(shipment.arrivesAt)}</dd></div><div><dt>報酬</dt><dd>🪙 ${shipment.rewardCoins || 0}</dd></div></dl>
+    <dl><div><dt>貨物</dt><dd>${islandItemMarkup(item)} ${escapeHtml(item?.name || shipment.itemId)} ×${shipment.quantity}</dd></div><div><dt>用途</dt><dd>${shipment.buildingId === "market" || shipment.offerKind === "market" ? "賣到對方市場" : `送往${escapeHtml(buildingName(shipment.buildingId))}`}</dd></div><div><dt>方式</dt><dd>${method?.icon || ""} ${method?.name || shipment.methodId}</dd></div><div><dt>出發</dt><dd>${formatIslandDate(shipment.departedAt)}</dd></div><div><dt>抵達</dt><dd>${formatIslandDate(shipment.arrivesAt)}</dd></div><div><dt>報酬</dt><dd>🪙 ${shipment.rewardCoins || 0}</dd></div></dl>
     <div class="island-shipment-progress"><i style="width:${progress}%"></i></div><strong>${inTransit ? `運送中・${progress}%` : "已抵達並結算"}</strong>
   </div>`;
 }
@@ -495,7 +499,7 @@ function statisticsPanel(state) {
   const sum = (field) => Object.values(stats[field] || {}).reduce((total, count) => total + Number(count || 0), 0);
   const visitors = Object.entries(stats.visitors || {}).sort((left, right) => right[1] - left[1]);
   const topVisitor = visitors[0];
-  const itemRows = Object.entries(ITEM_CATALOG).filter(([itemId]) => [stats.produced?.[itemId], stats.shipped?.[itemId], stats.sold?.[itemId], stats.partnerSold?.[itemId]].some(Number)).map(([itemId, item]) => `<tr><th>${item.icon} ${item.name}</th><td>${stats.produced?.[itemId] || 0}</td><td>${stats.shipped?.[itemId] || 0}</td><td>${stats.sold?.[itemId] || 0}</td><td>${stats.partnerSold?.[itemId] || 0}</td></tr>`).join("");
+  const itemRows = Object.entries(ITEM_CATALOG).filter(([itemId]) => [stats.produced?.[itemId], stats.shipped?.[itemId], stats.sold?.[itemId], stats.partnerSold?.[itemId]].some(Number)).map(([itemId, item]) => `<tr><th>${islandItemMarkup(item)} ${item.name}</th><td>${stats.produced?.[itemId] || 0}</td><td>${stats.shipped?.[itemId] || 0}</td><td>${stats.sold?.[itemId] || 0}</td><td>${stats.partnerSold?.[itemId] || 0}</td></tr>`).join("");
   const shipments = Object.values(state.outgoingShipments || {}).sort((left, right) => Number(right.departedAt) - Number(left.departedAt)).slice(0, 8);
   return `<div class="island-selection-card island-statistics">
     <p class="island-panel-kicker">小島統計表</p><h3>📊 營運紀錄</h3>
@@ -503,7 +507,7 @@ function statisticsPanel(state) {
     <div class="island-stat-summary"><span>本島市場收入 <b>🪙 ${stats.coins?.market || 0}</b></span><span>跨島物流收入 <b>🪙 ${stats.coins?.logistics || 0}</b></span><span>遊憩收入 <b>🪙 ${stats.coins?.attractions || 0}</b></span><span>最常來訪 <b>${topVisitor ? `${escapeHtml(FRIEND_ROSTER.find((friend) => friend.id === topVisitor[0])?.name || topVisitor[0])}・${topVisitor[1]} 次` : "尚無訪客"}</b></span></div>
     <h4>品項流量</h4><div class="island-stat-table"><table><thead><tr><th>品項</th><th>生產</th><th>送出</th><th>本島賣</th><th>跨島賣</th></tr></thead><tbody>${itemRows || `<tr><td colspan="5">尚無生產或交易紀錄</td></tr>`}</tbody></table></div>
     <h4>伙伴來訪排行</h4><div class="island-visitor-ranking">${visitors.length ? visitors.slice(0, 10).map(([id, count], index) => { const friend = FRIEND_ROSTER.find((entry) => entry.id === id); return `<span><b>${index + 1}</b><img src="${friendAssetUrl(id)}" alt=""><em>${escapeHtml(friend?.name || id)}</em><strong>${count} 次</strong></span>`; }).join("") : `<p>遊樂與觀景設施營運後，來訪伙伴會記錄在這裡。</p>`}</div>
-    <h4>最近送貨</h4><div class="island-stat-shipments">${shipments.length ? shipments.map((shipment) => `<button data-island-shipment="${escapeHtml(shipment.id)}"><span>${LOGISTICS_METHODS[shipment.methodId]?.icon || "📦"} ${escapeHtml(shipment.partnerName || "合作小島")}</span><small>${ITEM_CATALOG[shipment.itemId]?.icon || "📦"} ×${shipment.quantity}・${shipment.status === "in_transit" ? "運送中" : "已抵達"}</small></button>`).join("") : `<p>尚無送貨紀錄。</p>`}</div>
+    <h4>最近送貨</h4><div class="island-stat-shipments">${shipments.length ? shipments.map((shipment) => `<button data-island-shipment="${escapeHtml(shipment.id)}"><span>${LOGISTICS_METHODS[shipment.methodId]?.icon || "📦"} ${escapeHtml(shipment.partnerName || "合作小島")}</span><small>${islandItemMarkup(ITEM_CATALOG[shipment.itemId])} ×${shipment.quantity}・${shipment.status === "in_transit" ? "運送中" : "已抵達"}</small></button>`).join("") : `<p>尚無送貨紀錄。</p>`}</div>
   </div>`;
 }
 

@@ -1,0 +1,25 @@
+{
+  "styleId": "SUDOX Buddy & Island Style v1",
+  "assetId": "buildings/bakery/complete",
+  "sourceKey": "buildings/bakery",
+  "reference": "",
+  "width": 192,
+  "height": 192,
+  "frames": 1,
+  "fps": 0,
+  "anchor": {
+    "x": 96,
+    "y": 174
+  },
+  "footprint": [
+    {
+      "q": 0,
+      "r": 0
+    }
+  ],
+  "prompt": "Extremely simplified SUDOX island game asset, bold silhouette, broad flat color shapes, optimized for clarity at 45 pixels, no tiny decorative detail, no face or anthropomorphic features.",
+  "negativePrompt": "face, eyes, mouth, nose, cheeks, expression, anthropomorphic, character, companions, text, logo, watermark, tiny detail, clutter, individual bricks, shingles, flowers, cast shadow",
+  "seedOrJobId": "exec-87fa17d5-cb98-40de-8cf9-46900c1bb633",
+  "generatedAt": "2026-08-13T00:00:00+08:00",
+  "reviewedAt390x844": false
+}

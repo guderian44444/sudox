@@ -1,0 +1,20 @@
+{
+  "assetId": "item-rice-ball-complete-v1",
+  "kind": "item",
+  "sourceKey": "items/rice-ball",
+  "styleId": "SUDOX Buddy & Island Style v1",
+  "width": 128,
+  "height": 128,
+  "frames": 1,
+  "fps": 0,
+  "anchor": {
+    "x": 64,
+    "y": 64
+  },
+  "footprint": "icon",
+  "prompt": "Pixel-art island item icon, rice ball, transparent background, strictly no face, no eyes, no mouth, no cheeks, no expression, no character, no text, bold dark outline, SUDOX Buddy & Island Style v1.",
+  "negativePrompt": "face, eyes, mouth, nose, cheeks, expression, anthropomorphic, character, text, logo, watermark",
+  "seedOrJobId": "exec-d90c9ca7-69e0-4761-bf7e-4426c6dca10b",
+  "generatedAt": "2026-08-12T00:00:00+08:00",
+  "reviewedAt390x844": false
+}
