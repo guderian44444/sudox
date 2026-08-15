@@ -294,6 +294,7 @@ v51 目前由玩家先選格，再從分類清單直接開始工程；合作碼�
   constructionLog: [],
   facilities: {},
   processingJobs: {},
+  processingInputLedger: {},
   outgoingShipments: {},
   importedShipmentIds: [],
   rewardedShipmentIds: [],

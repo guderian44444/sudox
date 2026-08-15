@@ -1,7 +1,7 @@
 # 島嶼物流「送出數量」自由化 + 加工設施亂碼修復
 
 > 日期：2026-08-15
-> 狀態：**前端已改完並經主人手動驗證正常**；待主人 COMMIT。
+> 狀態：**已補上不足整批原料保留與合併加工測試**；待主人 COMMIT。
 > 完整 diff 另存於：`CHANGES_island-logistics-free-quantity.diff`（git diff 輸出，可直接 `git apply -R` 回滾）
 
 ---
@@ -25,7 +25,7 @@
 | # | 檔案 | 改動 | 說明 |
 |---|------|------|------|
 | 1 | `src/island/logistics.js` | 移除 `count % inputPerBatch !== 0` 驗證 | 只保留「不可超過載量」檢查 |
-| 2 | `src/island/logistics.js` | 到貨端 `batches` 移除 `Math.max(1, …)` | 送 1 個不再被白送成整批 |
+| 2 | `src/island/logistics.js` / `src/island/model.js` | 到貨端改用可同步的加工原料帳 | 送 1 個先保留，下一筆同配方到貨後才合併成完整批次 |
 | 3 | `src/app.js` | `updateIslandLogisticsQuote` 移除對齊邏輯 | 不再把數量蓋回倍數；`min=1 step=1` |
 | 4 | `src/island/renderer.js` | 初始 `quantity` 改為 `1` | 預設填 1 而非 `inputPerBatch` |
 | 5 | `src/island/renderer.js` | offer 尋找條件 `>= inputPerBatch` → `> 0` | 只要有庫存就能選 |
@@ -55,18 +55,19 @@ if (!count || count > method.capacity) {
 }
 ```
 
-**改動 B：到貨端 `batches` 計算（`mergeCloudLogistics`）**
+**改動 B：到貨端加工原料帳（`mergeCloudLogistics`）**
 
 ```js
-// before
-const batches = Math.max(1, safeInt(shipment.quantity) / Math.max(1, safeInt(shipment.inputPerBatch, 1)));
-
-// after
-const batches = safeInt(shipment.quantity) / Math.max(1, safeInt(shipment.inputPerBatch, 1));
+// after：先記錄 shipment，只有湊足完整批次才建立 processing job
+processingInputLedger[shipment.id] = {
+  quantity: shipment.quantity,
+  consumed: 0,
+  inputPerBatch: shipment.inputPerBatch
+};
+scheduleProcessingInputBatches(state);
 ```
 
-> 為什麼改 B：`Math.max(1, …)` 會把「送 1 個玉米（= 0.5 批）」圓整成「1 整批」，等於白送。移除後 `batches` 變成純比例（可能是小數），產出 = 單批產出 × 實際批數，比例精確。
-> ⚠️ 副作用：小數批數時，`safeInt(count) * batches` 可能算出非整數，下游 `safeInt` 會 floor。實際量小，影響極小；若主人發現產出數不對，這裡是第一排查點。
+> 效果：送 1 個需要 2 個原料的配方不會建立 `0.5` 產出，也不會因結算時整數化而吞掉原料；下一筆同配方物流到達後，兩筆 shipment 才會合併成 1 個完整加工批次。加工原料帳以 shipment ID 去重，跨裝置合併也不會重複計算同一筆貨物。
 
 ---
 

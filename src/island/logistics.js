@@ -1,5 +1,5 @@
 import { BUILDING_CATALOG, ITEM_CATALOG, RECIPE_CATALOG } from "./catalog.js?v=v58";
-import { activeVehicleCount, availableInventoryQuantity } from "./model.js?v=v58";
+import { activeVehicleCount, availableInventoryQuantity, scheduleProcessingInputBatches } from "./model.js?v=v58";
 
 const clone = (value) => JSON.parse(JSON.stringify(value));
 const safeInt = (value, fallback = 0) => Number.isFinite(Number(value)) ? Math.max(0, Math.floor(Number(value))) : fallback;
@@ -211,6 +211,8 @@ export function mergeCloudLogistics(state, payload = {}, now = Date.now()) {
   next.outgoingShipments = next.outgoingShipments || {};
   next.importedShipmentIds = Array.isArray(next.importedShipmentIds) ? next.importedShipmentIds : [];
   next.rewardedShipmentIds = Array.isArray(next.rewardedShipmentIds) ? next.rewardedShipmentIds : [];
+  next.processingJobs = next.processingJobs && typeof next.processingJobs === "object" ? next.processingJobs : {};
+  next.processingInputLedger = next.processingInputLedger && typeof next.processingInputLedger === "object" ? next.processingInputLedger : {};
   const imported = new Set(next.importedShipmentIds);
   const rewarded = new Set(next.rewardedShipmentIds);
   next.statistics = next.statistics || {};
@@ -269,24 +271,26 @@ export function mergeCloudLogistics(state, payload = {}, now = Date.now()) {
       || Object.values(next.buildings || {}).find((entry) => entry.buildingId === shipment.buildingId);
     const recipe = RECIPE_CATALOG[shipment.recipeId];
     if (!building || !recipe) return;
-    const batches = safeInt(shipment.quantity) / Math.max(1, safeInt(shipment.inputPerBatch, 1));
-    const outputs = Object.fromEntries(Object.entries(recipe.outputs).map(([itemId, count]) => [itemId, safeInt(count) * batches]));
-    const jobId = `remote-${shipment.id}`;
-    next.processingJobs[jobId] = {
-      id: jobId,
-      buildingInstanceId: building.id,
-      recipeId: recipe.id,
-      inputs: { [shipment.itemId]: safeInt(shipment.quantity) },
-      outputs,
-      startedAt: Number(shipment.arrivesAt) || now,
-      readyAt: Number(shipment.processingReadyAt) || now + recipe.durationSeconds * 1000,
-      source: "remote",
+    const quantity = safeInt(shipment.quantity);
+    if (!quantity || !ITEM_CATALOG[shipment.itemId]) return;
+    next.processingInputLedger[shipment.id] = {
       shipmentId: shipment.id,
-      senderName: shipment.senderName || "島友"
+      buildingInstanceId: building.id,
+      buildingId: building.buildingId,
+      recipeId: recipe.id,
+      itemId: shipment.itemId,
+      inputPerBatch: Math.max(1, safeInt(shipment.inputPerBatch, recipe.inputs?.[shipment.itemId] || 1)),
+      quantity,
+      consumed: 0,
+      arrivesAt: Number(shipment.arrivesAt) || now,
+      processingReadyAt: Number(shipment.processingReadyAt) || now + recipe.durationSeconds * 1000,
+      updatedAt: now
     };
     imported.add(shipment.id);
     ackInboundIds.push(shipment.id);
   });
+
+  if (scheduleProcessingInputBatches(next, now)) next.updatedAt = now;
 
   next.importedShipmentIds = [...imported].slice(-200);
   next.rewardedShipmentIds = [...rewarded].slice(-200);

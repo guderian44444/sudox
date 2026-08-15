@@ -34,6 +34,7 @@ const appSource = readFileSync(new URL("../src/app.js", import.meta.url), "utf8"
 const rendererSource = readFileSync(new URL("../src/island/renderer.js", import.meta.url), "utf8");
 const islandStyles = readFileSync(new URL("../src/island/island.css", import.meta.url), "utf8");
 const logisticsSql = readFileSync(new URL("../supabase/island-logistics-migration.sql", import.meta.url), "utf8");
+const freeQuantitySql = readFileSync(new URL("../supabase/island-logistics-free-quantity-migration.sql", import.meta.url), "utf8");
 const cloudConcurrencySql = readFileSync(new URL("../supabase/cloud-save-concurrency-migration.sql", import.meta.url), "utf8");
 const pointerDownSource = appSource.slice(appSource.indexOf('viewport.addEventListener("pointerdown"'), appSource.indexOf('viewport.addEventListener("pointermove"'));
 const pointerMoveSource = appSource.slice(appSource.indexOf('viewport.addEventListener("pointermove"'), appSource.indexOf("const finishDrag"));
@@ -296,6 +297,36 @@ assert(firstMerge.state.thankYouLetters.some((letter) => letter.shipmentId === "
 const secondMerge = mergeCloudLogistics(firstMerge.state, cloudPayload, now + 1);
 assert(secondMerge.coinsEarned === 0 && Object.keys(secondMerge.state.processingJobs).filter((id) => id === "remote-incoming-1").length === 1, "重複同步同一事件不可重複領錢或建立加工批次");
 
+const partialReceiver = createIslandState({ playerId: "partial-receiver", now });
+partialReceiver.buildings["partial-ranch"] = { id: "partial-ranch", buildingId: "ranch", q: 1, r: 0, orientation: 0, completedAt: now };
+partialReceiver.facilities["partial-ranch"] = { buildingInstanceId: "partial-ranch", recipeId: "", state: "idle", startedAt: 0, readyAt: 0, readyOutput: {}, readyOutputs: {}, updatedAt: now };
+const partialOne = mergeCloudLogistics(partialReceiver, {
+  inboundShipments: [{ id: "partial-1", facilityInstanceId: "partial-ranch", buildingId: "ranch", recipeId: "milkBatch", itemId: "corn", inputPerBatch: 2, quantity: 1, arrivesAt: now, processingReadyAt: now + 7200000 }]
+}, now);
+assert(partialOne.ackInboundIds.includes("partial-1") && Object.keys(partialOne.state.processingJobs).length === 0, "不足整批的第一筆物流應先保留原料，不可建立小數產出批次");
+assert.equal(partialOne.state.processingInputLedger["partial-1"].quantity, 1, "不足整批的原料應保留在可同步的加工原料帳");
+const partialTwo = mergeCloudLogistics(partialOne.state, {
+  inboundShipments: [{ id: "partial-2", facilityInstanceId: "partial-ranch", buildingId: "ranch", recipeId: "milkBatch", itemId: "corn", inputPerBatch: 2, quantity: 1, arrivesAt: now + 1, processingReadyAt: now + 7200001 }]
+}, now + 1);
+const partialJobs = Object.values(partialTwo.state.processingJobs);
+assert.equal(partialJobs.length, 1, "第二筆同配方原料到達後應合併成一個完整加工批次");
+assert.equal(partialJobs[0].inputs.corn, 2, "合併加工批次應只消耗完整批次的原料數量");
+assert.equal(partialJobs[0].outputs.milk, 1, "合併加工批次應產出整數產品，不可留下小數");
+assert.equal(partialTwo.state.processingInputLedger["partial-1"].consumed, 1, "第一筆不足整批原料應在合併加工時標記為已使用");
+assert.equal(partialTwo.state.processingInputLedger["partial-2"].consumed, 1, "第二筆原料應在合併加工時標記為已使用");
+const partialSettled = settleIsland(partialTwo.state, now + 7200002).state;
+assert.equal(partialSettled.facilities["partial-ranch"].readyOutputs.milk, 1, "合併加工完成後應能領到一個完整產品");
+const partialReplay = mergeCloudLogistics(partialTwo.state, {
+  inboundShipments: [{ id: "partial-2", facilityInstanceId: "partial-ranch", buildingId: "ranch", recipeId: "milkBatch", itemId: "corn", inputPerBatch: 2, quantity: 1, arrivesAt: now + 1, processingReadyAt: now + 7200001 }]
+}, now + 2);
+assert.equal(Object.keys(partialReplay.state.processingJobs).length, 1, "重複同步合併加工事件不可重複建立批次");
+const partialDeviceTwo = mergeCloudLogistics(partialReceiver, {
+  inboundShipments: [{ id: "partial-2", facilityInstanceId: "partial-ranch", buildingId: "ranch", recipeId: "milkBatch", itemId: "corn", inputPerBatch: 2, quantity: 1, arrivesAt: now + 1, processingReadyAt: now + 7200001 }]
+}, now + 1);
+const mergedPartialDevices = mergeProgressHighWater({ island: partialOne.state }, { island: partialDeviceTwo.state }).island;
+assert.equal(Object.keys(mergedPartialDevices.processingJobs).length, 1, "跨裝置合併兩筆不足整批原料後應只建立一個完整批次");
+assert.equal(Object.values(mergedPartialDevices.processingJobs)[0].outputs.milk, 1, "跨裝置合併不可重複或遺失不足整批原料");
+
 assert(/create table if not exists public\.island_network_profiles/.test(logisticsSql) && /create table if not exists public\.island_shipments/.test(logisticsSql), "物流 migration 應建立公開設施快照與事件表");
 assert(/security definer/g.test(logisticsSql) && /dispatch_island_shipment/.test(logisticsSql) && /ack_island_logistics/.test(logisticsSql), "物流只能透過驗證 PIN 的安全 RPC 寫入與交接");
 assert(/revoke all on public\.island_network_profiles, public\.island_recipe_catalog, public\.island_shipments from anon, authenticated/.test(logisticsSql), "玩家不可直接讀取他人的私人庫存或物流資料表");
@@ -303,6 +334,7 @@ assert(/'flourBatch', 'mill', 'wheat'/.test(logisticsSql) && /'sugarBatch', 'sug
 assert(/'marketSale:corn', 'market', 'corn'/.test(logisticsSql) && /market_facility_id/.test(logisticsSql), "雲端合作清單與安全 RPC 應支援其他玩家市場的高價收購");
 assert(/vehicle_item := 'boat'/.test(logisticsSql) && /busy_vehicle_count/.test(logisticsSql), "雲端出貨也必須驗證物流船與飛機的持有量及併發占用");
 assert(/jsonb_array_length\(p_buildings\) > 250/.test(logisticsSql) && /pg_column_size\(p_buildings\) > 100000/.test(logisticsSql), "半徑 8 地圖的雲端建物快照限制應同步放寬");
+assert(!/quantity % input_per_batch/.test(logisticsSql) && /drop constraint if exists island_shipments_check1/.test(freeQuantitySql) && /if p_quantity > method_capacity\s+or not exists/.test(freeQuantitySql) && !/p_quantity % recipe\.input_per_batch/.test(freeQuantitySql), "物流 migration 應允許 1 到載具容量的任意整數數量");
 
 const logSource = createIslandState({ playerId: "log-source", now });
 const logBuild = startBuilding(logSource, { buildingId: "garden", q: 0, r: 1, workerId: "cat", now });

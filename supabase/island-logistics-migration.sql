@@ -49,8 +49,7 @@ create table if not exists public.island_shipments (
   reward_claimed_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  check (sender_id <> receiver_id),
-  check (quantity % input_per_batch = 0)
+  check (sender_id <> receiver_id)
 );
 
 create index if not exists island_shipments_sender_idx on public.island_shipments(sender_id, arrives_at desc);
@@ -298,7 +297,7 @@ begin
     method_building := 'airport'; vehicle_item := 'plane'; method_seconds := 900; method_capacity := 8; method_fee := 2;
   end if;
 
-  if p_quantity > method_capacity or p_quantity % recipe.input_per_batch <> 0
+  if p_quantity > method_capacity
     or not exists (
       select 1 from jsonb_array_elements(sender_profile.buildings) building
       where building->>'buildingId' = method_building

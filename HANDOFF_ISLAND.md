@@ -78,7 +78,7 @@
 
 Migration：`supabase/island-logistics-migration.sql`
 
-Production project：`riradorayjziystoalyj`。v51 使用的 migration 已成功套用並驗證：
+Production project：`riradorayjziystoalyj`。v58 使用的 migration 已成功套用並驗證：
 
 - `supabase/leaderboard-score-log-migration.sql`：排行榜送出歷史 LOG、層數決策欄位與本人 PIN 查詢 RPC；2026-08-10 驗證 table／兩個 RPC／RLS／舊參數相容性皆通過。
 
@@ -86,6 +86,8 @@ Production project：`riradorayjziystoalyj`。v51 使用的 migration 已成功�
 - 其中 40 筆為可信任的跨島市場收購價。
 - 林業／製材／冶煉新增 3 筆單一原料跨島加工配方。
 - `dispatch_island_shipment` 已包含船機持有量、在途數與到期班次結算防線。
+- `supabase/island-logistics-free-quantity-migration.sql` 已於 2026-08-15 套用；`island_shipments_check1` 已移除，出貨 RPC 允許 1 到載具容量的任意整數數量。
+- `supabase/cloud-save-concurrency-migration.sql` 已存在並驗證 `save_cloud_progress_if_current` 及 anon／authenticated 執行權限。
 - `list_compatible_island_players` 已回傳 `market_facility_id`，不需要把 40 個市場品項逐一塞進合作玩家清單。
 - 半徑 8 的公開建物快照上限調為 250 筆／100000 bytes。
 

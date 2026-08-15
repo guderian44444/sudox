@@ -25,6 +25,7 @@ function assert(condition, message) {
 
 const stylesheet = readFileSync(new URL("../src/styles.css", import.meta.url), "utf8");
 const appSource = readFileSync(new URL("../src/app.js", import.meta.url), "utf8");
+const appVersion = /const APP_VERSION = "(v\d+)";/.exec(appSource)?.[1] || "";
 const indexSource = readFileSync(new URL("../index.html", import.meta.url), "utf8");
 const launcherSource = readFileSync(new URL("../Start_SUDOX.cmd", import.meta.url), "utf8");
 const storeSource = readFileSync(new URL("../src/state/store.js", import.meta.url), "utf8");
@@ -80,7 +81,7 @@ assert(/sanitizeQueuedScore|p_pin/.test(leaderboardSource) && !/p_pin: progress/
 const pinGuardSql = readFileSync(new URL("../supabase/pin-guard-migration.sql", import.meta.url), "utf8");
 assert(/updated_at/.test(leaderboardSource) && /formatLeaderboardUpdatedAt|最後更新/.test(appSource), "leaderboard rows should show their last update time");
 assert(/APP_VERSION/.test(appSource) && /APP_LAST_UPDATED/.test(appSource) && /app-footer/.test(appSource), "main page should show app version and last update time");
-assert(/sudox-shell-v58/.test(readFileSync(new URL("../sw.js", import.meta.url), "utf8")), "Service Worker cache version should match the visible app release");
+assert(new RegExp(`sudox-shell-${/const APP_VERSION = "(v\d+)";/.exec(appSource)[1]}`).test(readFileSync(new URL("../sw.js", import.meta.url), "utf8")), "Service Worker cache version should match the visible app release");
 assert(/location\.protocol === "file:"/.test(indexSource) && /Start_SUDOX\.cmd/.test(indexSource), "直接開啟 index.html 時應顯示本機伺服器提示，不可只留白畫面");
 assert(/npm\.cmd run dev/.test(launcherSource) && /127\.0\.0\.1:4173/.test(launcherSource), "雙擊啟動器應啟動正確的 SUDOX 本機網址");
 assert(/submit_leaderboard_score/.test(pinGuardSql) && /save_cloud_progress/.test(pinGuardSql), "existing projects need a PIN guard migration");
@@ -109,7 +110,7 @@ assert(/\.topbar \{ height: auto; min-height: 48px; flex-wrap: wrap;/.test(style
 assert(/if \(!progress\.playerAvatar\) \{\s*showAvatarPicker = true/.test(appSource), "a new game should require an avatar selection");
 assert(appSource.indexOf('<div class="number-pad"') < appSource.indexOf('<div class="tools">'), "number pad should sit immediately before the tool buttons");
 assert(/\.notes i \{[^}]*font-size:\s*clamp\(7px, 1\.2vw, 10px\)/.test(stylesheet) && /\.notes i \{ font-size: clamp\(8px, 2\.5vw, 10px\); \}/.test(stylesheet), "note digits should be larger on desktop and mobile");
-assert(/from "\.\/game\/flow\.js\?v=v57"/.test(appSource) && /applyPlayerDigit|settleCompletedGame/.test(appSource), "app 應透過版次化 flow 模組處理填格與完局規則");
+assert(new RegExp(`from "\\./game/flow\\.js\\?v=${appVersion}"`).test(appSource) && /applyPlayerDigit|settleCompletedGame/.test(appSource), "app 應透過版次化 flow 模組處理填格與完局規則");
 assert(/createAdventureGame/.test(appSource) && !/createGame\(/.test(appSource), "app 應以 createAdventureGame 建立完整局，不再直接 createGame");
 assert(/normalizeSession/.test(storeSource), "session 載入應走完整 runtime 正規化");
 assert(/src\/game\/flow\.js/.test(readFileSync(new URL("../sw.js", import.meta.url), "utf8")), "Service Worker 應快取 flow 模組");

@@ -8,10 +8,10 @@ import {
   RECIPE_CATALOG,
   STARTER_LAND_RADIUS,
   reclamationQuote
-} from "./catalog.js?v=v57";
-import { attractionVisitorIds } from "./attractions.js?v=v57";
-import { constructionTeamRate } from "./companions.js?v=v57";
-import { axialDistance, axialKey, axialNeighbors, footprintCells, hexRange, parseAxialKey } from "./hex.js?v=v57";
+} from "./catalog.js?v=v58";
+import { attractionVisitorIds } from "./attractions.js?v=v58";
+import { constructionTeamRate } from "./companions.js?v=v58";
+import { axialDistance, axialKey, axialNeighbors, footprintCells, hexRange, parseAxialKey } from "./hex.js?v=v58";
 
 const clone = (value) => JSON.parse(JSON.stringify(value));
 const safeObject = (value) => value && typeof value === "object" && !Array.isArray(value) ? value : {};
@@ -20,6 +20,94 @@ const safeTime = (value, fallback = 0) => Number.isFinite(Number(value)) ? Math.
 const CONSTRUCTION_LOG_LIMIT = 400;
 const CONSTRUCTION_KINDS = new Set(["reclaim", "building", "homeUpgrade", "demolition"]);
 const CONSTRUCTION_STATUS_RANK = Object.freeze({ building: 1, completed: 2, demolished: 3 });
+
+function normalizeProcessingInputLedger(raw) {
+  return Object.fromEntries(Object.entries(safeObject(raw)).map(([shipmentId, entry]) => {
+    const id = String(entry?.shipmentId || shipmentId);
+    const quantity = safeInt(entry?.quantity);
+    if (!id || !quantity || !entry?.buildingInstanceId || !entry?.recipeId || !entry?.itemId) return null;
+    return [id, {
+      shipmentId: id,
+      buildingInstanceId: String(entry.buildingInstanceId),
+      buildingId: String(entry.buildingId || ""),
+      recipeId: String(entry.recipeId),
+      itemId: String(entry.itemId),
+      inputPerBatch: Math.max(1, safeInt(entry.inputPerBatch, 1)),
+      quantity,
+      consumed: Math.min(quantity, safeInt(entry.consumed)),
+      arrivesAt: safeTime(entry.arrivesAt),
+      processingReadyAt: safeTime(entry.processingReadyAt),
+      updatedAt: safeTime(entry.updatedAt)
+    }];
+  }).filter(Boolean).slice(-200));
+}
+
+function processingLedgerKey(entry) {
+  return [entry.buildingInstanceId, entry.recipeId, entry.itemId, entry.inputPerBatch].join("|");
+}
+
+function processingJobId(sourceParts) {
+  const signature = sourceParts
+    .map((part) => `${part.shipmentId}:${part.start}:${part.quantity}`)
+    .sort()
+    .join("|");
+  if (sourceParts.length === 1 && sourceParts[0].start === 0) return `remote-${sourceParts[0].shipmentId}`;
+  return `remote-batch-${signature}`;
+}
+
+/** Turn imported input lots into integer processing batches without discarding remainders. */
+export function scheduleProcessingInputBatches(state, now = Date.now()) {
+  state.processingInputLedger = normalizeProcessingInputLedger(state.processingInputLedger);
+  const groups = new Map();
+  Object.values(state.processingInputLedger).forEach((entry) => {
+    const key = processingLedgerKey(entry);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(entry);
+  });
+  let changed = false;
+  groups.forEach((entries) => {
+    entries.sort((left, right) => safeTime(left.arrivesAt) - safeTime(right.arrivesAt) || left.shipmentId.localeCompare(right.shipmentId));
+    const first = entries[0];
+    const recipe = RECIPE_CATALOG[first.recipeId];
+    const building = state.buildings?.[first.buildingInstanceId];
+    const inputPerBatch = Math.max(1, safeInt(first.inputPerBatch, recipe?.inputs?.[first.itemId] || 1));
+    if (!recipe || recipe.kind !== "processor" || !building || !ITEM_CATALOG[first.itemId]) return;
+    let available = entries.reduce((total, entry) => total + Math.max(0, entry.quantity - entry.consumed), 0);
+    while (available >= inputPerBatch) {
+      let remaining = inputPerBatch;
+      const sourceParts = [];
+      entries.forEach((entry) => {
+        if (!remaining) return;
+        const availableFromEntry = Math.max(0, entry.quantity - entry.consumed);
+        if (!availableFromEntry) return;
+        const quantity = Math.min(remaining, availableFromEntry);
+        sourceParts.push({ shipmentId: entry.shipmentId, start: entry.consumed, quantity });
+        entry.consumed += quantity;
+        remaining -= quantity;
+      });
+      if (remaining) break;
+      const jobId = processingJobId(sourceParts);
+      const sourceEntries = sourceParts.map((part) => state.processingInputLedger[part.shipmentId]);
+      const readyAt = Math.max(...sourceEntries.map((entry) => safeTime(entry.processingReadyAt) || safeTime(entry.arrivesAt) + recipe.durationSeconds * 1000), now + recipe.durationSeconds * 1000);
+      state.processingJobs[jobId] = state.processingJobs[jobId] || {
+        id: jobId,
+        buildingInstanceId: first.buildingInstanceId,
+        recipeId: recipe.id,
+        inputs: { [first.itemId]: inputPerBatch },
+        outputs: Object.fromEntries(Object.entries(recipe.outputs).map(([itemId, count]) => [itemId, safeInt(count)])),
+        startedAt: Math.min(...sourceEntries.map((entry) => safeTime(entry.arrivesAt) || now)),
+        readyAt,
+        source: "remote",
+        shipmentId: sourceParts[0].shipmentId,
+        sourceShipmentParts: sourceParts,
+        senderName: "島友"
+      };
+      available -= inputPerBatch;
+      changed = true;
+    }
+  });
+  return changed;
+}
 
 function operationId(prefix = "island") {
   if (globalThis.crypto?.randomUUID) return `${prefix}-${globalThis.crypto.randomUUID()}`;
@@ -188,6 +276,7 @@ export function createIslandState({ playerId = "", playerName = "", playerAvatar
     constructionLog: [],
     facilities: {},
     processingJobs: {},
+    processingInputLedger: {},
     outgoingShipments: {},
     importedShipmentIds: [],
     rewardedShipmentIds: [],
@@ -254,6 +343,7 @@ export function normalizeIslandState(raw, owner = {}) {
     constructionLog: normalizeConstructionLog(raw.constructionLog, buildings, constructionJobs),
     facilities: safeObject(raw.facilities),
     processingJobs: safeObject(raw.processingJobs),
+    processingInputLedger: normalizeProcessingInputLedger(raw.processingInputLedger),
     outgoingShipments: safeObject(raw.outgoingShipments),
     importedShipmentIds: [...new Set(Array.isArray(raw.importedShipmentIds) ? raw.importedShipmentIds.filter((id) => typeof id === "string").slice(-200) : [])],
     rewardedShipmentIds: [...new Set(Array.isArray(raw.rewardedShipmentIds) ? raw.rewardedShipmentIds.filter((id) => typeof id === "string").slice(-200) : [])],
@@ -397,6 +487,28 @@ export function mergeIslandStates(primary, secondary) {
   const secondaryState = secondary ? normalizeIslandState(secondary, { now: Date.now() }) : null;
   const next = clone(primaryState || secondaryState);
   const other = primaryState && secondaryState && primaryState !== secondaryState ? secondaryState : null;
+  next.processingJobs = safeObject(next.processingJobs);
+  next.processingInputLedger = normalizeProcessingInputLedger(next.processingInputLedger);
+  if (other) {
+    Object.entries(other.processingJobs || {}).forEach(([jobId, job]) => {
+      if (!next.processingJobs[jobId] || safeTime(job.readyAt) > safeTime(next.processingJobs[jobId].readyAt)) next.processingJobs[jobId] = clone(job);
+    });
+    const mergedLedger = { ...next.processingInputLedger };
+    Object.entries(normalizeProcessingInputLedger(other.processingInputLedger)).forEach(([shipmentId, entry]) => {
+      const current = mergedLedger[shipmentId];
+      if (!current) {
+        mergedLedger[shipmentId] = clone(entry);
+        return;
+      }
+      current.quantity = Math.max(current.quantity, entry.quantity);
+      current.consumed = Math.max(current.consumed, entry.consumed);
+      current.updatedAt = Math.max(current.updatedAt, entry.updatedAt);
+      current.processingReadyAt = Math.max(current.processingReadyAt, entry.processingReadyAt);
+    });
+    next.processingInputLedger = normalizeProcessingInputLedger(mergedLedger);
+    next.importedShipmentIds = [...new Set([...(next.importedShipmentIds || []), ...(other.importedShipmentIds || [])])].slice(-200);
+    next.rewardedShipmentIds = [...new Set([...(next.rewardedShipmentIds || []), ...(other.rewardedShipmentIds || [])])].slice(-200);
+  }
   if (other) {
     Object.entries(other.tiles || {}).forEach(([key, tile]) => {
       if (!next.tiles[key] || tile?.terrain === "reclaimed") next.tiles[key] = tile;
@@ -415,6 +527,7 @@ export function mergeIslandStates(primary, secondary) {
     });
   }
   next.constructionLog = normalizeConstructionLog(next.constructionLog, next.buildings, next.constructionJobs);
+  scheduleProcessingInputBatches(next, Date.now());
   return next;
 }
 
@@ -724,6 +837,8 @@ export function settleIsland(state, now = Date.now()) {
   let changed = false;
   let coinsEarned = 0;
   const previousSettledAt = Math.min(now, safeTime(state.lastSettledAt, now));
+
+  if (scheduleProcessingInputBatches(next, now)) changed = true;
 
   Object.entries(next.constructionJobs).forEach(([jobId, job]) => {
     if (safeTime(job.readyAt) > now) return;

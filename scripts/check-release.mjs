@@ -30,6 +30,13 @@ const sourceFiles = (directory) => readdirSync(new URL(`../${directory}/`, impor
 for (const relativePath of sourceFiles("src")) {
   const source = readProjectFile(relativePath);
   assert(!/from\s+["']\.\.?\/[^"']+\.js["']/.test(source), `${relativePath} 含未加版次參數的模組 import`);
+  const staleImports = [...source.matchAll(/from\s+["']([^"']+\.js)([^"']*)["']/g)].filter(([, , query]) => query !== releaseQuery);
+  assert(!staleImports.length, `${relativePath} 有與 ${appVersion} 不一致的模組 import：${staleImports.map(([, path]) => path).join(", ")}`);
+}
+for (const page of ["index.html", "island-assets-preview.html"]) {
+  const source = readProjectFile(page);
+  const staleRefs = [...source.matchAll(/(?:src|href)=["']([^"']+\.js(?:\?[^"']*)?)["']/g)].map(([, ref]) => ref).filter((ref) => ref.includes("?v=") && !ref.endsWith(releaseQuery));
+  assert(!staleRefs.length, `${page} 有與 ${appVersion} 不一致的 script 參照：${staleRefs.join(", ")}`);
 }
 assert(handoffSource.includes(`目前版次：\`${appVersion}\`／Service Worker \`sudox-shell-${appVersion}\``), "Handoff 版次必須與程式一致");
 assert(handoffSource.includes("`ISLAND_TEST_MODE` 正式預設為 `false`"), "Handoff 必須記錄正式測試模式狀態");

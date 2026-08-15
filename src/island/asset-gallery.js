@@ -1,5 +1,5 @@
-import { ISLAND_ASSET_MANIFEST, islandAssetUrl } from "./assets.js?v=v57";
-import { BUILDING_CATALOG, HOME_LEVELS, ITEM_CATALOG } from "./catalog.js?v=v57";
+import { ISLAND_ASSET_MANIFEST, islandAssetUrl } from "./assets.js?v=v58";
+import { BUILDING_CATALOG, HOME_LEVELS, ITEM_CATALOG } from "./catalog.js?v=v58";
 
 const CATEGORY_INFO = Object.freeze({
   buildings: { label: "建築", actualSize: 45 },

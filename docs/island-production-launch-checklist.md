@@ -73,8 +73,8 @@ export const ISLAND_TEST_MODE = false;
 
 - `src/app.js`：`APP_VERSION`。
 - `src/app.js`：`APP_LAST_UPDATED`，使用含 `+08:00` 的 ISO 時間。
-- `sw.js`：`CACHE_NAME`，例如 `sudox-shell-v51`。
-- `index.html`、所有 ES module import 與 `sw.js` 的 `RELEASE_QUERY` 必須同步使用 `?v=v51`，避免 GitHub Pages CDN 或舊 PWA 快取混用跨版模組。
+- `sw.js`：`CACHE_NAME`，例如 `sudox-shell-v58`。
+- `index.html`、所有 ES module import 與 `sw.js` 的 `RELEASE_QUERY` 必須同步使用 `?v=v58`，避免 GitHub Pages CDN 或舊 PWA 快取混用跨版模組。
 - `HANDOFF_ISLAND.md` 與本文件的目前基準。
 
 若有新增「首屏必要」檔案才加入 `APP_SHELL`。大量伙伴動畫、建築與產品維持 runtime 按需抓取，fetch handler 會在成功下載後放入 cache。
@@ -82,6 +82,11 @@ export const ISLAND_TEST_MODE = false;
 ## 4. Production 資料庫
 
 Migration：`supabase/island-logistics-migration.sql`。此檔使用 transaction、`create table if not exists`、`create or replace function` 與 upsert，可重複套用；不要在上線日手動刪表或清 shipment。
+
+既有 production 若已套用舊版物流 migration，還要依序套用：
+
+- `supabase/island-logistics-free-quantity-migration.sql`：移除既有 `quantity % input_per_batch` 約束，並更新出貨 RPC，允許 `1..載具容量` 的任意整數數量。
+- `supabase/cloud-save-concurrency-migration.sql`：提供收成／存檔的預期版本防覆寫 RPC；前端 `v58` 已依賴此 RPC。
 
 套用後在 SQL Editor 執行只讀驗證：
 
@@ -114,6 +119,24 @@ order by proname;
 ```
 
 預期 5 列。不要用 service-role token 做瀏覽器 smoke test；要測匿名／一般使用者實際會走的 RPC 權限。
+
+再確認物流倍數約束已移除、RPC 已更新：
+
+```sql
+select
+  (select count(*)
+   from pg_constraint c
+   join pg_class t on t.oid = c.conrelid
+   join pg_namespace n on n.oid = t.relnamespace
+   where n.nspname = 'public'
+     and t.relname = 'island_shipments'
+     and c.conname = 'island_shipments_check1') as old_constraint_count,
+  position('p_quantity % recipe.input_per_batch' in pg_get_functiondef(
+    to_regprocedure('public.dispatch_island_shipment(uuid,uuid,text,uuid,text,text,text,integer,text)')
+  )) = 0 as dispatch_allows_free_quantity;
+```
+
+預期：`old_constraint_count = 0`、`dispatch_allows_free_quantity = true`。
 
 ### 上線前備份記錄
 
@@ -207,7 +230,7 @@ npm.cmd run dev
 - [ ] 若要合併至線上分支，先確認該分支沒有別人的新提交，再使用非破壞性 merge。
 - [ ] 部署完成後以線上網址做同一組最小 smoke test，並確認 footer 版次。
 
-本次 v51 尚未取得正式 PUSH／部署授權；完成雲端 migration 與驗證後，仍須由使用者明確指示。
+本次 v58 尚未取得正式 PUSH／部署授權；完成雲端 migration 與驗證後，仍須由使用者明確指示。
 
 ## 9. 回滾
 
