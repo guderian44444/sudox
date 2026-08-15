@@ -1,0 +1,132 @@
+diff --git a/src/app.js b/src/app.js
+index d86efdc..dbb1c2e 100644
+--- a/src/app.js
++++ b/src/app.js
+@@ -1,5 +1,5 @@
+-import { DIFFICULTIES, relatedCells } from "./game/sudoku.js?v=v57";
+-import { activateAutomaticTreasures, ADVENTURE_RULES, applyHintTreasure, applyImmediateTreasure, strongestEquippedRevive, sudokuUnitCells, TREASURE_AUTO_EFFECTS, TREASURE_CARDS } from "./game/adventure.js?v=v57";
++import { DIFFICULTIES, relatedCells } from "./game/sudoku.js?v=v58";
++import { activateAutomaticTreasures, ADVENTURE_RULES, applyHintTreasure, applyImmediateTreasure, strongestEquippedRevive, sudokuUnitCells, TREASURE_AUTO_EFFECTS, TREASURE_CARDS } from "./game/adventure.js?v=v58";
+ import {
+   applyHintFill,
+   applyPlayerDigit,
+@@ -11,17 +11,17 @@ import {
+   removeRelatedNotes,
+   RUN_MILESTONES,
+   settleCompletedGame
+-} from "./game/flow.js?v=v57";
+-import { ACHIEVEMENTS, achievementValue, recordAchievementGame } from "./game/achievements.js?v=v57";
+-import { chooseFriendPair, chooseGardenEel, choosePartyFriends, FRIEND_ROSTER, nextDanceVariants } from "./game/friends.js?v=v57";
+-import { ISLAND_TEST_MODE } from "./island/catalog.js?v=v57";
+-import { availableInventoryQuantity, dismissIslandLetter, availableConstructionWorkerIds, availableHelperIds, collectFacility, createIslandState, finishIslandWork, hireConstructionHelper, marketSale, normalizeIslandState, selectSourceRecipe, settleIsland, startBuilding, startDemolition, startHomeUpgrade, startProcessing, startReclamation } from "./island/model.js?v=v57";
+-import { DEMO_ISLAND_PARTNERS, dispatchDemoShipment, LOGISTICS_METHODS, mergeCloudLogistics, networkProfileSnapshot, normalizeIslandPartner, partnerLogisticsOffers, recordDispatchedShipment, shipmentQuote } from "./island/logistics.js?v=v57";
+-import { formatIslandDuration, renderIslandScreen } from "./island/renderer.js?v=v57";
+-import { cloudConfigured, loadCloudPin, loadCloudProgress, normalizePlayerName, renameCloudPlayer, saveCloudPin, saveCloudProgress, saveCloudProgressIfCurrent, validCloudPin } from "./state/cloud.js?v=v57";
+-import { acknowledgeIslandLogistics, dispatchIslandShipment, getIslandLogistics, listIslandPartners, publishIslandNetwork } from "./state/island-cloud.js?v=v57";
+-import { buildScore, fetchLeaderboard, fetchPlayerLeaderboardRows, flushPendingScores, leaderboardConfigured, normalizeLeaderboardTaunt, pendingScoreCount, queueLeaderboardScore, updateLeaderboardAvatar, updateLeaderboardTaunt } from "./state/leaderboard.js?v=v57";
+-import { addCard, clearSession, consumeCard, exportSaveCode, importSaveCode, loadProgress, loadSession, mergeProgressHighWater, nextFloorFromCompleted, parseSaveCode, preferSaveSide, raiseFloorProgress, reconcileFloorsFromLeaderboardRows, rewardProgress, saveProgress, saveSession, saveTimestampMs, sessionFloorBehindProgress, spendCoins } from "./state/store.js?v=v57";
++} from "./game/flow.js?v=v58";
++import { ACHIEVEMENTS, achievementValue, recordAchievementGame } from "./game/achievements.js?v=v58";
++import { chooseFriendPair, chooseGardenEel, choosePartyFriends, FRIEND_ROSTER, nextDanceVariants } from "./game/friends.js?v=v58";
++import { ISLAND_TEST_MODE } from "./island/catalog.js?v=v58";
++import { availableInventoryQuantity, dismissIslandLetter, availableConstructionWorkerIds, availableHelperIds, collectFacility, createIslandState, finishIslandWork, hireConstructionHelper, marketSale, normalizeIslandState, selectSourceRecipe, settleIsland, startBuilding, startDemolition, startHomeUpgrade, startProcessing, startReclamation } from "./island/model.js?v=v58";
++import { DEMO_ISLAND_PARTNERS, dispatchDemoShipment, LOGISTICS_METHODS, mergeCloudLogistics, networkProfileSnapshot, normalizeIslandPartner, partnerLogisticsOffers, recordDispatchedShipment, shipmentQuote } from "./island/logistics.js?v=v58";
++import { formatIslandDuration, renderIslandScreen } from "./island/renderer.js?v=v58";
++import { cloudConfigured, loadCloudPin, loadCloudProgress, normalizePlayerName, renameCloudPlayer, saveCloudPin, saveCloudProgress, saveCloudProgressIfCurrent, validCloudPin } from "./state/cloud.js?v=v58";
++import { acknowledgeIslandLogistics, dispatchIslandShipment, getIslandLogistics, listIslandPartners, publishIslandNetwork } from "./state/island-cloud.js?v=v58";
++import { buildScore, fetchLeaderboard, fetchPlayerLeaderboardRows, flushPendingScores, leaderboardConfigured, normalizeLeaderboardTaunt, pendingScoreCount, queueLeaderboardScore, updateLeaderboardAvatar, updateLeaderboardTaunt } from "./state/leaderboard.js?v=v58";
++import { addCard, clearSession, consumeCard, exportSaveCode, importSaveCode, loadProgress, loadSession, mergeProgressHighWater, nextFloorFromCompleted, parseSaveCode, preferSaveSide, raiseFloorProgress, reconcileFloorsFromLeaderboardRows, rewardProgress, saveProgress, saveSession, saveTimestampMs, sessionFloorBehindProgress, spendCoins } from "./state/store.js?v=v58";
+ 
+ const app = document.querySelector("#app");
+ const APP_VERSION = "v58";
+@@ -783,11 +783,9 @@ function updateIslandLogisticsQuote(form) {
+   const methodDefinition = LOGISTICS_METHODS[selection.methodId] || null;
+   const quantityInput = form.elements.quantity;
+   if (quantityInput) {
+-    quantityInput.min = String(selection.offer.inputPerBatch);
+-    quantityInput.step = String(selection.offer.inputPerBatch);
++    quantityInput.min = 1;
++    quantityInput.step = 1;
+     if (methodDefinition) quantityInput.max = String(methodDefinition.capacity);
+-    const aligned = Math.max(selection.offer.inputPerBatch, Math.floor((Number(quantityInput.value) || selection.offer.inputPerBatch) / selection.offer.inputPerBatch) * selection.offer.inputPerBatch);
+-    quantityInput.value = String(methodDefinition ? Math.min(aligned, methodDefinition.capacity) : aligned);
+     selection.quantity = Number(quantityInput.value);
+   }
+   const quote = shipmentQuote(island, selection);
+diff --git a/src/island/logistics.js b/src/island/logistics.js
+index 734ddd2..86184f7 100644
+--- a/src/island/logistics.js
++++ b/src/island/logistics.js
+@@ -1,5 +1,5 @@
+-import { BUILDING_CATALOG, ITEM_CATALOG, RECIPE_CATALOG } from "./catalog.js?v=v57";
+-import { activeVehicleCount, availableInventoryQuantity } from "./model.js?v=v57";
++import { BUILDING_CATALOG, ITEM_CATALOG, RECIPE_CATALOG } from "./catalog.js?v=v58";
++import { activeVehicleCount, availableInventoryQuantity } from "./model.js?v=v58";
+ 
+ const clone = (value) => JSON.parse(JSON.stringify(value));
+ const safeInt = (value, fallback = 0) => Number.isFinite(Number(value)) ? Math.max(0, Math.floor(Number(value))) : fallback;
+@@ -136,8 +136,8 @@ export function shipmentQuote(state, { partner, offer, methodId, quantity } = {}
+   if (!partner || !offer || !method || !availableMethod) return { ok: false, error: "請先建造對應的碼頭或機場" };
+   if (!availableMethod.vehicleCount) return { ok: false, error: `先在${methodId === "boat" ? "造船廠建造物流船" : "飛機工坊組裝物流飛機"}` };
+   if (!availableMethod.availableVehicles) return { ok: false, error: `所有${methodId === "boat" ? "物流船" : "物流飛機"}都在運送中，請等一趟抵達` };
+-  if (!count || count > method.capacity || count % offer.inputPerBatch !== 0) {
+-    return { ok: false, error: `數量必須是 ${offer.inputPerBatch} 的倍數，且不可超過 ${method.capacity}` };
++  if (!count || count > method.capacity) {
++    return { ok: false, error: `數量不可超過 ${method.capacity}` };
+   }
+   const cargoAvailable = availableInventoryQuantity(state, offer.itemId) - (offer.itemId === method.vehicleItemId ? 1 : 0);
+   if (cargoAvailable < count) return { ok: false, error: "小屋倉庫可用的貨物數量不足" };
+@@ -269,7 +269,7 @@ export function mergeCloudLogistics(state, payload = {}, now = Date.now()) {
+       || Object.values(next.buildings || {}).find((entry) => entry.buildingId === shipment.buildingId);
+     const recipe = RECIPE_CATALOG[shipment.recipeId];
+     if (!building || !recipe) return;
+-    const batches = Math.max(1, safeInt(shipment.quantity) / Math.max(1, safeInt(shipment.inputPerBatch, 1)));
++    const batches = safeInt(shipment.quantity) / Math.max(1, safeInt(shipment.inputPerBatch, 1));
+     const outputs = Object.fromEntries(Object.entries(recipe.outputs).map(([itemId, count]) => [itemId, safeInt(count) * batches]));
+     const jobId = `remote-${shipment.id}`;
+     next.processingJobs[jobId] = {
+diff --git a/src/island/renderer.js b/src/island/renderer.js
+index 69b926d..3f251fe 100644
+--- a/src/island/renderer.js
++++ b/src/island/renderer.js
+@@ -9,14 +9,14 @@ import {
+   reclamationQuote,
+   recipeInputsLabel,
+   recipeOutputsLabel
+-} from "./catalog.js?v=v57";
+-import { currentAttractionVisitorIds } from "./attractions.js?v=v57";
+-import { islandItemMarkup, islandSpriteMarkup, islandTerrainUrl } from "./assets.js?v=v57";
+-import { adjustedConstructionDuration, companionAbility, companionReductionPercent, constructionTeamRate } from "./companions.js?v=v57";
+-import { FRIEND_ROSTER } from "../game/friends.js?v=v57";
+-import { axialDistance, axialKey, axialToPixel, footprintCells, HEX_DIRECTIONS, HEX_HEIGHT, HEX_WIDTH, hexRange, mapPixelBounds } from "./hex.js?v=v57";
+-import { availableTransportMethods, buildingName, LOGISTICS_METHODS, partnerAcceptedItems, partnerLogisticsOffers, shipmentQuote } from "./logistics.js?v=v57";
+-import { availableInventoryQuantity, buildingAnchorAt, buildingAt, constructionAnchorAt, constructionAt, constructionJobWorkTags, helperQuote, initialWorkerHireCost, islandHomeLevel, islandInventoryCapacity, islandInventoryUsed, isReclaimable } from "./model.js?v=v57";
++} from "./catalog.js?v=v58";
++import { currentAttractionVisitorIds } from "./attractions.js?v=v58";
++import { islandItemMarkup, islandSpriteMarkup, islandTerrainUrl } from "./assets.js?v=v58";
++import { adjustedConstructionDuration, companionAbility, companionReductionPercent, constructionTeamRate } from "./companions.js?v=v58";
++import { FRIEND_ROSTER } from "../game/friends.js?v=v58";
++import { axialDistance, axialKey, axialToPixel, footprintCells, HEX_DIRECTIONS, HEX_HEIGHT, HEX_WIDTH, hexRange, mapPixelBounds } from "./hex.js?v=v58";
++import { availableTransportMethods, buildingName, LOGISTICS_METHODS, partnerAcceptedItems, partnerLogisticsOffers, shipmentQuote } from "./logistics.js?v=v58";
++import { availableInventoryQuantity, buildingAnchorAt, buildingAt, constructionAnchorAt, constructionAt, constructionJobWorkTags, helperQuote, initialWorkerHireCost, islandHomeLevel, islandInventoryCapacity, islandInventoryUsed, isReclaimable } from "./model.js?v=v58";
+ 
+ const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({
+   "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+@@ -454,14 +454,14 @@ function buildingPanel(state, building, now, testMode, coins, workers, selectedW
+ function logisticsPanel(state, partner, networkStatus, networkBusy, testMode) {
+   const methods = availableTransportMethods(state);
+   const offers = partnerLogisticsOffers(state, partner);
+-  const offer = offers.find((entry) => availableInventoryQuantity(state, entry.itemId) >= entry.inputPerBatch) || offers[0];
+   const method = methods[0];
+-  const quantity = Math.max(1, offer?.inputPerBatch || 1);
++  const offer = offers.find((entry) => availableInventoryQuantity(state, entry.itemId) > 0) || offers[0];
++  const quantity = 1;
+   const quote = shipmentQuote(state, { partner, offer, methodId: method?.id, quantity });
+   const accepted = partnerAcceptedItems(partner);
+   const processingOffers = offers.filter((entry) => entry.kind !== "market");
+   const marketOffers = offers.filter((entry) => entry.kind === "market");
+-  const offerOption = (entry) => `<option value="${escapeHtml(entry.id)}">${entry.kind === "market" ? `🏪 高價收購・${ITEM_CATALOG[entry.itemId]?.icon || "📦"} ${escapeHtml(ITEM_CATALOG[entry.itemId]?.name || entry.itemId)}・每份 🪙 ${entry.rewardPerItem}` : `${escapeHtml(buildingName(entry.buildingId))}・${ITEM_CATALOG[entry.itemId]?.icon || "📦"} ${escapeHtml(ITEM_CATALOG[entry.itemId]?.name || entry.itemId)} → ${escapeHtml(outputMarkup(entry.outputs))}`}</option>`;
++  const offerOption = (entry) => `<option value="${escapeHtml(entry.id)}">${entry.kind === "market" ? `🏪 高價收購・${ITEM_CATALOG[entry.itemId]?.icon || "📦"} ${escapeHtml(ITEM_CATALOG[entry.itemId]?.name || entry.itemId)}・每份 🪙 ${entry.rewardPerItem}` : `${escapeHtml(buildingName(entry.buildingId))}・${ITEM_CATALOG[entry.itemId]?.icon || "📦"} ${escapeHtml(ITEM_CATALOG[entry.itemId]?.name || entry.itemId)} → ${recipeOutputsLabel(entry)}`}</option>`;
+   return `<div class="island-selection-card island-logistics-card">
+     <p class="island-panel-kicker">跨島合作設施</p>
+     <div class="island-partner-heading"><img src="${friendAssetUrl(partner.avatar)}" alt=""><span><h3>${escapeHtml(partner.name)}</h3><small>${partner.isDemo ? "測試島友" : partner.online ? "最近在線" : "離線也可收貨"}</small></span></div>

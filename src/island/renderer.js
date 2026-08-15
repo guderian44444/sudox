@@ -9,14 +9,14 @@ import {
   reclamationQuote,
   recipeInputsLabel,
   recipeOutputsLabel
-} from "./catalog.js?v=v57";
-import { currentAttractionVisitorIds } from "./attractions.js?v=v57";
-import { islandItemMarkup, islandSpriteMarkup, islandTerrainUrl } from "./assets.js?v=v57";
-import { adjustedConstructionDuration, companionAbility, companionReductionPercent, constructionTeamRate } from "./companions.js?v=v57";
-import { FRIEND_ROSTER } from "../game/friends.js?v=v57";
-import { axialDistance, axialKey, axialToPixel, footprintCells, HEX_DIRECTIONS, HEX_HEIGHT, HEX_WIDTH, hexRange, mapPixelBounds } from "./hex.js?v=v57";
-import { availableTransportMethods, buildingName, LOGISTICS_METHODS, partnerAcceptedItems, partnerLogisticsOffers, shipmentQuote } from "./logistics.js?v=v57";
-import { availableInventoryQuantity, buildingAnchorAt, buildingAt, constructionAnchorAt, constructionAt, constructionJobWorkTags, helperQuote, initialWorkerHireCost, islandHomeLevel, islandInventoryCapacity, islandInventoryUsed, isReclaimable } from "./model.js?v=v57";
+} from "./catalog.js?v=v58";
+import { currentAttractionVisitorIds } from "./attractions.js?v=v58";
+import { islandItemMarkup, islandSpriteMarkup, islandTerrainUrl } from "./assets.js?v=v58";
+import { adjustedConstructionDuration, companionAbility, companionReductionPercent, constructionTeamRate } from "./companions.js?v=v58";
+import { FRIEND_ROSTER } from "../game/friends.js?v=v58";
+import { axialDistance, axialKey, axialToPixel, footprintCells, HEX_DIRECTIONS, HEX_HEIGHT, HEX_WIDTH, hexRange, mapPixelBounds } from "./hex.js?v=v58";
+import { availableTransportMethods, buildingName, LOGISTICS_METHODS, partnerAcceptedItems, partnerLogisticsOffers, shipmentQuote } from "./logistics.js?v=v58";
+import { availableInventoryQuantity, buildingAnchorAt, buildingAt, constructionAnchorAt, constructionAt, constructionJobWorkTags, helperQuote, initialWorkerHireCost, islandHomeLevel, islandInventoryCapacity, islandInventoryUsed, isReclaimable } from "./model.js?v=v58";
 
 const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({
   "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
@@ -454,14 +454,14 @@ function buildingPanel(state, building, now, testMode, coins, workers, selectedW
 function logisticsPanel(state, partner, networkStatus, networkBusy, testMode) {
   const methods = availableTransportMethods(state);
   const offers = partnerLogisticsOffers(state, partner);
-  const offer = offers.find((entry) => availableInventoryQuantity(state, entry.itemId) >= entry.inputPerBatch) || offers[0];
   const method = methods[0];
-  const quantity = Math.max(1, offer?.inputPerBatch || 1);
+  const offer = offers.find((entry) => availableInventoryQuantity(state, entry.itemId) > 0) || offers[0];
+  const quantity = 1;
   const quote = shipmentQuote(state, { partner, offer, methodId: method?.id, quantity });
   const accepted = partnerAcceptedItems(partner);
   const processingOffers = offers.filter((entry) => entry.kind !== "market");
   const marketOffers = offers.filter((entry) => entry.kind === "market");
-  const offerOption = (entry) => `<option value="${escapeHtml(entry.id)}">${entry.kind === "market" ? `🏪 高價收購・${ITEM_CATALOG[entry.itemId]?.icon || "📦"} ${escapeHtml(ITEM_CATALOG[entry.itemId]?.name || entry.itemId)}・每份 🪙 ${entry.rewardPerItem}` : `${escapeHtml(buildingName(entry.buildingId))}・${ITEM_CATALOG[entry.itemId]?.icon || "📦"} ${escapeHtml(ITEM_CATALOG[entry.itemId]?.name || entry.itemId)} → ${escapeHtml(outputMarkup(entry.outputs))}`}</option>`;
+  const offerOption = (entry) => `<option value="${escapeHtml(entry.id)}">${entry.kind === "market" ? `🏪 高價收購・${ITEM_CATALOG[entry.itemId]?.icon || "📦"} ${escapeHtml(ITEM_CATALOG[entry.itemId]?.name || entry.itemId)}・每份 🪙 ${entry.rewardPerItem}` : `${escapeHtml(buildingName(entry.buildingId))}・${ITEM_CATALOG[entry.itemId]?.icon || "📦"} ${escapeHtml(ITEM_CATALOG[entry.itemId]?.name || entry.itemId)} → ${recipeOutputsLabel(entry)}`}</option>`;
   return `<div class="island-selection-card island-logistics-card">
     <p class="island-panel-kicker">跨島合作設施</p>
     <div class="island-partner-heading"><img src="${friendAssetUrl(partner.avatar)}" alt=""><span><h3>${escapeHtml(partner.name)}</h3><small>${partner.isDemo ? "測試島友" : partner.online ? "最近在線" : "離線也可收貨"}</small></span></div>

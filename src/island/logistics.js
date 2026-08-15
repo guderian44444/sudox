@@ -1,5 +1,5 @@
-import { BUILDING_CATALOG, ITEM_CATALOG, RECIPE_CATALOG } from "./catalog.js?v=v57";
-import { activeVehicleCount, availableInventoryQuantity } from "./model.js?v=v57";
+import { BUILDING_CATALOG, ITEM_CATALOG, RECIPE_CATALOG } from "./catalog.js?v=v58";
+import { activeVehicleCount, availableInventoryQuantity } from "./model.js?v=v58";
 
 const clone = (value) => JSON.parse(JSON.stringify(value));
 const safeInt = (value, fallback = 0) => Number.isFinite(Number(value)) ? Math.max(0, Math.floor(Number(value))) : fallback;
@@ -136,8 +136,8 @@ export function shipmentQuote(state, { partner, offer, methodId, quantity } = {}
   if (!partner || !offer || !method || !availableMethod) return { ok: false, error: "請先建造對應的碼頭或機場" };
   if (!availableMethod.vehicleCount) return { ok: false, error: `先在${methodId === "boat" ? "造船廠建造物流船" : "飛機工坊組裝物流飛機"}` };
   if (!availableMethod.availableVehicles) return { ok: false, error: `所有${methodId === "boat" ? "物流船" : "物流飛機"}都在運送中，請等一趟抵達` };
-  if (!count || count > method.capacity || count % offer.inputPerBatch !== 0) {
-    return { ok: false, error: `數量必須是 ${offer.inputPerBatch} 的倍數，且不可超過 ${method.capacity}` };
+  if (!count || count > method.capacity) {
+    return { ok: false, error: `數量不可超過 ${method.capacity}` };
   }
   const cargoAvailable = availableInventoryQuantity(state, offer.itemId) - (offer.itemId === method.vehicleItemId ? 1 : 0);
   if (cargoAvailable < count) return { ok: false, error: "小屋倉庫可用的貨物數量不足" };
@@ -269,7 +269,7 @@ export function mergeCloudLogistics(state, payload = {}, now = Date.now()) {
       || Object.values(next.buildings || {}).find((entry) => entry.buildingId === shipment.buildingId);
     const recipe = RECIPE_CATALOG[shipment.recipeId];
     if (!building || !recipe) return;
-    const batches = Math.max(1, safeInt(shipment.quantity) / Math.max(1, safeInt(shipment.inputPerBatch, 1)));
+    const batches = safeInt(shipment.quantity) / Math.max(1, safeInt(shipment.inputPerBatch, 1));
     const outputs = Object.fromEntries(Object.entries(recipe.outputs).map(([itemId, count]) => [itemId, safeInt(count) * batches]));
     const jobId = `remote-${shipment.id}`;
     next.processingJobs[jobId] = {
