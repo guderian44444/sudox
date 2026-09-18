@@ -1,7 +1,8 @@
-import { normalizeSession } from "../game/flow.js?v=v59";
-import { mergeIslandStates } from "../island/model.js?v=v59";
+import { mergeAchievementEvidence, normalizeAchievementEvidence, normalizeAchievementEquipment, normalizeAchievementIds, normalizeAchievementStats } from "../game/achievements.js?v=v60";
+import { normalizeSession } from "../game/flow.js?v=v60";
+import { mergeIslandStates } from "../island/model.js?v=v60";
 
-import { readLocal, writeLocal } from "./storage.js?v=v59";
+import { readLocal, writeLocal } from "./storage.js?v=v60";
 
 const STORAGE_KEY = "sudox-progress-v3";
 const SESSION_KEY = "sudox-session-v3";
@@ -122,11 +123,11 @@ export function mergeProgressHighWater(primary, secondary = {}) {
       Math.floor(Number(other.floors?.[difficulty]) || 1)
     )
   ]));
-  return {
+  const merged = {
     ...base,
     floors,
     achievements: [...new Set([...(base.achievements || []), ...(other.achievements || [])])],
-    achievementStats: Object.fromEntries(Object.keys(defaultProgress.achievementStats).map((key) => [key, Math.max(0, Number(base.achievementStats?.[key]) || 0, Number(other.achievementStats?.[key]) || 0)])),
+    achievementEvidence: mergeAchievementEvidence(base, other),
     rewardedRuns: [...new Set([...(base.rewardedRuns || []), ...(other.rewardedRuns || [])])],
     cardCollection: [...new Set([...(base.cardCollection || []), ...(other.cardCollection || [])])],
     completedGames: Math.max(0, Math.floor(Number(base.completedGames) || 0), Math.floor(Number(other.completedGames) || 0)),
@@ -135,6 +136,10 @@ export function mergeProgressHighWater(primary, secondary = {}) {
     coins: Math.max(0, Math.floor(Number(base.coins) || 0)),
     island: mergeIslandStates(base.island, other.island)
   };
+  const stats = normalizeAchievementStats(merged);
+  return { ...merged, achievementStats: stats,
+    completedGames: Math.max(merged.completedGames, stats.completedGames), totalStars: Math.max(merged.totalStars, stats.totalStars),
+    ...normalizeAchievementEquipment(merged) };
 }
 
 /**
@@ -204,12 +209,9 @@ function normalizedProgress(saved = {}) {
     cardCollection: Array.isArray(safeSaved.cardCollection) ? safeSaved.cardCollection.filter((cardId) => typeof cardId === "string" && /^[a-zA-Z][a-zA-Z0-9]{0,40}$/.test(cardId)).slice(0, 60) : [],
     bestTimes: safeSaved.bestTimes || {},
     rewardedRuns: Array.isArray(safeSaved.rewardedRuns) ? [...new Set(safeSaved.rewardedRuns.filter((id) => typeof id === "string" && id.length > 0 && id.length <= 160))] : [],
-    achievements: Array.isArray(safeSaved.achievements) ? [...new Set(safeSaved.achievements.filter((id) => typeof id === "string" && /^[a-zA-Z][a-zA-Z0-9]{0,40}$/.test(id)))].slice(0, 50) : [],
-    achievementStats: {
-      perfectGames: Math.floor(safeNumber(safeSaved.achievementStats?.perfectGames)),
-      speedGames: Math.floor(safeNumber(safeSaved.achievementStats?.speedGames)),
-      alinGames: Math.floor(safeNumber(safeSaved.achievementStats?.alinGames))
-    },
+    achievements: normalizeAchievementIds(safeSaved.achievements),
+    achievementStats: normalizeAchievementStats(safeSaved),
+    achievementEvidence: normalizeAchievementEvidence(safeSaved),
     floors: Object.fromEntries(Object.keys(defaultProgress.floors).map((difficulty) => [difficulty, Math.max(1, Math.floor(safeNumber(safeSaved.floors?.[difficulty], 1))) ])),
     floorModelVersion: safeSaved.floorModelVersion === 1
       ? 1
@@ -227,6 +229,7 @@ function normalizedProgress(saved = {}) {
     island: safeSaved.island && typeof safeSaved.island === "object" && !Array.isArray(safeSaved.island) ? safeSaved.island : null,
     updatedAt: normalizeUpdatedAt(safeSaved.updatedAt)
   };
+  Object.assign(progress, normalizeAchievementEquipment(progress));
   delete progress.unlockedDifficulty;
   return progress;
 }
@@ -309,7 +312,7 @@ export function spendCoins(progress, amount) {
  */
 export function rewardProgress(progress, xpReward, bonusCoins = 0, stars = 0, difficulty = "easy", completedFloor = null, { persist = true, runId = "" } = {}) {
   if (runId && progress.rewardedRuns?.includes(runId)) return progress;
-  const next = { ...progress, floors: { ...progress.floors } };
+  const next = { ...progress, achievementEvidence: normalizeAchievementEvidence(progress), floors: { ...progress.floors } };
   // ponytail: retain run IDs for replay protection; use a versioned watermark if the save-size ceiling is approached.
   if (runId) next.rewardedRuns = [...(progress.rewardedRuns || []), runId];
   next.xp += xpReward;

@@ -1,5 +1,5 @@
-import { readLocal, writeLocal } from "./storage.js?v=v59";
-import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "../config.js?v=v59";
+import { readLocal, writeLocal } from "./storage.js?v=v60";
+import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "../config.js?v=v60";
 
 const CLOUD_PIN_KEY = "sudox-cloud-pin-v1";
 

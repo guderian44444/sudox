@@ -152,6 +152,32 @@ assert.equal(uploaded.coins, 3); releaseWrite(true); await trailing;
 const switching = ctx.syncCloudNow(); ctx.progress.playerId = "different";
 releaseRead(JSON.stringify({ ...ctx.progress, coins: 99 })); assert.equal(await switching, false);
 
+// Harvest must use its own transaction variables (not unrelated sync locals).
+let harvestWrite, harvestPayload;
+const harvest = vm.createContext({
+  progress: { playerId: "harvester", playerName: "harvester", coins: 20, island: { inventory: 0 } }, island: { inventory: 0 },
+  cloudSyncTimer: null, cloudSyncStatus: "", islandStatus: "", navigator: { onLine: true }, clearTimeout() {},
+  loadCloudPin: () => "1234", cloudConfigured: () => true, validCloudPin: () => true, syncCloudNow: async () => true,
+  collectFacility: () => ({ ok: true, state: { inventory: 1 } }), renderIslandView() {}, saveProgress() {},
+  cloudProgressSaveCode: JSON.stringify,
+  saveCloudProgressIfCurrent: (payload) => { harvestPayload = payload; return new Promise(resolve => { harvestWrite = resolve; }); },
+  loadCloudProgress: async () => JSON.stringify({ inventory: 2 }),
+  adoptCloudSaveCode: (code) => { harvest.island = JSON.parse(code); }
+});
+vm.runInContext(source.slice(source.indexOf("async function collectIslandFacilitySafely("), source.indexOf("function changeIslandZoom(")), harvest);
+const collected = harvest.collectIslandFacilitySafely("farm"); await tick();
+assert(harvestPayload, "online harvest must reach conditional cloud write without ReferenceError");
+assert.equal(JSON.parse(harvestPayload.saveCode).island.inventory, 1);
+harvestWrite(true); await collected; assert.match(harvest.islandStatus, /雲端已確認/);
+const conflict = harvest.collectIslandFacilitySafely("farm"); await tick(); harvestWrite(false); await conflict;
+assert.equal(harvest.island.inventory, 2, "conflicting harvest must adopt remote inventory");
+const switchedHarvest = harvest.collectIslandFacilitySafely("farm"); await tick();
+harvest.progress = { playerId: "other", playerName: "other", coins: 99 }; harvestWrite(false); await switchedHarvest;
+assert.equal(harvest.progress.coins, 99, "in-flight harvest cannot overwrite a switched player");
+harvest.saveCloudProgressIfCurrent = async () => { throw Error("offline"); };
+const beforeHarvest = harvest.progress; await harvest.collectIslandFacilitySafely("farm");
+assert.equal(harvest.progress, beforeHarvest, "failed conditional harvest restores prior progress");
+
 // A stalled response body is still covered by the RPC timeout.
 const cloudSource = readFileSync(new URL("../src/state/cloud.js", import.meta.url), "utf8");
 let clearedTimeouts = 0;

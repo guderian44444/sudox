@@ -137,6 +137,7 @@ export function applyImmediateTreasure(game, card, { alinMode = false, index = g
   else if (card.effect === "candidates") {
     if (!Number.isInteger(index) || game.values[index]) return false;
     game.notes[index] = candidatesFor(game.values, index);
+    game.candidateAssists = (game.candidateAssists || 0) + 1;
   } else if (card.effect === "freeze") game.frozenSeconds += card.value;
   else if (card.effect === "xpBoost") {
     game.xpMultiplier *= card.value;

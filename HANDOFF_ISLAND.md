@@ -1,9 +1,9 @@
 # 小島建設模式 Handoff
 
 更新日期：2026-09-18
-開發／Pages 發佈分支：`codex/fix-sudoku-stability`；`main` 保留 v58
-目前版次：`v59`／Service Worker `sudox-shell-v59`
-狀態：v59 BUG 修正版由獨立分支發佈；測試模式預設關閉。修正與驗證見 `docs/bugfix-v59.md`，實際部署結果以 GitHub Pages build 為準。
+開發／Pages 發佈分支：`codex/achievements-v2-tiers`；`codex/fix-sudoku-stability` 保留 v59；`main` 保留 v58
+目前版次：`v60`／Service Worker `sudox-shell-v60`
+狀態：v60 成就 V2 由獨立分支發佈，包含 v59 穩定性修復；實際部署結果以 GitHub Pages build 為準。測試模式預設關閉。成就規則與遷移見 `docs/achievements-v2.md`；BUG 修正見 `docs/bugfix-v59.md`。
 
 ## 一句話狀態
 

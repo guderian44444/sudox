@@ -1,6 +1,6 @@
-import { readLocal, writeLocal } from "./storage.js?v=v59";
-import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "../config.js?v=v59";
-import { fetchWithTimeout, loadCloudPin, validCloudPin } from "./cloud.js?v=v59";
+import { readLocal, writeLocal } from "./storage.js?v=v60";
+import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "../config.js?v=v60";
+import { fetchWithTimeout, loadCloudPin, validCloudPin } from "./cloud.js?v=v60";
 
 const QUEUE_KEY = "sudox-score-queue-v1";
 const difficulties = new Set(["easy", "medium", "hard", "alin"]);

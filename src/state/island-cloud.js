@@ -1,4 +1,4 @@
-import { callRpc } from "./cloud.js?v=v59";
+import { callRpc } from "./cloud.js?v=v60";
 
 const timestampMs = (value) => {
   const time = new Date(value || 0).getTime();

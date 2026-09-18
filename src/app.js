@@ -1,8 +1,8 @@
-import { playSound, resumeAudio, setSoundEnabled, stopAudio } from "./game/audio.js?v=v59";
-import { advanceGameClock } from "./game/timer.js?v=v59";
-import { readLocal, writeLocal, storageWarning, retryLocalWrites } from "./state/storage.js?v=v59";
-import { DIFFICULTIES, relatedCells } from "./game/sudoku.js?v=v59";
-import { activateAutomaticTreasures, ADVENTURE_RULES, applyHintTreasure, applyImmediateTreasure, strongestEquippedRevive, sudokuUnitCells, TREASURE_AUTO_EFFECTS, TREASURE_CARDS } from "./game/adventure.js?v=v59";
+import { playSound, resumeAudio, setSoundEnabled, stopAudio } from "./game/audio.js?v=v60";
+import { advanceGameClock } from "./game/timer.js?v=v60";
+import { readLocal, writeLocal, storageWarning, retryLocalWrites } from "./state/storage.js?v=v60";
+import { DIFFICULTIES, relatedCells } from "./game/sudoku.js?v=v60";
+import { activateAutomaticTreasures, ADVENTURE_RULES, applyHintTreasure, applyImmediateTreasure, strongestEquippedRevive, sudokuUnitCells, TREASURE_AUTO_EFFECTS, TREASURE_CARDS } from "./game/adventure.js?v=v60";
 import {
   applyHintFill,
   applyPlayerDigit,
@@ -14,25 +14,25 @@ import {
   removeRelatedNotes,
   RUN_MILESTONES,
   settleCompletedGame
-} from "./game/flow.js?v=v59";
-import { ACHIEVEMENTS, achievementValue, recordAchievementGame } from "./game/achievements.js?v=v59";
-import { chooseFriendPair, chooseGardenEel, choosePartyFriends, FRIEND_ROSTER, nextDanceVariants } from "./game/friends.js?v=v59";
-import { ISLAND_TEST_MODE } from "./island/catalog.js?v=v59";
-import { availableInventoryQuantity, dismissIslandLetter, availableConstructionWorkerIds, availableHelperIds, collectFacility, createIslandState, finishIslandWork, hireConstructionHelper, marketSale, normalizeIslandState, selectSourceRecipe, settleIsland, startBuilding, startDemolition, startHomeUpgrade, startProcessing, startReclamation } from "./island/model.js?v=v59";
-import { DEMO_ISLAND_PARTNERS, dispatchDemoShipment, LOGISTICS_METHODS, mergeCloudLogistics, networkProfileSnapshot, normalizeIslandPartner, partnerLogisticsOffers, recordDispatchedShipment, shipmentQuote } from "./island/logistics.js?v=v59";
-import { formatIslandDuration, renderIslandScreen } from "./island/renderer.js?v=v59";
-import { cloudConfigured, loadCloudPin, loadCloudProgress, normalizePlayerName, renameCloudPlayer, saveCloudPin, saveCloudProgress, saveCloudProgressIfCurrent, validCloudPin } from "./state/cloud.js?v=v59";
-import { acknowledgeIslandLogistics, dispatchIslandShipment, getIslandLogistics, listIslandPartners, publishIslandNetwork } from "./state/island-cloud.js?v=v59";
-import { buildScore, fetchLeaderboard, fetchPlayerLeaderboardRows, flushPendingScores, leaderboardConfigured, normalizeLeaderboardTaunt, pendingScoreCount, queueLeaderboardScore, updateLeaderboardAvatar, updateLeaderboardTaunt } from "./state/leaderboard.js?v=v59";
-import { addCard, clearSession, consumeCard, exportSaveCode, importSaveCode, loadProgress, loadSession, mergeProgressHighWater, nextFloorFromCompleted, parseSaveCode, preferSaveSide, raiseFloorProgress, reconcileFloorsFromLeaderboardRows, rewardProgress, saveProgress, saveSession, saveTimestampMs, sessionFloorBehindProgress, spendCoins } from "./state/store.js?v=v59";
+} from "./game/flow.js?v=v60";
+import { ACHIEVEMENTS, ACHIEVEMENT_CATEGORIES, ACHIEVEMENT_SERIES, achievementById, achievementRewardText, achievementSeriesProgress, achievementValue, equipAchievementReward, equippedAchievementReward, normalizeAchievementStats, recordAchievementGame } from "./game/achievements.js?v=v60";
+import { chooseFriendPair, chooseGardenEel, choosePartyFriends, FRIEND_ROSTER, nextDanceVariants } from "./game/friends.js?v=v60";
+import { ISLAND_TEST_MODE } from "./island/catalog.js?v=v60";
+import { availableInventoryQuantity, dismissIslandLetter, availableConstructionWorkerIds, availableHelperIds, collectFacility, createIslandState, finishIslandWork, hireConstructionHelper, marketSale, normalizeIslandState, selectSourceRecipe, settleIsland, startBuilding, startDemolition, startHomeUpgrade, startProcessing, startReclamation } from "./island/model.js?v=v60";
+import { DEMO_ISLAND_PARTNERS, dispatchDemoShipment, LOGISTICS_METHODS, mergeCloudLogistics, networkProfileSnapshot, normalizeIslandPartner, partnerLogisticsOffers, recordDispatchedShipment, shipmentQuote } from "./island/logistics.js?v=v60";
+import { formatIslandDuration, renderIslandScreen } from "./island/renderer.js?v=v60";
+import { cloudConfigured, loadCloudPin, loadCloudProgress, normalizePlayerName, renameCloudPlayer, saveCloudPin, saveCloudProgress, saveCloudProgressIfCurrent, validCloudPin } from "./state/cloud.js?v=v60";
+import { acknowledgeIslandLogistics, dispatchIslandShipment, getIslandLogistics, listIslandPartners, publishIslandNetwork } from "./state/island-cloud.js?v=v60";
+import { buildScore, fetchLeaderboard, fetchPlayerLeaderboardRows, flushPendingScores, leaderboardConfigured, normalizeLeaderboardTaunt, pendingScoreCount, queueLeaderboardScore, updateLeaderboardAvatar, updateLeaderboardTaunt } from "./state/leaderboard.js?v=v60";
+import { addCard, clearSession, consumeCard, exportSaveCode, importSaveCode, loadProgress, loadSession, mergeProgressHighWater, nextFloorFromCompleted, parseSaveCode, preferSaveSide, raiseFloorProgress, reconcileFloorsFromLeaderboardRows, rewardProgress, saveProgress, saveSession, saveTimestampMs, sessionFloorBehindProgress, spendCoins } from "./state/store.js?v=v60";
 
 const app = document.querySelector("#app");
-const APP_VERSION = "v59";
-const APP_LAST_UPDATED = "2026-09-18T21:27:16+08:00";
+const APP_VERSION = "v60";
+const APP_LAST_UPDATED = "2026-09-18T22:09:41+08:00";
 let progress = loadProgress();
 const migratedAchievements = recordAchievementGame(progress);
 progress = migratedAchievements.progress;
-if (migratedAchievements.unlocked.length) saveProgress(progress);
+if (migratedAchievements.changed) saveProgress(progress, { touch: false });
 const restoredSession = loadSession();
 let game = restoredSession?.game || createAdventureGame({ difficulty: "easy", floor: 1 });
 let noteMode = false;
@@ -42,6 +42,11 @@ let showSaveCenter = false;
 let showNameSetup = !progress.playerName;
 let showLeaderboard = false;
 let showAchievements = false;
+let achievementCategory = "all";
+let achievementFilter = "all";
+let achievementPreviewId = "";
+let achievementReturnFocusId = "open-achievements";
+const achievementOpenSeries = new Set();
 let showAvatarPicker = false;
 let leaderboardDifficulty = game.difficulty;
 let leaderboardRows = [];
@@ -264,7 +269,8 @@ function avatarMarkup(rank, row) {
   const hasLeaderboardRow = Boolean(row);
   const avatar = hasLeaderboardRow ? row.player_avatar : progress.playerAvatar;
   const color = hasLeaderboardRow ? (row.avatar_color != null ? row.avatar_color : 0) : (progress.avatarColor || 0);
-  const wrapGameAvatar = (markup) => hasLeaderboardRow ? markup : `<div class="game-avatar-anchor">${markup}</div>`;
+  const frame = equippedAchievementReward(progress, "avatarFrame");
+  const wrapGameAvatar = (markup) => hasLeaderboardRow ? markup : `<div class="game-avatar-anchor ${frame ? `achievement-frame frame-tier-${frame.achievement.tier}` : ""}" ${frame ? `style="--achievement-color:${frame.achievement.color};--frame-symbol:'${frame.achievement.icon}'" aria-label="${escapeHtml(frame.label)}"` : ""}>${markup}</div>`;
   if (!avatar) {
     const crown = rank === 0 ? "👑" : rank === 1 ? "🥈" : rank === 2 ? "🥉" : "";
     return wrapGameAvatar(`<div class="player-avatar leaderboard-placeholder" aria-label="尚未選擇頭像"><span>${crown ? `<b>${crown}</b>` : ""}<small class="avatar-placeholder-mark">❔</small></span></div>`);
@@ -889,9 +895,12 @@ function affordIslandResult(result, successStatus, beforeCommit = null) {
 async function collectIslandFacilitySafely(buildingInstanceId) {
   clearTimeout(cloudSyncTimer);
   const pin = loadCloudPin();
+  const playerId = progress.playerId, playerName = progress.playerName;
+  const samePlayer = () => progress.playerId === playerId && progress.playerName === playerName && loadCloudPin() === pin;
   const cloudReady = navigator.onLine && cloudConfigured() && validCloudPin(pin) && progress.playerName;
   if (cloudReady) {
     const synced = await syncCloudNow(false);
+    if (!samePlayer()) return;
     if (!synced) {
       islandStatus = cloudSyncStatus || "雲端尚未確認最新狀態，為避免重複收成，請稍後再試。";
       renderIslandView();
@@ -919,12 +928,6 @@ async function collectIslandFacilitySafely(buildingInstanceId) {
   saveProgress(progress);
   const nextSaveCode = cloudProgressSaveCode(progress);
   try {
-    const merged = mergeProgressHighWater(progress, remote.progress);
-    if (JSON.stringify(merged) !== JSON.stringify(progress)) {
-      progress = merged;
-      saveProgress(progress);
-      localSaveCode = cloudProgressSaveCode(progress);
-    }
     const committed = await saveCloudProgressIfCurrent({
       playerId: progress.playerId,
       playerName: progress.playerName,
@@ -933,18 +936,16 @@ async function collectIslandFacilitySafely(buildingInstanceId) {
       expectedSaveCode
     });
     if (!samePlayer()) return false;
-    if (cloudProgressSaveCode(progress) !== localSaveCode) cloudSyncAgain = true;
     if (!committed) {
-      if (cloudSyncAgain) return false;
       const latestSaveCode = await loadCloudProgress(playerName, pin);
       if (!samePlayer()) return false;
-      if (cloudProgressSaveCode(progress) !== localSaveCode) { cloudSyncAgain = true; return false; }
       adoptCloudSaveCode(latestSaveCode, "這批產品已由其他裝置先收成，已同步最新狀態，未重複加入庫存。");
       return;
     }
     islandStatus = "產品已領取到島主小屋倉庫，雲端已確認這次收成。";
     renderIslandView();
   } catch (error) {
+    if (!samePlayer()) return;
     progress = previousProgress;
     island = previousIsland;
     saveProgress(progress, { touch: false });
@@ -1153,6 +1154,12 @@ function scheduleSessionSave() {
 }
 
 function render() {
+  const achievements = recordAchievementGame(progress);
+  if (achievements.changed) {
+    progress = achievements.progress;
+    saveProgress(progress, { touch: false });
+    scheduleCloudSync();
+  }
   updateGameClock();
   if (activeScreen === "island" && !showNameSetup) {
     scheduleSessionSave();
@@ -1192,7 +1199,7 @@ function render() {
             <span>🌈</span><span><strong>阿霖模式</strong><small>${game.started ? (alinMode ? "本局已鎖定・不限失誤" : "本局已鎖定・下局可開啟") : (alinMode ? "已開啟・不限失誤" : "開啟後不會失敗")}</small></span>
           </button>
           <button class="island-card" id="open-island-side"><span>🏝️</span><div><strong>建設我的小島</strong><small>${progress.island ? `${Object.keys(progress.island.tiles || {}).length} 格土地・點我進入` : "首次進入贈 100 開發金"}</small></div></button>
-          <button class="island-card achievement-island-card" id="open-achievements-side"><span>🏅</span><div><strong>成就圖鑑</strong><small>${progress.achievements?.length || 0}/${ACHIEVEMENTS.length} 個・${progress.totalStars} 顆星</small></div></button>
+          <button class="island-card achievement-island-card" id="open-achievements-side"><span>🏅</span><div><strong>成就圖鑑</strong><small>${progress.achievements?.length || 0}/${ACHIEVEMENTS.length} 階・${progress.totalStars} 顆星</small></div></button>
         </aside>
 
         <section class="board-card" aria-label="數獨遊戲">
@@ -1202,6 +1209,7 @@ function render() {
             <span class="timer-block" aria-label="經過時間，沒有時間限制"><span>⏱ <strong id="timer">${formatTime(game.elapsed)}</strong></span><small>不限時 · ${formatTime(DIFFICULTIES[game.difficulty].bonusTime)} 內 +${DIFFICULTIES[game.difficulty].bonusCoins} 🪙 <i id="freeze-time">${game.frozenSeconds ? `· 凍結 ${game.frozenSeconds}s` : ""}</i></small></span>
             <button class="icon-button" id="restart" aria-label="重新開始">↻</button>
           </div>
+          ${playerHonorsMarkup()}
           <div class="adventure-status">
             <span class="health">${alinMode ? "🌈 不限失誤" : `${"❤️".repeat(game.health)}${"🤍".repeat(Math.max(0, game.maxHealth - game.health))}`}${game.shields ? ` 🛡️${game.shields}` : ""}</span>
             ${game.floor > 1 ? `<span class="farm-badge">♻️ 探索層：55% XP・每 3 層寶物</span>` : ""}
@@ -1212,6 +1220,7 @@ function render() {
             ${avatarMarkup()}
           </div>
           <div class="board-stage">
+            ${decorationMarkup(equippedAchievementReward(progress, "boardDecoration")?.achievement)}
             <div class="sudoku-board ${game.started ? "" : "waiting"}" role="grid" aria-label="${game.started ? "數獨盤面" : "按下開始後顯示題目"}">
             ${game.values.map((value, index) => {
               const fixed = game.puzzle[index] !== 0;
@@ -1287,6 +1296,7 @@ function completionModal() {
     <p class="cloud-result">${leaderboardConfigured() ? "🏆 成績已加入全球排行同步佇列" : "🏆 排行榜等待連接資料庫"}</p>
     ${game.floor > 1 ? `<p class="farm-reward-note">探索層採 55% 經驗；下一局前往第 ${nextFloor} 層</p>` : ""}
     ${game.timeBonus ? `<p class="speed-bonus">⚡ 目標時間內完成，速度獎勵 +${game.timeBonus} 金幣</p>` : `<p class="speed-bonus calm">慢慢玩也很好，關卡沒有時間限制</p>`}
+    ${(game.unlockedAchievementIds || []).length ? `<section class="completion-achievements"><strong>🏅 本局解鎖 ${game.unlockedAchievementIds.length} 個階段</strong><ul>${game.unlockedAchievementIds.map(achievementById).filter(Boolean).map((stage)=>`<li>${stage.icon} ${escapeHtml(stage.name)}<small>${escapeHtml(achievementRewardText(stage))}</small></li>`).join("")}</ul><button id="open-completion-achievements" class="secondary-button">查看成就與外觀</button></section>` : ""}
     <div class="card-draw"><strong>${game.remainingClaims ? `選擇 ${game.remainingClaims} 張寶物卡帶走` : game.claimedCards.length ? "寶物已放進背包" : `本層沒有寶物・第 ${Math.ceil((game.floor + 1) / 3) * 3} 層再次掉落`}</strong><div>
       ${game.cardChoices.map((cardId) => {
         const card = TREASURE_CARDS[cardId];
@@ -1298,20 +1308,114 @@ function completionModal() {
   </section></div>`;
 }
 
+const COSMETIC_NAMES = { badge: "勳章", title: "稱號", avatarFrame: "頭像框", boardDecoration: "棋盤角飾" };
+
+function decorationMarkup(stage) {
+  if (!stage) return "";
+  const patterns = {
+    voyage: '<path d="m3 7 8-4 10 4 8-4v23l-8 4-10-4-8 4ZM11 3v23M21 7v23"/>',
+    stars: '<path d="m16 2 4 9 10 1-8 7 2 11-8-6-8 6 2-11-8-7 10-1Z"/>',
+    perfect: '<path d="m16 2 13 14-13 14L3 16ZM3 16h26M16 2v28M9 9l14 14M23 9 9 23"/>',
+    accuracy: '<circle cx="16" cy="16" r="13"/><circle cx="16" cy="16" r="7"/><path d="M16 1v8M16 23v8M1 16h8M23 16h8"/>',
+    selfReliant: '<path d="M9 28h14L20 10h-8ZM8 10h16L16 3ZM4 6l-2-2M27 6l3-2M12 20h8"/>',
+    barehand: '<path d="M3 15V3h12M17 29h12V17M8 15V8h7M17 24h7v-7"/>',
+    pure: '<path d="M4 4h24v24H4ZM12 4v24M20 4v24M4 12h24M4 20h24"/><path d="m16 12 4 4-4 4-4-4Z"/>',
+    hard: '<path d="M16 2c3 8 11 10 11 18a11 11 0 0 1-22 0c0-5 4-7 5-11 1 6 3 8 5 8 3-4 2-9 1-15Z"/>',
+    hardPure: '<path d="m7 27 18-18 2-6-6 2L3 23M12 16l5 5M5 25l2 2M17 4l2-2"/>',
+    mental: '<path d="M4 4h24v24H4ZM12 4v24M20 4v24M4 12h24M4 20h24M6 8h3M23 24h3"/>',
+    speed: '<path d="M2 10h20c8 0 8-8 2-8M2 16h25M2 22h18c9 0 9 8 3 8"/>',
+    hardSpeed: '<path d="M19 2 5 18h10l-2 12 14-18H17Z"/>',
+    lastHeart: '<circle cx="16" cy="6" r="4"/><path d="M16 10v19M8 15h16M3 20c0 12 26 12 26 0M3 20l5 3M29 20l-5 3"/>',
+    alin: '<path d="M3 27v-9a13 13 0 0 1 26 0v9M8 27v-9a8 8 0 0 1 16 0v9M13 27v-9a3 3 0 0 1 6 0v9"/>',
+    allModes: '<circle cx="16" cy="16" r="13"/><path d="m16 4 4 12-4 12-4-12ZM4 16h24"/>'
+  };
+  return `<div class="achievement-ornaments ornament-tier-${stage.tier}" style="--achievement-color:${stage.color}" aria-hidden="true">${[0,1,2,3].map((corner) => `<span class="ornament-${corner}"><svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${patterns[stage.seriesId]}</svg></span>`).join("")}</div>`;
+}
+
+function playerHonorsMarkup() {
+  const title = equippedAchievementReward(progress, "title");
+  const badge = equippedAchievementReward(progress, "badge");
+  if (!title && !badge) return "";
+  return `<div class="player-honors"><span>${escapeHtml(progress.playerName)}</span>${title ? `<strong style="color:${title.achievement.color}">${escapeHtml(title.label)}</strong>` : ""}${badge ? `<span class="honor-badge" title="${escapeHtml(badge.label)}" style="--achievement-color:${badge.achievement.color}">${badge.achievement.icon}<small>${escapeHtml(badge.achievement.name)}</small></span>` : ""}</div>`;
+}
+
+function achievementPreviewMarkup(stage) {
+  if (!stage) return "";
+  const unlocked = progress.achievements.includes(stage.id);
+  return `<section class="achievement-preview" aria-label="外觀預覽">
+    <div class="cosmetic-sample" style="--achievement-color:${stage.color};--frame-symbol:'${stage.icon}'">
+      <span class="sample-avatar ${stage.rewards.avatarFrame ? `achievement-frame frame-tier-${stage.tier}` : ""}">${avatarStickerMarkup(progress.playerAvatar || "cat")}</span>
+      <div class="sample-board">${Array.from({ length:9 }, (_,i) => `<span>${i+1}</span>`).join("")}${stage.rewards.boardDecoration ? decorationMarkup(stage) : ""}</div>
+    </div>
+    <div><small>第 ${stage.tier} 階 · ${unlocked ? "已收藏" : "預覽，達標後可使用"}</small><h3>${stage.icon} ${escapeHtml(stage.name)}</h3>
+    <p>${escapeHtml(achievementRewardText(stage))}</p>
+    <div class="achievement-equip-actions">${Object.keys(COSMETIC_NAMES).filter((type) => stage.rewards[type]).map((type) => {
+      const current = equippedAchievementReward(progress, type)?.achievement.id === stage.id;
+      return `<button data-achievement-equip="${type}" data-achievement-id="${stage.id}" ${unlocked ? "" : "disabled"} aria-pressed="${current}">${current ? "已使用" : "使用"}${COSMETIC_NAMES[type]}</button>`;
+    }).join("")}</div></div>
+  </section>`;
+}
+
 function achievementModal() {
   const unlocked = new Set(progress.achievements || []);
-  const stats = progress.achievementStats || {};
+  const stats = normalizeAchievementStats(progress);
+  const summaries = ACHIEVEMENT_SERIES.map((series) => ({ series, ...achievementSeriesProgress(progress, series, stats) }));
+  const near = summaries.filter((item) => item.next).sort((a,b) => (b.value/b.next.target) - (a.value/a.next.target)).slice(0,3);
+  const visible = summaries.filter(({series,earned,next}) => (achievementCategory === "all" || achievementCategory === series.category)
+    && (achievementFilter === "all" || (achievementFilter === "incomplete" ? next : earned.length)));
+  const preview = achievementById(achievementPreviewId);
+  const collection = achievementCategory === "collection";
   return `<div class="modal-backdrop"><section class="modal achievement-modal" role="dialog" aria-modal="true" aria-labelledby="achievement-title">
-    <div class="celebrate">🏅</div><h2 id="achievement-title">小島成就圖鑑</h2>
-    <p>永久成就只需解鎖一次，獎勵會直接加入金幣。</p>
-    <div class="achievement-summary"><span>🎮 ${progress.completedGames} 局</span><span>💎 ${stats.perfectGames || 0} 完美</span><span>⚡ ${stats.speedGames || 0} 速解</span><span>🌈 ${stats.alinGames || 0} 阿霖</span></div>
-    <div class="achievement-grid">${ACHIEVEMENTS.map((achievement) => {
-      const done = unlocked.has(achievement.id);
-      const value = achievementValue(progress, achievement);
-      return `<article class="achievement-card ${done ? "unlocked" : "locked"}"><span>${done ? achievement.icon : "🔒"}</span><div><strong>${achievement.name}</strong><small>${achievement.description}</small><i><b style="width:${Math.round(value / achievement.target * 100)}%"></b></i><em>${value}/${achievement.target}・🪙 ${achievement.coins}</em></div></article>`;
-    }).join("")}</div>
-    <button id="close-achievements" class="primary-button">回到遊戲</button>
+    <header class="achievement-header"><div><p class="eyebrow">ACHIEVEMENTS · V2</p><h2 id="achievement-title">我的成就航程</h2></div><button id="close-achievements" class="icon-button" aria-label="關閉成就圖鑑">✕</button></header>
+    <p class="achievement-intro">${ACHIEVEMENT_SERIES.length} 個系列 · 已收藏 ${unlocked.size}/${ACHIEVEMENTS.length} 階<br>一路累積，逐階解鎖；每階獎勵領一次，進度不歸零。</p>
+    <nav class="achievement-tabs" aria-label="成就分類">${[{id:"all",icon:"🏅",name:"全部"},...ACHIEVEMENT_CATEGORIES,{id:"collection",icon:"🎨",name:"我的收藏"}].map((category)=>`<button data-achievement-category="${category.id}" aria-pressed="${achievementCategory===category.id}">${category.icon} ${category.name}</button>`).join("")}</nav>
+    ${preview ? achievementPreviewMarkup(preview) : ""}
+    ${collection ? `<section class="cosmetic-collection"><h3>搭配我的外觀</h3><p>勳章、稱號、頭像框與棋盤角飾可各選一款。選擇後自動保存。</p>${Object.entries(COSMETIC_NAMES).map(([type,label]) => {
+      const options = ACHIEVEMENTS.filter((stage) => unlocked.has(stage.id) && stage.rewards[type]);
+      const current = equippedAchievementReward(progress,type)?.achievement.id || "";
+      return `<label>${label}<select data-achievement-select="${type}" aria-label="${label}"><option value="">不使用${label}</option>${options.map((stage)=>`<option value="${stage.id}" ${current===stage.id?"selected":""}>${escapeHtml(stage.rewards[type])}</option>`).join("")}</select></label>`;
+    }).join("")}<div class="collection-badges">${ACHIEVEMENTS.filter((stage)=>unlocked.has(stage.id)).map((stage)=>`<button data-achievement-preview="${stage.id}" title="${escapeHtml(stage.name)}" style="--achievement-color:${stage.color}"><b>${stage.icon}</b><span>${escapeHtml(stage.name)}</span><small>第 ${stage.tier} 階</small></button>`).join("") || '<p>完成第一局，就能收藏第一枚勳章。</p>'}</div></section>` : `
+    ${achievementCategory==="all" && near.length ? `<div class="achievement-near"><strong>下一站</strong>${near.map((item)=>`<button data-achievement-jump="${item.series.id}">${item.series.icon} ${escapeHtml(item.next.name)} <b>${item.value}/${item.next.target}</b></button>`).join("")}</div>` : ""}
+    <label class="achievement-filter">顯示<select id="achievement-filter"><option value="all" ${achievementFilter==="all"?"selected":""}>所有系列</option><option value="incomplete" ${achievementFilter==="incomplete"?"selected":""}>尚未滿階</option><option value="earned" ${achievementFilter==="earned"?"selected":""}>已有收藏</option></select></label>
+    <div class="achievement-series-list">${visible.map(({series,earned,next,current,value})=>`<details class="achievement-series ${next?"":"complete"}" data-achievement-series="${series.id}" ${achievementOpenSeries.has(series.id)?"open":""}>
+      <summary><span class="series-emblem" style="--achievement-color:${(current||series.stages[0]).color}">${series.icon}<small>${earned.length}/${series.stages.length} 階</small></span><span class="series-overview"><strong>${series.name}</strong><span>${current ? `目前：${escapeHtml(current.name)}` : "尚未啟航"}</span><b>${next ? `下一階：${escapeHtml(next.name)} · ${value}/${next.target}` : "全階完成，收藏圓滿！"}</b><progress max="${(next||series.stages.at(-1)).target}" value="${value}" aria-label="${series.name}下一階進度"></progress></span><span class="series-expand" aria-hidden="true">⌄</span></summary>
+      <p class="series-rule">${escapeHtml(series.rule)}</p>
+      <ol class="achievement-stage-list">${series.stages.map((stage)=>`<li class="achievement-stage ${unlocked.has(stage.id)?"unlocked":"locked"}" style="--achievement-color:${stage.color}"><span class="stage-medal">${unlocked.has(stage.id)?stage.icon:"🔒"}<small>${stage.target}</small></span><div><strong>第 ${stage.tier} 階 · ${escapeHtml(stage.name)}</strong><p>${escapeHtml(stage.description)}</p><small>${escapeHtml(achievementRewardText(stage))}</small><span class="stage-status">${unlocked.has(stage.id)?"✓ 已收藏":`${achievementValue(progress,stage,stats)}/${stage.target}`}</span></div><button data-achievement-preview="${stage.id}">預覽</button></li>`).join("")}</ol>
+    </details>`).join("") || '<p class="achievement-empty">這個分類目前沒有符合條件的系列。</p>'}</div>`}
   </section></div>`;
+}
+
+function bindAchievementEvents() {
+  document.querySelector(".achievement-modal")?.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") { event.preventDefault(); closeAchievements(); }
+    if (event.key !== "Tab") return;
+    const controls = [...event.currentTarget.querySelectorAll("button:not(:disabled), select, summary")].filter((element) => element.getClientRects().length);
+    const first = controls[0], last = controls.at(-1);
+    if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+    else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+  });
+  const rerender = (keepScroll = false) => {
+    const top = document.querySelector(".achievement-modal")?.scrollTop || 0;
+    const active = document.activeElement;
+    const attribute = ["data-achievement-select", "data-achievement-equip", "data-achievement-category"].find((key) => active?.hasAttribute(key));
+    const selector = attribute ? `[${attribute}="${active.getAttribute(attribute)}"]` : active?.id ? `#${active.id}` : "#close-achievements";
+    render();
+    document.querySelector(selector)?.focus({ preventScroll: true });
+    if (keepScroll) document.querySelector(".achievement-modal").scrollTop = top;
+  };
+  document.querySelectorAll("[data-achievement-series]").forEach((details) => details.addEventListener("toggle", () => {
+    if (details.open) achievementOpenSeries.add(details.dataset.achievementSeries);
+    else achievementOpenSeries.delete(details.dataset.achievementSeries);
+  }));
+  document.querySelectorAll("[data-achievement-category]").forEach((button) => button.addEventListener("click", () => { achievementCategory = button.dataset.achievementCategory; achievementPreviewId = ""; rerender(); }));
+  document.querySelector("#achievement-filter")?.addEventListener("change", (event) => { achievementFilter = event.target.value; rerender(); });
+  document.querySelectorAll("[data-achievement-preview]").forEach((button) => button.addEventListener("click", () => { achievementPreviewId = button.dataset.achievementPreview; rerender(); document.querySelector(".achievement-preview")?.scrollIntoView({block:"nearest"}); }));
+  document.querySelectorAll("[data-achievement-equip]").forEach((button) => button.addEventListener("click", () => { progress = equipAchievementReward(progress, button.dataset.achievementEquip, button.dataset.achievementId); saveProgress(progress); rerender(true); }));
+  document.querySelectorAll("[data-achievement-select]").forEach((select) => select.addEventListener("change", () => { progress = equipAchievementReward(progress, select.dataset.achievementSelect, select.value); saveProgress(progress); achievementPreviewId = select.value; rerender(true); }));
+  document.querySelectorAll("[data-achievement-jump]").forEach((button) => button.addEventListener("click", () => {
+    achievementFilter = "all"; achievementOpenSeries.add(button.dataset.achievementJump); rerender();
+    document.querySelector(`[data-achievement-series="${button.dataset.achievementJump}"]`)?.scrollIntoView({block:"nearest"});
+  }));
 }
 
 function nameSetupModal() {
@@ -1493,6 +1597,7 @@ function updateBoard({ save = true } = {}) {
 }
 
 function bindEvents() {
+  bindAchievementEvents();
   document.querySelectorAll("[data-cell]").forEach((button) => button.addEventListener("click", () => { game.selected = Number(button.dataset.cell); updateBoard({ save: false }); }));
   document.querySelectorAll("[data-number]").forEach((button) => button.addEventListener("click", () => enterNumber(Number(button.dataset.number))));
   document.querySelectorAll("[data-difficulty]").forEach((button) => button.addEventListener("click", () => { if (!game.started) newGame(button.dataset.difficulty); }));
@@ -1522,7 +1627,8 @@ function bindEvents() {
   document.querySelector("#open-start-achievements")?.addEventListener("click", openAchievements);
   document.querySelector("#open-achievements-side")?.addEventListener("click", openAchievements);
   document.querySelector("#open-achievements")?.addEventListener("click", openAchievements);
-  document.querySelector("#close-achievements")?.addEventListener("click", () => { showAchievements = false; render(); });
+  document.querySelector("#open-completion-achievements")?.addEventListener("click", openAchievements);
+  document.querySelector("#close-achievements")?.addEventListener("click", closeAchievements);
   document.querySelector("#close-leaderboard")?.addEventListener("click", () => { showLeaderboard = false; render(); });
   document.querySelectorAll("[data-rank-difficulty]").forEach((button) => button.addEventListener("click", () => changeLeaderboardDifficulty(button.dataset.rankDifficulty)));
   document.querySelector("#save-leaderboard-taunt")?.addEventListener("click", saveLeaderboardTaunt);
@@ -1564,8 +1670,16 @@ function openSaveCenter() {
 }
 
 function openAchievements() {
+  achievementReturnFocusId = document.activeElement?.id || "open-achievements";
   showAchievements = true;
   render();
+  document.querySelector("#close-achievements")?.focus({ preventScroll: true });
+}
+
+function closeAchievements() {
+  showAchievements = false;
+  render();
+  document.getElementById(achievementReturnFocusId)?.focus({ preventScroll: true });
 }
 
 function playerSetupValues() {
@@ -2157,6 +2271,7 @@ function reviveWithCoins() {
 }
 
 function resumeAfterRevive(health = 2, source = null) {
+  game.revivesUsed = (game.revivesUsed || 0) + 1;
   game.failed = false;
   game.health = Math.min(health, game.maxHealth);
   startTimer();
@@ -2186,18 +2301,13 @@ function checkCompletion() {
     return;
   }
   progress = rewardProgress(progress, settlement.xpReward, settlement.timeBonus, settlement.stars, completedDifficulty, game.floor, { persist: false, runId: game.runId });
-  const achievementResult = recordAchievementGame(progress, {
-    perfect: settlement.perfect,
-    speed: settlement.speed,
-    alin: settlement.alin
-  });
+  const achievementResult = recordAchievementGame(progress, settlement);
+  game.unlockedAchievementIds = achievementResult.unlocked.map((stage) => stage.id);
   progress = achievementResult.progress;
   // Belt-and-suspenders: next floor is always at least completed + 1.
   progress = raiseFloorProgress(progress, completedDifficulty, nextFloorFromCompleted(game.floor));
   saveProgress(progress, { settledSession: sessionSnapshot() });
-  achievementResult.unlocked.forEach((achievement, index) => {
-    effectTimeout(() => showCelebration(achievement.icon, `永久成就・${achievement.name}`, `${achievement.description}・🪙 +${achievement.coins}`), 3500 + index * 450);
-  });
+  if (achievementResult.unlocked.length) effectTimeout(() => showCelebration("🏅", `解鎖 ${achievementResult.unlocked.length} 個成就階段`, "稱號與外觀已收藏，可在成就圖鑑查看"), 3500);
   clearSession();
   // Upload the completed floor (game.floor), not the next-floor counter.
   queueLeaderboardScore(buildScore(progress, game, alinMode, { appVersion: APP_VERSION }))
@@ -2380,5 +2490,5 @@ window.addEventListener("online", () => {
 flushPendingScores().catch(() => {});
 
 if ("serviceWorker" in navigator && location.protocol !== "file:") {
-  navigator.serviceWorker.register(new URL("sw.js?v=v59", document.baseURI), { updateViaCache: "none" }).catch(() => {});
+  navigator.serviceWorker.register(new URL("sw.js?v=v60", document.baseURI), { updateViaCache: "none" }).catch(() => {});
 }

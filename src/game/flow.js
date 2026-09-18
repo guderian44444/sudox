@@ -3,7 +3,7 @@
  * Mutates the game object and returns structured events for the UI layer.
  * Also owns the full runtime game factory + session normalization (P2).
  */
-import { createGame, DIFFICULTIES, relatedCells, validSudokuGrid } from "./sudoku.js?v=v59";
+import { createGame, DIFFICULTIES, relatedCells, validSudokuGrid } from "./sudoku.js?v=v60";
 import {
   ADVENTURE_RULES,
   calculateStars,
@@ -12,7 +12,7 @@ import {
   newlyCompletedSudokuUnits,
   treasureClaimsForFloor,
   TREASURE_CARDS
-} from "./adventure.js?v=v59";
+} from "./adventure.js?v=v60";
 
 const DIFFICULTY_IDS = new Set(Object.keys(DIFFICULTIES));
 
@@ -124,6 +124,11 @@ export function createAdventureFields(difficulty, equippedCards = []) {
     actions: 0,
     correctStreak: 0,
     solvedCells: [],
+    achievementTrackingVersion: 2,
+    noteActions: 0,
+    candidateAssists: 0,
+    minHealth: rules.maxHealth,
+    revivesUsed: 0,
     healGoals: { streak: false, row: false, box: false },
     completedUnits: { rows: [], columns: [], boxes: [] },
     milestones: [],
@@ -183,6 +188,11 @@ export function normalizeRuntimeGame(raw, { allowTerminal = false } = {}) {
   const health = clampInt(raw.health, 0, maxHealth, failed ? 0 : maxHealth);
   const game = {
     difficulty,
+    achievementTrackingVersion: raw.achievementTrackingVersion === 2 && [raw.noteActions, raw.candidateAssists, raw.minHealth, raw.revivesUsed].every((value) => Number.isInteger(value) && value >= 0) ? 2 : 0,
+    noteActions: clampInt(raw.noteActions, 0, 1_000_000, 0),
+    candidateAssists: clampInt(raw.candidateAssists, 0, 1000, 0),
+    minHealth: clampInt(raw.minHealth, 0, maxHealth, maxHealth),
+    revivesUsed: clampInt(raw.revivesUsed, 0, 1000, 0),
     runId: typeof raw.runId === "string" && raw.runId.length > 0 && raw.runId.length <= 160 ? raw.runId : `legacy-${raw.startedAt}-${raw.puzzle.join("")}`,
     puzzle: [...raw.puzzle],
     solution: [...raw.solution],
@@ -224,6 +234,7 @@ export function normalizeRuntimeGame(raw, { allowTerminal = false } = {}) {
 
   // Optional reward fields may exist after completion (allowTerminal).
   if (allowTerminal && completed) {
+    game.unlockedAchievementIds = Array.isArray(raw.unlockedAchievementIds) ? raw.unlockedAchievementIds.filter((id) => typeof id === "string" && /^[a-zA-Z][a-zA-Z0-9]{0,40}$/.test(id)).slice(0, 150) : [];
     if (Number.isInteger(raw.stars)) game.stars = clampInt(raw.stars, 1, 3, 1);
     if (Number.isFinite(Number(raw.xpReward))) game.xpReward = Math.max(0, Math.round(Number(raw.xpReward)));
     if (Number.isFinite(Number(raw.timeBonus))) game.timeBonus = Math.max(0, Math.round(Number(raw.timeBonus)));
@@ -294,6 +305,7 @@ export function applyPlayerDigit(game, number, { noteMode = false, alinMode = fa
   if (!canEditCell(game, index) || !Number.isInteger(number) || number < 1 || number > 9 || game.values[index]) return { type: "noop" };
 
   if (noteMode) {
+    game.noteActions = (game.noteActions || 0) + 1;
     const notes = new Set(game.notes[index]);
     if (notes.has(number)) notes.delete(number);
     else notes.add(number);
@@ -313,6 +325,7 @@ export function applyPlayerDigit(game, number, { noteMode = false, alinMode = fa
       } else {
         game.health -= 1;
       }
+      game.minHealth = Math.min(game.minHealth ?? game.maxHealth, game.health);
       if (game.health <= 0) game.failed = true;
     }
     return { type: "mistake", index, number, blockedByShield, failed: Boolean(game.failed) };
@@ -441,7 +454,17 @@ export function settleCompletedGame(game, { alinMode = false } = {}) {
     ? drawTreasureCards(game.difficulty, game.stars, Math.max(3, game.remainingClaims))
     : [];
 
+  const tracked = game.achievementTrackingVersion === 2;
+  const barehand = tracked && !game.equippedCards.length && !game.usedCards.length && !game.revivesUsed;
   return {
+    runId: game.runId,
+    mode: alinMode ? "alin" : game.difficulty,
+    noMistake: game.mistakes === 0,
+    noHint: game.hintsUsed === 0,
+    barehand,
+    pure: game.mistakes === 0 && game.hintsUsed === 0 && barehand,
+    noNotes: tracked && game.noteActions === 0 && game.candidateAssists === 0 && game.hintsUsed === 0,
+    lastHeart: tracked && !alinMode && game.minHealth === 1 && game.revivesUsed === 0,
     stars: game.stars,
     xpReward: game.xpReward,
     timeBonus: game.timeBonus,
