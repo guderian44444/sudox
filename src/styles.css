@@ -767,3 +767,7 @@ button:focus-visible { outline: 3px solid #4f9dd9; outline-offset: 2px; }
   .game-effect.mistake .effect-character { transform: none; }
   .game-effect.mistake.has-friends .effect-character { transform: none; }
 }
+
+.game-paused .sudoku-board { visibility: hidden; }
+#storage-warning { position: fixed; z-index: 10000; bottom: 12px; left: 12px; right: 12px; padding: 12px; background: #fff0cf; color: #653f00; border: 2px solid #c77b10; border-radius: 12px; display: flex; align-items: center; gap: 12px; }
+#storage-warning button { flex-shrink: 0; padding: 8px; }

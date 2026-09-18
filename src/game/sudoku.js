@@ -71,73 +71,67 @@ export function generatePuzzle(difficulty = "easy") {
   return { puzzle, solution };
 }
 
-export function solveSudoku(values) {
-  const grid = [...values];
-  const findEmpty = () => grid.findIndex((value) => value === 0);
-  const isValid = (index, value) => {
-    const row = Math.floor(index / 9);
-    const col = index % 9;
-    for (let i = 0; i < 9; i += 1) {
-      if (grid[row * 9 + i] === value || grid[i * 9 + col] === value) return false;
-    }
-    const startRow = Math.floor(row / 3) * 3;
-    const startCol = Math.floor(col / 3) * 3;
-    for (let r = startRow; r < startRow + 3; r += 1) {
-      for (let c = startCol; c < startCol + 3; c += 1) {
-        if (grid[r * 9 + c] === value) return false;
-      }
-    }
+export function validSudokuGrid(values, allowZero = true) {
+  if (!Array.isArray(values) || values.length !== 81) return false;
+  const rows = Array(9).fill(0), columns = Array(9).fill(0), boxes = Array(9).fill(0);
+  return values.every((value, index) => {
+    if (!Number.isInteger(value) || value < (allowZero ? 0 : 1) || value > 9) return false;
+    if (!value) return true;
+    const row = Math.floor(index / 9), column = index % 9, box = Math.floor(row / 3) * 3 + Math.floor(column / 3);
+    const bit = 1 << value;
+    if ((rows[row] | columns[column] | boxes[box]) & bit) return false;
+    rows[row] |= bit; columns[column] |= bit; boxes[box] |= bit;
     return true;
-  };
-  const fill = () => {
-    const index = findEmpty();
-    if (index === -1) return true;
-    for (let value = 1; value <= 9; value += 1) {
-      if (!isValid(index, value)) continue;
-      grid[index] = value;
-      if (fill()) return true;
-      grid[index] = 0;
+  });
+}
+
+// Choose the most constrained cell first; share one solver for generation and validation.
+function searchSolutions(values, limit) {
+  if (!validSudokuGrid(values)) return { count: 0, solution: null };
+  const grid = [...values];
+  const rows = Array(9).fill(0), columns = Array(9).fill(0), boxes = Array(9).fill(0);
+  const empty = [];
+  grid.forEach((value, index) => {
+    const row = Math.floor(index / 9), column = index % 9, box = Math.floor(row / 3) * 3 + Math.floor(column / 3);
+    if (!value) empty.push({ index, row, column, box });
+    else { rows[row] |= 1 << value; columns[column] |= 1 << value; boxes[box] |= 1 << value; }
+  });
+  let count = 0, solution = null;
+  function search(depth) {
+    if (count >= limit) return;
+    if (depth === empty.length) { count++; solution ||= [...grid]; return; }
+    let best = depth, mask = 0, fewest = 10;
+    for (let i = depth; i < empty.length; i++) {
+      const { row, column, box } = empty[i];
+      const candidates = 0x3fe & ~(rows[row] | columns[column] | boxes[box]);
+      let bits = candidates, size = 0;
+      while (bits) { bits &= bits - 1; size++; }
+      if (size < fewest) { best = i; mask = candidates; fewest = size; }
+      if (size <= 1) break;
     }
-    return false;
-  };
-  fill();
-  return grid;
+    if (!mask) return;
+    [empty[depth], empty[best]] = [empty[best], empty[depth]];
+    const { index, row, column, box } = empty[depth];
+    while (mask && count < limit) {
+      const bit = mask & -mask; mask ^= bit;
+      grid[index] = Math.log2(bit);
+      rows[row] |= bit; columns[column] |= bit; boxes[box] |= bit;
+      search(depth + 1);
+      rows[row] ^= bit; columns[column] ^= bit; boxes[box] ^= bit;
+    }
+    grid[index] = 0;
+    [empty[depth], empty[best]] = [empty[best], empty[depth]];
+  }
+  search(0);
+  return { count, solution };
+}
+
+export function solveSudoku(values) {
+  return searchSolutions(values, 1).solution || [...values];
 }
 
 export function countSolutions(values, limit = 2) {
-  const grid = [...values];
-  let solutions = 0;
-  const isValid = (index, value) => {
-    const row = Math.floor(index / 9);
-    const col = index % 9;
-    for (let i = 0; i < 9; i += 1) {
-      if (grid[row * 9 + i] === value || grid[i * 9 + col] === value) return false;
-    }
-    const startRow = Math.floor(row / 3) * 3;
-    const startCol = Math.floor(col / 3) * 3;
-    for (let r = startRow; r < startRow + 3; r += 1) {
-      for (let c = startCol; c < startCol + 3; c += 1) {
-        if (grid[r * 9 + c] === value) return false;
-      }
-    }
-    return true;
-  };
-  const search = () => {
-    if (solutions >= limit) return;
-    const index = grid.findIndex((value) => value === 0);
-    if (index === -1) {
-      solutions += 1;
-      return;
-    }
-    for (let value = 1; value <= 9; value += 1) {
-      if (!isValid(index, value)) continue;
-      grid[index] = value;
-      search();
-      grid[index] = 0;
-    }
-  };
-  search();
-  return solutions;
+  return searchSolutions(values, Math.max(1, Math.floor(limit) || 2)).count;
 }
 
 export function createGame(difficulty = "easy") {

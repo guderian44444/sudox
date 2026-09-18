@@ -1,5 +1,8 @@
-import { DIFFICULTIES, relatedCells } from "./game/sudoku.js?v=v58";
-import { activateAutomaticTreasures, ADVENTURE_RULES, applyHintTreasure, applyImmediateTreasure, strongestEquippedRevive, sudokuUnitCells, TREASURE_AUTO_EFFECTS, TREASURE_CARDS } from "./game/adventure.js?v=v58";
+import { playSound, resumeAudio, setSoundEnabled, stopAudio } from "./game/audio.js?v=v59";
+import { advanceGameClock } from "./game/timer.js?v=v59";
+import { readLocal, writeLocal, storageWarning, retryLocalWrites } from "./state/storage.js?v=v59";
+import { DIFFICULTIES, relatedCells } from "./game/sudoku.js?v=v59";
+import { activateAutomaticTreasures, ADVENTURE_RULES, applyHintTreasure, applyImmediateTreasure, strongestEquippedRevive, sudokuUnitCells, TREASURE_AUTO_EFFECTS, TREASURE_CARDS } from "./game/adventure.js?v=v59";
 import {
   applyHintFill,
   applyPlayerDigit,
@@ -11,21 +14,21 @@ import {
   removeRelatedNotes,
   RUN_MILESTONES,
   settleCompletedGame
-} from "./game/flow.js?v=v58";
-import { ACHIEVEMENTS, achievementValue, recordAchievementGame } from "./game/achievements.js?v=v58";
-import { chooseFriendPair, chooseGardenEel, choosePartyFriends, FRIEND_ROSTER, nextDanceVariants } from "./game/friends.js?v=v58";
-import { ISLAND_TEST_MODE } from "./island/catalog.js?v=v58";
-import { availableInventoryQuantity, dismissIslandLetter, availableConstructionWorkerIds, availableHelperIds, collectFacility, createIslandState, finishIslandWork, hireConstructionHelper, marketSale, normalizeIslandState, selectSourceRecipe, settleIsland, startBuilding, startDemolition, startHomeUpgrade, startProcessing, startReclamation } from "./island/model.js?v=v58";
-import { DEMO_ISLAND_PARTNERS, dispatchDemoShipment, LOGISTICS_METHODS, mergeCloudLogistics, networkProfileSnapshot, normalizeIslandPartner, partnerLogisticsOffers, recordDispatchedShipment, shipmentQuote } from "./island/logistics.js?v=v58";
-import { formatIslandDuration, renderIslandScreen } from "./island/renderer.js?v=v58";
-import { cloudConfigured, loadCloudPin, loadCloudProgress, normalizePlayerName, renameCloudPlayer, saveCloudPin, saveCloudProgress, saveCloudProgressIfCurrent, validCloudPin } from "./state/cloud.js?v=v58";
-import { acknowledgeIslandLogistics, dispatchIslandShipment, getIslandLogistics, listIslandPartners, publishIslandNetwork } from "./state/island-cloud.js?v=v58";
-import { buildScore, fetchLeaderboard, fetchPlayerLeaderboardRows, flushPendingScores, leaderboardConfigured, normalizeLeaderboardTaunt, pendingScoreCount, queueLeaderboardScore, updateLeaderboardAvatar, updateLeaderboardTaunt } from "./state/leaderboard.js?v=v58";
-import { addCard, clearSession, consumeCard, exportSaveCode, importSaveCode, loadProgress, loadSession, mergeProgressHighWater, nextFloorFromCompleted, parseSaveCode, preferSaveSide, raiseFloorProgress, reconcileFloorsFromLeaderboardRows, rewardProgress, saveProgress, saveSession, saveTimestampMs, sessionFloorBehindProgress, spendCoins } from "./state/store.js?v=v58";
+} from "./game/flow.js?v=v59";
+import { ACHIEVEMENTS, achievementValue, recordAchievementGame } from "./game/achievements.js?v=v59";
+import { chooseFriendPair, chooseGardenEel, choosePartyFriends, FRIEND_ROSTER, nextDanceVariants } from "./game/friends.js?v=v59";
+import { ISLAND_TEST_MODE } from "./island/catalog.js?v=v59";
+import { availableInventoryQuantity, dismissIslandLetter, availableConstructionWorkerIds, availableHelperIds, collectFacility, createIslandState, finishIslandWork, hireConstructionHelper, marketSale, normalizeIslandState, selectSourceRecipe, settleIsland, startBuilding, startDemolition, startHomeUpgrade, startProcessing, startReclamation } from "./island/model.js?v=v59";
+import { DEMO_ISLAND_PARTNERS, dispatchDemoShipment, LOGISTICS_METHODS, mergeCloudLogistics, networkProfileSnapshot, normalizeIslandPartner, partnerLogisticsOffers, recordDispatchedShipment, shipmentQuote } from "./island/logistics.js?v=v59";
+import { formatIslandDuration, renderIslandScreen } from "./island/renderer.js?v=v59";
+import { cloudConfigured, loadCloudPin, loadCloudProgress, normalizePlayerName, renameCloudPlayer, saveCloudPin, saveCloudProgress, saveCloudProgressIfCurrent, validCloudPin } from "./state/cloud.js?v=v59";
+import { acknowledgeIslandLogistics, dispatchIslandShipment, getIslandLogistics, listIslandPartners, publishIslandNetwork } from "./state/island-cloud.js?v=v59";
+import { buildScore, fetchLeaderboard, fetchPlayerLeaderboardRows, flushPendingScores, leaderboardConfigured, normalizeLeaderboardTaunt, pendingScoreCount, queueLeaderboardScore, updateLeaderboardAvatar, updateLeaderboardTaunt } from "./state/leaderboard.js?v=v59";
+import { addCard, clearSession, consumeCard, exportSaveCode, importSaveCode, loadProgress, loadSession, mergeProgressHighWater, nextFloorFromCompleted, parseSaveCode, preferSaveSide, raiseFloorProgress, reconcileFloorsFromLeaderboardRows, rewardProgress, saveProgress, saveSession, saveTimestampMs, sessionFloorBehindProgress, spendCoins } from "./state/store.js?v=v59";
 
 const app = document.querySelector("#app");
-const APP_VERSION = "v58";
-const APP_LAST_UPDATED = "2026-08-13T20:37:14+08:00";
+const APP_VERSION = "v59";
+const APP_LAST_UPDATED = "2026-09-18T21:27:16+08:00";
 let progress = loadProgress();
 const migratedAchievements = recordAchievementGame(progress);
 progress = migratedAchievements.progress;
@@ -49,9 +52,14 @@ let nameSetupStatus = "";
 let cloudSyncStatus = "";
 let cloudSyncTimer;
 let cloudSyncInFlight = null;
+let cloudSyncAgain = false;
 let cloudHydrationPending = cloudConfigured() && Boolean(progress.playerName) && validCloudPin(loadCloudPin());
 let equippedCards = restoredSession?.equippedCards || [];
 let timerId;
+let sessionSaveTimer;
+let timerLastTick = performance.now();
+let timerWasActive = false;
+const effectTimers = new Set();
 let celebrationId = 0;
 let gameEffectQueue = [];
 let gameEffectActive = false;
@@ -59,8 +67,8 @@ let cellWaveQueue = [];
 let cellWaveActive = false;
 let lastWaveVariants = { row: null, column: null, box: null };
 const SOUND_KEY = "sudox-sound-enabled-v1";
-let soundEnabled = localStorage.getItem(SOUND_KEY) !== "off";
-let audioContext = null;
+let soundEnabled = readLocal(SOUND_KEY) !== "off";
+setSoundEnabled(soundEnabled);
 let lastFinaleMelody = -1;
 let lastFriendPairKey = "";
 let danceVariantCursor = 0;
@@ -172,9 +180,14 @@ function getAvatarFace() {
 
 function setAvatarFace(face, duration = 2000) {
   clearTimeout(avatarFaceTimer);
+  effectTimers.delete(avatarFaceTimer);
   avatarFace = face;
   avatarFaceIndex++;
-  avatarFaceTimer = setTimeout(() => { avatarFace = "idle"; }, duration);
+  avatarFaceTimer = effectTimeout(() => {
+    avatarFace = "idle";
+    const bubble = document.querySelector(".avatar-bubble");
+    if (bubble) bubble.textContent = getAvatarFace();
+  }, duration);
 }
 const currentHintCost = () => alinMode ? 0 : DIFFICULTIES[game.difficulty].hintCost;
 const progressDifficulty = (difficulty = game?.difficulty, mode = alinMode) => mode ? "alin" : difficulty;
@@ -208,47 +221,6 @@ function boardBuddiesMarkup() {
   }).join("")}</div>`;
 }
 
-function playSound(name) {
-  if (!soundEnabled) return;
-  const AudioContext = window.AudioContext || window.webkitAudioContext;
-  if (!AudioContext) return;
-  audioContext ||= new AudioContext();
-  if (audioContext.state === "suspended") audioContext.resume().catch(() => {});
-  const sounds = {
-    toggle: [[660, 0, .08], [880, .08, .1]],
-    correct: [[620, 0, .055]],
-    success: [[523, 0, .1], [659, .09, .1], [784, .18, .13]],
-    "row-0": [[523, 0, .08], [659, .1, .08], [784, .2, .12]],
-    "row-1": [[784, 0, .08], [659, .1, .08], [880, .2, .12]],
-    "column-0": [[440, 0, .08], [587, .09, .08], [880, .18, .14]],
-    "column-1": [[880, 0, .08], [587, .1, .08], [698, .2, .13]],
-    "box-0": [[523, 0, .07], [659, .08, .07], [784, .16, .07], [1047, .24, .14]],
-    "box-1": [[784, 0, .07], [988, .08, .07], [659, .16, .07], [880, .24, .14]],
-    mistake: [[330, 0, .11], [247, .1, .18]],
-    failure: [[392, 0, .1], [294, .11, .12], [196, .24, .24]],
-    revive: [[330, 0, .08], [494, .09, .08], [659, .18, .1], [988, .3, .2]],
-    shield: [[740, 0, .06], [1110, .07, .16]],
-    card: [[392, 0, .07], [523, .07, .07], [784, .14, .16]],
-    "finale-0": [[523, 0, .11], [659, .11, .11], [784, .22, .12], [1047, .36, .3]],
-    "finale-1": [[659, 0, .1], [784, .1, .1], [988, .2, .14], [784, .35, .1], [1175, .47, .28]],
-    "finale-2": [[392, 0, .1], [523, .1, .1], [659, .2, .1], [784, .3, .1], [1047, .43, .32]]
-  };
-  const sequence = sounds[name] || sounds.success;
-  const start = audioContext.currentTime;
-  sequence.forEach(([frequency, delay, duration], index) => {
-    const oscillator = audioContext.createOscillator();
-    const gain = audioContext.createGain();
-    oscillator.type = index % 2 ? "triangle" : "sine";
-    oscillator.frequency.setValueAtTime(frequency, start + delay);
-    gain.gain.setValueAtTime(.0001, start + delay);
-    gain.gain.exponentialRampToValueAtTime(.055, start + delay + .018);
-    gain.gain.exponentialRampToValueAtTime(.0001, start + delay + duration);
-    oscillator.connect(gain).connect(audioContext.destination);
-    oscillator.start(start + delay);
-    oscillator.stop(start + delay + duration + .02);
-  });
-}
-
 function playFinaleMelody() {
   const choices = [0, 1, 2].filter((index) => index !== lastFinaleMelody);
   lastFinaleMelody = choices[Math.floor(Math.random() * choices.length)];
@@ -257,7 +229,8 @@ function playFinaleMelody() {
 
 function toggleSound() {
   soundEnabled = !soundEnabled;
-  localStorage.setItem(SOUND_KEY, soundEnabled ? "on" : "off");
+  setSoundEnabled(soundEnabled);
+  writeLocal(SOUND_KEY, soundEnabled ? "on" : "off");
   render();
   if (soundEnabled) playSound("toggle");
 }
@@ -278,7 +251,7 @@ function triggerAvatarAnim(anim) {
   void el.offsetWidth;
   el.classList.add(anim);
   el.addEventListener("animationend", () => el.classList.remove(anim), { once: true });
-  setTimeout(() => el.classList.remove(anim), 800);
+  effectTimeout(() => el.classList.remove(anim), 800);
 }
 
 function avatarStickerMarkup(animalId, name = "") {
@@ -351,6 +324,7 @@ function showGardenEel() {
   const pick = chooseGardenEel(Math.random, { emptyCells });
   if (!pick) return;
   const { cell, variant } = pick;
+  board.querySelector(".garden-eel-peek")?.remove();
   const eel = document.createElement("span");
   eel.className = `garden-eel-peek ${variant}`;
   eel.style.left = `${((cell % 9) / 9) * 100}%`;
@@ -367,7 +341,7 @@ function showGardenEel() {
   eel.append(img);
   board.append(eel);
   // Match short peek clip (~2.4s) plus brief fade.
-  setTimeout(() => eel.remove(), 2500);
+  effectTimeout(() => eel.remove(), 2500);
 }
 
 function showCelebration(icon, title, detail) {
@@ -386,7 +360,7 @@ function showCelebration(icon, title, detail) {
   toast.dataset.celebrationId = String(++celebrationId);
   toast.innerHTML = `<span class="celebration-icon" aria-hidden="true">${icon}</span><span><strong>${title}</strong><small>${detail}</small></span>`;
   stack.append(toast);
-  setTimeout(() => {
+  effectTimeout(() => {
     toast.classList.add("leaving");
     toast.addEventListener("animationend", () => {
       toast.remove();
@@ -395,7 +369,33 @@ function showCelebration(icon, title, detail) {
   }, 2600);
 }
 
+function effectTimeout(callback, delay) {
+  const id = setTimeout(() => { effectTimers.delete(id); callback(); }, delay);
+  effectTimers.add(id);
+  return id;
+}
+
+function resetGameEffects() {
+  for (const id of effectTimers) clearTimeout(id);
+  effectTimers.clear();
+  document.querySelectorAll(".wave-hop").forEach((cell) => {
+    cell.classList.remove("wave-hop", "wave-row", "wave-column", "wave-box", "wave-variant-0", "wave-variant-1");
+    cell.style.removeProperty("--wave-delay");
+  });
+  gameEffectQueue = [];
+  gameEffectActive = false;
+  cellWaveQueue = [];
+  cellWaveActive = false;
+  avatarFace = "idle";
+  stopAudio();
+  document.querySelectorAll(".game-effect, .finale-overlay, #celebration-stack, .garden-eel-peek").forEach((element) => element.remove());
+  document.body.classList.remove("shake", "flash-success", "flash-mistake", "flash-shield", "flash-card");
+}
+
 function showGameEffect(icon, title, detail, tone = "success", motion = "", placement = "viewport") {
+  playSound(motion || tone);
+  // Decorative feedback must not build up seconds behind the player's input.
+  if (gameEffectQueue.length >= 2) gameEffectQueue.shift();
   gameEffectQueue.push({ icon, title, detail, tone, motion, placement });
   playNextGameEffect();
 }
@@ -431,13 +431,12 @@ function playNextGameEffect() {
     <div class="effect-bubble"><strong>${title}</strong><small>${detail}</small></div>
     <span class="effect-spark four">●</span><span class="effect-spark five">✦</span>`;
   document.body.append(effect);
-  playSound(motion || tone);
   document.body.classList.remove("flash-success", "flash-mistake", "flash-shield", "flash-card");
   document.body.classList.add(`flash-${tone}`);
-  setTimeout(() => document.body.classList.remove(`flash-${tone}`), 780);
+  effectTimeout(() => document.body.classList.remove(`flash-${tone}`), 780);
   // Faint WebPs run ~2.7s; dances are shorter loops — keep toast long enough to read.
   const holdMs = tone === "mistake" ? 2800 : 1750;
-  setTimeout(() => {
+  effectTimeout(() => {
     effect.remove();
     gameEffectActive = false;
     playNextGameEffect();
@@ -448,6 +447,7 @@ function queueCellWave(type, unitIndex) {
   const previous = lastWaveVariants[type];
   const variant = previous === null ? (Math.random() < 0.5 ? 0 : 1) : 1 - previous;
   lastWaveVariants[type] = variant;
+  if (cellWaveQueue.length >= 2) cellWaveQueue.shift();
   cellWaveQueue.push({ type, variant, cells: sudokuUnitCells(type, unitIndex, variant) });
   return variant;
 }
@@ -465,7 +465,7 @@ function playNextCellWave() {
     cell.style.setProperty("--wave-delay", `${order * 72}ms`);
     cell.classList.add("wave-hop", `wave-${wave.type}`, `wave-variant-${wave.variant}`);
   });
-  setTimeout(() => {
+  effectTimeout(() => {
     cells.forEach((cell) => {
       cell.classList.remove("wave-hop", "wave-row", "wave-column", "wave-box", "wave-variant-0", "wave-variant-1");
       cell.style.removeProperty("--wave-delay");
@@ -511,12 +511,11 @@ function showFinaleCelebration() {
     </div>`;
   document.body.append(finale);
   playFinaleMelody();
-  setTimeout(() => finale.classList.add("leaving"), 4200);
-  setTimeout(() => finale.remove(), 4800);
+  effectTimeout(() => finale.classList.add("leaving"), 4200);
+  effectTimeout(() => finale.remove(), 4800);
 }
 
 function sessionSnapshot() {
-  if (game.completed || game.failed) return null;
   return { game, equippedCards, alinMode };
 }
 
@@ -527,8 +526,9 @@ function cloudProgressSaveCode(nextProgress = progress) {
 }
 
 function persistSession() {
+  clearTimeout(sessionSaveTimer);
   const session = sessionSnapshot();
-  if (session) saveSession(session);
+  if (session && !game.completed) saveSession(session);
   else clearSession();
 }
 
@@ -629,6 +629,7 @@ function restoreIslandViewScroll(snapshot) {
 }
 
 function renderIslandView() {
+  updateGameClock();
   if (!island) ensureIsland();
   if (!islandClockId) islandClockId = setInterval(refreshIslandClock, 1000);
   settleIslandNow();
@@ -674,6 +675,7 @@ function renderIslandView() {
 }
 
 function openIsland() {
+  resetGameEffects();
   persistSession();
   activeScreen = "island";
   history.replaceState(null, "", `${location.pathname}${location.search}#island`);
@@ -917,6 +919,12 @@ async function collectIslandFacilitySafely(buildingInstanceId) {
   saveProgress(progress);
   const nextSaveCode = cloudProgressSaveCode(progress);
   try {
+    const merged = mergeProgressHighWater(progress, remote.progress);
+    if (JSON.stringify(merged) !== JSON.stringify(progress)) {
+      progress = merged;
+      saveProgress(progress);
+      localSaveCode = cloudProgressSaveCode(progress);
+    }
     const committed = await saveCloudProgressIfCurrent({
       playerId: progress.playerId,
       playerName: progress.playerName,
@@ -924,8 +932,13 @@ async function collectIslandFacilitySafely(buildingInstanceId) {
       saveCode: nextSaveCode,
       expectedSaveCode
     });
+    if (!samePlayer()) return false;
+    if (cloudProgressSaveCode(progress) !== localSaveCode) cloudSyncAgain = true;
     if (!committed) {
-      const latestSaveCode = await loadCloudProgress(progress.playerName, pin);
+      if (cloudSyncAgain) return false;
+      const latestSaveCode = await loadCloudProgress(playerName, pin);
+      if (!samePlayer()) return false;
+      if (cloudProgressSaveCode(progress) !== localSaveCode) { cloudSyncAgain = true; return false; }
       adoptCloudSaveCode(latestSaveCode, "這批產品已由其他裝置先收成，已同步最新狀態，未重複加入庫存。");
       return;
     }
@@ -1134,14 +1147,20 @@ function bindIslandEvents() {
   });
 }
 
+function scheduleSessionSave() {
+  clearTimeout(sessionSaveTimer);
+  sessionSaveTimer = setTimeout(persistSession, 120);
+}
+
 function render() {
+  updateGameClock();
   if (activeScreen === "island" && !showNameSetup) {
-    persistSession();
+    scheduleSessionSave();
     ensureIsland();
     renderIslandView();
     return;
   }
-  persistSession();
+  scheduleSessionSave();
   const levelTarget = progress.level * 100;
   const selectedValue = game.values[game.selected];
   const related = relatedCells(game.selected);
@@ -1150,7 +1169,7 @@ function render() {
     <main class="shell ${game.started ? "game-active" : ""}">
       <header class="topbar">
         <div class="brand">${mascot()}<div><span>阿霖的數獨島</span><small>ALIN'S SUDOKU ISLAND</small></div></div>
-        <div class="topbar-actions"><div class="wallet" aria-label="玩家資源"><span>⭐ ${progress.totalStars}</span><span>🪙 ${progress.coins}</span></div><button id="open-island" class="save-button">🏝️ <span>小島</span></button><button id="toggle-sound" class="save-button sound-button" aria-label="${soundEnabled ? "關閉音效" : "開啟音效"}" aria-pressed="${soundEnabled}">${soundEnabled ? "🔊" : "🔇"}</button><button id="open-avatar-picker" class="save-button">🐾 <span>頭像</span></button><button id="open-leaderboard" class="save-button">🏆 <span>排行</span></button><button id="open-save-center" class="save-button">💾 <span>存檔</span></button></div>
+        <div class="topbar-actions"><div class="wallet" aria-label="玩家資源"><span>⭐ ${progress.totalStars}</span><span>🪙 ${progress.coins}</span></div><button id="open-island" class="save-button">🏝️ <span>小島</span></button><button id="toggle-sound" class="save-button sound-button" aria-label="${soundEnabled ? "關閉音效" : "開啟音效"}" aria-pressed="${soundEnabled}">${soundEnabled ? "🔊" : "🔇"}</button><button id="open-achievements" class="save-button" aria-label="成就圖鑑">🏅</button><button id="open-avatar-picker" class="save-button">🐾 <span>頭像</span></button><button id="open-leaderboard" class="save-button">🏆 <span>排行</span></button><button id="open-save-center" class="save-button">💾 <span>存檔</span></button></div>
       </header>
 
       <section class="hero-card">
@@ -1199,7 +1218,7 @@ function render() {
               const selected = index === game.selected;
               const same = selectedValue && value === selectedValue;
               return `<button class="cell ${fixed ? "fixed" : ""} ${selected ? "selected" : ""} ${related.has(index) ? "related" : ""} ${same ? "same" : ""}" data-cell="${index}" role="gridcell" ${game.started ? "" : "disabled"} aria-label="${game.started ? `第 ${Math.floor(index / 9) + 1} 列第 ${(index % 9) + 1} 欄${value ? `，數字 ${value}` : "，空白"}` : "題目尚未開始"}">
-                ${game.started ? (value || (game.notes[index].length ? `<span class="notes">${Array.from({ length: 9 }, (_, n) => `<i>${game.notes[index].includes(n + 1) ? n + 1 : ""}</i>`).join("")}</span>` : "")) : ""}
+                ${cellContent(index)}
               </button>`;
             }).join("")}
             </div>
@@ -1353,7 +1372,7 @@ function saveCenterModal() {
   );
   return `<div class="modal-backdrop"><section class="modal save-modal" role="dialog" aria-modal="true" aria-labelledby="save-title">
     <div class="celebrate">☁️</div><h2 id="save-title">雲端存檔</h2>
-    <p>本機會隨時自動保存；連上網路後，玩家資料、裝備、XP、層數和目前盤面也會同步到家庭雲端。已存在玩家的 PIN 不會因這次更新作廢。</p>
+    <p>本機會隨時自動保存；連上網路後，玩家資料、寶物、XP、層數與小島會同步到家庭雲端；目前盤面、計時及待領卡片保存在這台裝置。已存在玩家的 PIN 不會因這次更新作廢。</p>
     <div class="cloud-card ${configured && pinReady ? "ready" : "waiting"}"><span>${configured && pinReady ? "✅" : "⚙️"}</span><div><strong>${pinStatusTitle}</strong><small>${escapeHtml(pinStatusDetail)}</small></div></div>
     ${configured && progress.playerName && !pinReady ? `<div class="pin-unlock"><label class="field-label" for="unlock-family-pin">家庭 PIN（輸入一次，本機會記住）</label><div><input id="unlock-family-pin" class="name-input pin-input" type="text" maxlength="4" inputmode="numeric" pattern="[0-9]*" enterkeyhint="done" autocomplete="off" placeholder="4 位數字"><button id="unlock-family-pin-btn">記住並啟用同步</button></div></div>` : ""}
     <div class="rename-player"><label for="rename-player-name">✏️ 修改玩家名稱</label><div><input id="rename-player-name" maxlength="16" value="${escapeHtml(progress.playerName || "")}" placeholder="新的玩家名稱"><button id="rename-cloud-player" ${configured && pinReady && progress.playerName ? "" : "disabled"}>改名</button></div><small>${pinReady ? "使用本機已記住的家庭 PIN 驗證，不必重輸。" : "啟用 PIN 後才能改名並同步雲端。"}</small></div>
@@ -1439,15 +1458,49 @@ function syncLeaderboardStatusUi() {
   }
 }
 
+function cellContent(index) {
+  if (!game.started) return "";
+  return String(game.values[index] || (game.notes[index].length
+    ? `<span class="notes">${Array.from({ length: 9 }, (_, n) => `<i>${game.notes[index].includes(n + 1) ? n + 1 : ""}</i>`).join("")}</span>` : ""));
+}
+
+function updateBoard({ save = true } = {}) {
+  if (game.completed || game.failed || !document.querySelector(".sudoku-board")) { render(); return; }
+  const related = relatedCells(game.selected);
+  const selectedValue = game.values[game.selected];
+  document.querySelectorAll("[data-cell]").forEach((cell) => {
+    const index = Number(cell.dataset.cell), value = game.values[index];
+    cell.classList.toggle("selected", index === game.selected);
+    cell.classList.toggle("related", related.has(index));
+    cell.classList.toggle("same", Boolean(selectedValue && value === selectedValue));
+    const content = cellContent(index);
+    if (cell.innerHTML.trim() !== content) cell.innerHTML = content;
+    cell.setAttribute("aria-label", `第 ${Math.floor(index / 9) + 1} 列第 ${(index % 9) + 1} 欄${value ? `，數字 ${value}` : "，空白"}`);
+  });
+  const text = (selector, value) => { const element = document.querySelector(selector); if (element) element.textContent = value; };
+  text(".health", (alinMode ? "🌈 不限失誤" : "❤️".repeat(game.health) + "🤍".repeat(Math.max(0, game.maxHealth - game.health))) + (game.shields ? ` 🛡️${game.shields}` : ""));
+  text(".mistakes", `${alinMode ? "🌈 阿霖模式・目前" : "本局"}答錯 ${game.mistakes} 次`);
+  text(".run-milestone-badge", `🏅 本局 ${game.milestones.length}/${RUN_MILESTONES.length}`);
+  text(".wallet span:last-child", `🪙 ${progress.coins}`);
+  text(".avatar-bubble", getAvatarFace());
+  document.querySelectorAll(".goal-chips span").forEach((chip, index) => chip.classList.toggle("done", game.healGoals[["streak", "row", "box"][index]]));
+  const notes = document.querySelector("#notes");
+  notes?.classList.toggle("active", noteMode);
+  notes?.setAttribute("aria-pressed", String(noteMode));
+  text("#notes small", `筆記 ${noteMode ? "開" : "關"}`);
+  if (save) scheduleSessionSave();
+  playNextCellWave();
+}
+
 function bindEvents() {
-  document.querySelectorAll("[data-cell]").forEach((button) => button.addEventListener("click", () => { game.selected = Number(button.dataset.cell); render(); }));
+  document.querySelectorAll("[data-cell]").forEach((button) => button.addEventListener("click", () => { game.selected = Number(button.dataset.cell); updateBoard({ save: false }); }));
   document.querySelectorAll("[data-number]").forEach((button) => button.addEventListener("click", () => enterNumber(Number(button.dataset.number))));
   document.querySelectorAll("[data-difficulty]").forEach((button) => button.addEventListener("click", () => { if (!game.started) newGame(button.dataset.difficulty); }));
   document.querySelectorAll("[data-prestart-difficulty]").forEach((button) => button.addEventListener("click", () => newGame(button.dataset.prestartDifficulty)));
   document.querySelectorAll("[data-use-card]").forEach((button) => button.addEventListener("click", () => useCard(button.dataset.useCard)));
   document.querySelectorAll("[data-equip-card]").forEach((button) => button.addEventListener("click", () => toggleEquipCard(button.dataset.equipCard)));
   document.querySelectorAll("[data-claim-card]").forEach((button) => button.addEventListener("click", () => claimCard(button.dataset.claimCard)));
-  document.querySelector("#notes")?.addEventListener("click", () => { noteMode = !noteMode; render(); });
+  document.querySelector("#notes")?.addEventListener("click", () => { noteMode = !noteMode; updateBoard({ save: false }); });
   document.querySelector("#alin-mode")?.addEventListener("click", toggleAlinMode);
   document.querySelector("#prestart-alin-mode")?.addEventListener("click", toggleAlinMode);
   document.querySelector("#undo")?.addEventListener("click", clearCell);
@@ -1468,6 +1521,7 @@ function bindEvents() {
   document.querySelector("#open-start-leaderboard")?.addEventListener("click", openLeaderboardModal);
   document.querySelector("#open-start-achievements")?.addEventListener("click", openAchievements);
   document.querySelector("#open-achievements-side")?.addEventListener("click", openAchievements);
+  document.querySelector("#open-achievements")?.addEventListener("click", openAchievements);
   document.querySelector("#close-achievements")?.addEventListener("click", () => { showAchievements = false; render(); });
   document.querySelector("#close-leaderboard")?.addEventListener("click", () => { showLeaderboard = false; render(); });
   document.querySelectorAll("[data-rank-difficulty]").forEach((button) => button.addEventListener("click", () => changeLeaderboardDifficulty(button.dataset.rankDifficulty)));
@@ -1617,6 +1671,9 @@ async function createPlayer() {
 }
 
 function applyImportedSave(imported, { mergeWithLocal = null } = {}) {
+  resetGameEffects();
+  clearTimeout(sessionSaveTimer);
+  timerWasActive = false;
   progress = mergeWithLocal
     ? mergeProgressHighWater(imported.progress, mergeWithLocal)
     : imported.progress;
@@ -1641,6 +1698,8 @@ function applyImportedSave(imported, { mergeWithLocal = null } = {}) {
     });
     lastWaveVariants = { row: null, column: null, box: null };
   }
+  saveProgress(progress, { touch: false, settledSession: null });
+  persistSession();
 }
 
 /** Keep an active run aligned with the saved next-floor record across devices. */
@@ -1658,6 +1717,8 @@ function reconcileActiveSessionFloor() {
   }
 
   const floor = Math.max(1, Math.floor(Number(progress.floors?.[difficulty]) || 1));
+  resetGameEffects();
+  timerWasActive = false;
   clearInterval(timerId);
   equippedCards = equippedCards.filter((cardId) => progress.inventory[cardId] > 0).slice(0, 2);
   game = createAdventureGame({ difficulty: game.difficulty, floor, equippedCards });
@@ -1670,7 +1731,9 @@ function reconcileActiveSessionFloor() {
 async function reconcileLeaderboardFloorProgress() {
   if (!progress?.playerId || !leaderboardConfigured()) return false;
   try {
-    const rows = await fetchPlayerLeaderboardRows(progress.playerId);
+    const playerId = progress.playerId;
+    const rows = await fetchPlayerLeaderboardRows(playerId);
+    if (progress.playerId !== playerId) return false;
     const raised = reconcileFloorsFromLeaderboardRows(progress, rows);
     const modelNeedsUpgrade = progress.floorModelVersion !== 2;
     if (raised === progress && !modelNeedsUpgrade) return false;
@@ -1689,6 +1752,7 @@ function adoptCloudSaveCode(saveCode, status = "") {
   const imported = parseSaveCode(saveCode);
   progress = mergeProgressHighWater(imported.progress, progress);
   saveProgress(progress, { touch: false });
+  if (JSON.stringify(progress) !== JSON.stringify(imported.progress)) scheduleCloudSync();
   island = null;
   const sessionReset = reconcileActiveSessionFloor();
   if (activeScreen === "island") {
@@ -1725,8 +1789,10 @@ async function hydrateCloudProgress() {
   if (!cloudHydrationPending) return;
   clearTimeout(cloudSyncTimer);
   const pin = loadCloudPin();
+  const playerId = progress.playerId;
   try {
     const saveCode = await loadCloudProgress(progress.playerName, pin);
+    if (progress.playerId !== playerId || loadCloudPin() !== pin) return;
     // Parse only — never write localStorage until we know cloud is actually newer.
     const cloud = parseSaveCode(saveCode);
     const localHasSession = Boolean(sessionSnapshot() || loadSession());
@@ -1753,9 +1819,7 @@ async function hydrateCloudProgress() {
 
     // Local is newer or equivalent — still high-water floors from cloud so we don't lag behind another device.
     const mergedLocal = mergeProgressHighWater(progress, cloud.progress);
-    const progressChanged = JSON.stringify(mergedLocal.floors) !== JSON.stringify(progress.floors)
-      || mergedLocal.completedGames !== progress.completedGames
-      || JSON.stringify(mergedLocal.island) !== JSON.stringify(progress.island);
+    const progressChanged = JSON.stringify(mergedLocal) !== JSON.stringify(progress);
     if (progressChanged) {
       progress = mergedLocal;
       saveProgress(progress);
@@ -1775,15 +1839,19 @@ async function hydrateCloudProgress() {
 
 function scheduleCloudSync() {
   if (cloudHydrationPending) return;
+  if (cloudSyncInFlight) { cloudSyncAgain = true; return; }
   if (!cloudConfigured() || !progress.playerName || !validCloudPin(loadCloudPin())) return;
   clearTimeout(cloudSyncTimer);
   cloudSyncTimer = setTimeout(() => syncCloudNow(false), 1800);
 }
 
 function syncCloudNow(showFeedback = false) {
-  if (cloudSyncInFlight) return cloudSyncInFlight;
+  if (cloudSyncInFlight) { cloudSyncAgain = true; return cloudSyncInFlight; }
+  clearTimeout(cloudSyncTimer);
+  cloudSyncAgain = false;
   cloudSyncInFlight = syncCloudNowInternal(showFeedback).finally(() => {
     cloudSyncInFlight = null;
+    if (cloudSyncAgain) scheduleCloudSync();
   });
   return cloudSyncInFlight;
 }
@@ -1796,8 +1864,12 @@ async function syncCloudNowInternal(showFeedback = false) {
     render();
   }
   try {
-    const localSaveCode = cloudProgressSaveCode(progress);
-    const remoteSaveCode = await loadCloudProgress(progress.playerName, pin);
+    const playerId = progress.playerId, playerName = progress.playerName;
+    const samePlayer = () => progress.playerId === playerId && progress.playerName === playerName && loadCloudPin() === pin;
+    const remoteSaveCode = await loadCloudProgress(playerName, pin);
+    if (!samePlayer()) return false;
+    // Snapshot after the read: gameplay may have advanced while the network was waiting.
+    let localSaveCode = cloudProgressSaveCode(progress);
     if (remoteSaveCode === localSaveCode) {
       cloudSyncStatus = `同步完成・${new Date().toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit" })}`;
       if (showFeedback && showSaveCenter) render();
@@ -1807,15 +1879,19 @@ async function syncCloudNowInternal(showFeedback = false) {
     const remote = parseSaveCode(remoteSaveCode);
     const localTime = saveTimestampMs(progress);
     const remoteTime = saveTimestampMs(remote.progress, remote.exportedAt);
-    // Equal timestamps can still contain different active Sudoku sessions.
-    // Keep the local session and let the CAS write decide real cross-device conflicts;
-    // only a strictly newer cloud save may replace the current board.
+    // Only a strictly newer cloud save replaces durable progress; the board stays local.
     if (remoteTime > localTime) {
       adoptCloudSaveCode(remoteSaveCode, "已同步其他裝置的最新進度，未覆蓋雲端資料。");
       cloudSyncStatus = "已採用雲端較新版本";
       return true;
     }
 
+    const merged = mergeProgressHighWater(progress, remote.progress);
+    if (JSON.stringify(merged) !== JSON.stringify(progress)) {
+      progress = merged;
+      saveProgress(progress);
+      localSaveCode = cloudProgressSaveCode(progress);
+    }
     const committed = await saveCloudProgressIfCurrent({
       playerId: progress.playerId,
       playerName: progress.playerName,
@@ -1823,8 +1899,13 @@ async function syncCloudNowInternal(showFeedback = false) {
       saveCode: localSaveCode,
       expectedSaveCode: remoteSaveCode
     });
+    if (!samePlayer()) return false;
+    if (cloudProgressSaveCode(progress) !== localSaveCode) cloudSyncAgain = true;
     if (!committed) {
-      const latestSaveCode = await loadCloudProgress(progress.playerName, pin);
+      if (cloudSyncAgain) return false;
+      const latestSaveCode = await loadCloudProgress(playerName, pin);
+      if (!samePlayer()) return false;
+      if (cloudProgressSaveCode(progress) !== localSaveCode) { cloudSyncAgain = true; return false; }
       adoptCloudSaveCode(latestSaveCode, "另一台裝置已先更新，已同步雲端最新進度。");
       cloudSyncStatus = "同步衝突已保留雲端版本";
       return false;
@@ -1992,6 +2073,7 @@ function afterCorrectFill() {
 }
 
 function enterNumber(number) {
+  updateGameClock();
   const result = applyPlayerDigit(game, number, { noteMode, alinMode });
   if (result.type === "noop") return;
 
@@ -2000,40 +2082,42 @@ function enterNumber(number) {
     if (result.blockedByShield) showGameEffect("🛡️", "鏘！成功格擋", "護盾替你擋住這次錯誤", "shield");
     else showGameEffect("friends", game.failed ? "體力用完，好朋友也累趴了！" : "哎呀猜錯，好朋友愣住了！", alinMode ? "躺一下再繼續，阿霖模式不會失敗" : game.failed ? "休息一下，可以使用寶物或金幣復活" : "好朋友們喘口氣，再陪你試一次！", "mistake", game.failed ? "failure" : "");
     document.body.classList.add("shake");
-    setTimeout(() => document.body.classList.remove("shake"), 320);
+    effectTimeout(() => document.body.classList.remove("shake"), 320);
     triggerAvatarAnim("shake");
     setAvatarFace(game.failed ? "shocked" : "sad", game.failed ? 3000 : 2000);
-    render();
+    updateBoard();
     return;
   }
 
   if (result.type === "correct") {
     playSound("correct");
     const newlyCompleted = afterCorrectFill();
-    render();
+    updateBoard();
     if (!game.completed && !newlyCompleted.rows.length && !newlyCompleted.columns.length && !newlyCompleted.boxes.length) showGardenEel();
     return;
   }
 
-  render();
+  updateBoard();
 }
 
 function clearCell() {
   if (!clearEditableCell(game)) return;
-  render();
+  updateBoard();
 }
 
 function useHint() {
+  updateGameClock();
   const cost = currentHintCost();
   if (!game.started || game.failed || progress.coins < cost || game.puzzle[game.selected] || game.values[game.selected]) return;
   if (cost) progress = spendCoins(progress, cost);
   if (!applyHintFill(game, game.selected)) return;
   setAvatarFace("thinking", 1500);
   afterCorrectFill();
-  render();
+  updateBoard();
 }
 
 function useCard(cardId) {
+  updateGameClock();
   if (!game.started || !game.equippedCards.includes(cardId) || !progress.inventory[cardId] || game.usedCards.includes(cardId) || game.completed || game.failed) return;
   const card = TREASURE_CARDS[cardId];
   const index = game.selected;
@@ -2044,14 +2128,15 @@ function useCard(cardId) {
     game.actions += 1;
     game.hintsUsed += targets.length;
     targets.forEach((target) => {
+      if (!game.solvedCells.includes(target)) game.solvedCells.push(target);
       removeRelatedNotes(game, target, game.values[target]);
     });
     resultDetail = `已填入 ${targets.length} 格正確答案`;
-    afterCorrectFill();
   } else if (card.effect === "revive") return;
   else if (!applyImmediateTreasure(game, card, { alinMode, index })) return;
   progress = consumeCard(progress, cardId);
   game.usedCards.push(cardId);
+  if (card.effect === "hint") afterCorrectFill();
   render();
   showGameEffect(card.icon, `${card.name}發動！`, resultDetail, "card");
 }
@@ -2081,7 +2166,8 @@ function resumeAfterRevive(health = 2, source = null) {
 
 function claimCard(cardId) {
   if (!claimRewardCard(game, cardId)) return;
-  progress = addCard(progress, cardId);
+  progress = addCard(progress, cardId, { persist: false });
+  saveProgress(progress, { settledSession: sessionSnapshot() });
   render();
   const card = TREASURE_CARDS[cardId];
   showCelebration(card.icon, `恭喜獲得「${card.name}」！`, "已放進寶物背包");
@@ -2091,9 +2177,15 @@ function checkCompletion() {
   const settlement = settleCompletedGame(game, { alinMode });
   if (!settlement) return;
   clearInterval(timerId);
+  resetGameEffects();
   showFinaleCelebration();
   const completedDifficulty = progressDifficulty(game.difficulty, alinMode);
-  progress = rewardProgress(progress, settlement.xpReward, settlement.timeBonus, settlement.stars, completedDifficulty, game.floor);
+  if (progress.rewardedRuns?.includes(game.runId)) {
+    game.remainingClaims = 0;
+    saveProgress(progress, { touch: false, settledSession: sessionSnapshot() });
+    return;
+  }
+  progress = rewardProgress(progress, settlement.xpReward, settlement.timeBonus, settlement.stars, completedDifficulty, game.floor, { persist: false, runId: game.runId });
   const achievementResult = recordAchievementGame(progress, {
     perfect: settlement.perfect,
     speed: settlement.speed,
@@ -2102,9 +2194,9 @@ function checkCompletion() {
   progress = achievementResult.progress;
   // Belt-and-suspenders: next floor is always at least completed + 1.
   progress = raiseFloorProgress(progress, completedDifficulty, nextFloorFromCompleted(game.floor));
-  saveProgress(progress);
+  saveProgress(progress, { settledSession: sessionSnapshot() });
   achievementResult.unlocked.forEach((achievement, index) => {
-    setTimeout(() => showCelebration(achievement.icon, `永久成就・${achievement.name}`, `${achievement.description}・🪙 +${achievement.coins}`), 3500 + index * 450);
+    effectTimeout(() => showCelebration(achievement.icon, `永久成就・${achievement.name}`, `${achievement.description}・🪙 +${achievement.coins}`), 3500 + index * 450);
   });
   clearSession();
   // Upload the completed floor (game.floor), not the next-floor counter.
@@ -2121,17 +2213,32 @@ function checkCompletion() {
   syncCloudNow(false);
 }
 
+function gameClockActive() {
+  return activeScreen === "game" && document.visibilityState !== "hidden"
+    && game.started && !game.completed && !game.failed
+    && !showNameSetup && !showSaveCenter && !showLeaderboard && !showBackpack && !showAchievements && !showAvatarPicker;
+}
+
+function updateGameClock() {
+  const now = performance.now();
+  if (timerWasActive) advanceGameClock(game, now - timerLastTick);
+  timerLastTick = now;
+  timerWasActive = gameClockActive();
+  // Paused dialogs must not offer unlimited time to inspect a visible puzzle.
+  document.body.classList.toggle("game-paused", game.started && !game.completed && !game.failed && !timerWasActive);
+  const timer = document.querySelector("#timer"), freeze = document.querySelector("#freeze-time");
+  if (timer) timer.textContent = formatTime(game.elapsed);
+  if (freeze) freeze.textContent = game.frozenSeconds ? `· 凍結 ${game.frozenSeconds}s` : "";
+}
+
 function startTimer() {
   clearInterval(timerId);
+  timerLastTick = performance.now();
+  timerWasActive = gameClockActive();
   if (!game.started || game.completed || game.failed) return;
   timerId = setInterval(() => {
-    if (game.frozenSeconds > 0) game.frozenSeconds -= 1;
-    else game.elapsed += 1;
-    const timer = document.querySelector("#timer");
-    const freeze = document.querySelector("#freeze-time");
-    if (timer) timer.textContent = formatTime(game.elapsed);
-    if (freeze) freeze.textContent = game.frozenSeconds ? `· 凍結 ${game.frozenSeconds}s` : "";
-    if (game.elapsed % 10 === 0) persistSession();
+    updateGameClock();
+    if (timerWasActive && game.elapsed % 10 === 0) persistSession();
   }, 1000);
 }
 
@@ -2158,6 +2265,12 @@ function startGame() {
 }
 
 function newGame(difficulty) {
+  if (game?.completed && game.remainingClaims > 0) return;
+  updateGameClock();
+  timerWasActive = false;
+  resetGameEffects();
+  clearTimeout(sessionSaveTimer);
+  saveProgress(progress, { touch: false, settledSession: null });
   clearInterval(timerId);
   cellWaveQueue = [];
   cellWaveActive = false;
@@ -2194,11 +2307,36 @@ document.addEventListener("keydown", (event) => {
   const target = event.target;
   const isFormControl = target instanceof HTMLElement
     && (target.matches("input, textarea, select, button") || target.isContentEditable);
-  if (activeScreen === "island" || isFormControl || showNameSetup || showSaveCenter || showLeaderboard || showBackpack) return;
+  if (activeScreen === "island" || isFormControl || showNameSetup || showSaveCenter || showLeaderboard || showBackpack || showAchievements || showAvatarPicker) return;
   if (/^[1-9]$/.test(event.key)) enterNumber(Number(event.key));
   if (["Backspace", "Delete", "0"].includes(event.key)) clearCell();
-  if (event.key.toLowerCase() === "n") { noteMode = !noteMode; render(); }
+  if (event.key.toLowerCase() === "n") { noteMode = !noteMode; updateBoard({ save: false }); }
 });
+
+function showStorageWarning() {
+  let banner = document.querySelector("#storage-warning");
+  const warning = storageWarning();
+  if (!warning) { banner?.remove(); return; }
+  if (!banner) {
+    banner = document.createElement("div");
+    banner.id = "storage-warning";
+    banner.setAttribute("role", "alert");
+    const message = document.createElement("span");
+    message.textContent = warning;
+    const retry = document.createElement("button");
+    retry.textContent = "重試保存";
+    retry.addEventListener("click", () => { persistSession(); retryLocalWrites(); });
+    banner.append(message, retry);
+    document.body.append(banner);
+  }
+}
+window.addEventListener("sudox-storage-status", showStorageWarning);
+window.addEventListener("sudox-progress-saved", scheduleCloudSync);
+document.addEventListener("pointerdown", resumeAudio, { passive: true });
+document.addEventListener("keydown", resumeAudio);
+window.addEventListener("pagehide", () => { updateGameClock(); timerWasActive = false; persistSession(); resetGameEffects(); });
+window.addEventListener("pageshow", () => { timerLastTick = performance.now(); timerWasActive = gameClockActive(); resumeAudio(); });
+showStorageWarning();
 
 if (restoredSession) {
   startTimer();
@@ -2212,6 +2350,7 @@ if (activeScreen === "island") refreshIslandNetwork();
 window.addEventListener("hashchange", () => {
   const nextScreen = location.hash === "#island" ? "island" : "game";
   if (nextScreen === activeScreen) return;
+  resetGameEffects();
   activeScreen = nextScreen;
   if (activeScreen === "island") ensureIsland();
   else {
@@ -2223,6 +2362,9 @@ window.addEventListener("hashchange", () => {
 });
 
 document.addEventListener("visibilitychange", () => {
+  updateGameClock();
+  if (document.visibilityState === "hidden") { persistSession(); resetGameEffects(); }
+  else resumeAudio();
   if (document.visibilityState === "visible" && activeScreen === "island") {
     renderIslandView();
     refreshIslandNetwork();
@@ -2238,5 +2380,5 @@ window.addEventListener("online", () => {
 flushPendingScores().catch(() => {});
 
 if ("serviceWorker" in navigator && location.protocol !== "file:") {
-  navigator.serviceWorker.register(new URL("sw.js?v=v58", document.baseURI), { updateViaCache: "none" }).catch(() => {});
+  navigator.serviceWorker.register(new URL("sw.js?v=v59", document.baseURI), { updateViaCache: "none" }).catch(() => {});
 }

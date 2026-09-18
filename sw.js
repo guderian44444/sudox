@@ -1,6 +1,6 @@
-const CACHE_NAME = "sudox-shell-v58";
+const CACHE_NAME = "sudox-shell-v59";
 const BASE_PATH = new URL("./", self.location.href).pathname;
-const RELEASE_QUERY = "?v=v58";
+const RELEASE_QUERY = "?v=v59";
 const APP_SHELL = [
   BASE_PATH,
   `${BASE_PATH}index.html`,
@@ -17,6 +17,9 @@ const APP_SHELL = [
   `${BASE_PATH}src/island/model.js${RELEASE_QUERY}`,
   `${BASE_PATH}src/island/renderer.js${RELEASE_QUERY}`,
   `${BASE_PATH}src/game/sudoku.js${RELEASE_QUERY}`,
+  `${BASE_PATH}src/game/audio.js${RELEASE_QUERY}`,
+  `${BASE_PATH}src/game/timer.js${RELEASE_QUERY}`,
+  `${BASE_PATH}src/state/storage.js${RELEASE_QUERY}`,
   `${BASE_PATH}src/game/adventure.js${RELEASE_QUERY}`,
   `${BASE_PATH}src/game/flow.js${RELEASE_QUERY}`,
   `${BASE_PATH}src/game/achievements.js${RELEASE_QUERY}`,
@@ -39,20 +42,38 @@ self.addEventListener("install", (event) => {
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys()
-      .then((keys) => Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))))
+      .then((keys) => Promise.all(keys.filter((key) => key.startsWith("sudox-shell-") && key !== CACHE_NAME).map((key) => caches.delete(key))))
       .then(() => self.clients.claim())
   );
 });
 
 self.addEventListener("fetch", (event) => {
-  if (event.request.method !== "GET") return;
-  event.respondWith(
-    fetch(event.request)
-      .then((response) => {
-        const copy = response.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
-        return response;
-      })
-      .catch(() => caches.match(event.request).then((cached) => cached || caches.match(`${BASE_PATH}index.html`)))
-  );
+  const request = event.request;
+  const url = new URL(request.url);
+  if (request.method !== "GET" || url.origin !== self.location.origin || !url.pathname.startsWith(BASE_PATH)) return;
+  // Animation frame restart parameters must not create unlimited duplicate cache entries.
+  url.searchParams.delete("t");
+  const key = url.href;
+  const versioned = url.searchParams.get("v") === RELEASE_QUERY.slice(3);
+  const asset = url.pathname.startsWith(`${BASE_PATH}public/assets/`) || url.pathname.startsWith(`${BASE_PATH}assets/`);
+  if (request.mode !== "navigate" && !versioned && !asset) return;
+  event.respondWith((async () => {
+    const cache = await caches.open(CACHE_NAME);
+    const cached = await cache.match(key);
+    if (request.mode !== "navigate" && cached) return cached;
+    try {
+      const response = await fetch(request);
+      if (response.ok && response.type !== "opaque") {
+        event.waitUntil(cache.put(key, response.clone()).catch(() => {}));
+      }
+      return response;
+    } catch {
+      if (cached) return cached;
+      if (request.mode === "navigate") {
+        const shell = await cache.match(`${BASE_PATH}index.html`);
+        if (shell) return shell;
+      }
+      return Response.error();
+    }
+  })());
 });

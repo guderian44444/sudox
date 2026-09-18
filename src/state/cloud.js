@@ -1,4 +1,5 @@
-import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "../config.js?v=v58";
+import { readLocal, writeLocal } from "./storage.js?v=v59";
+import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "../config.js?v=v59";
 
 const CLOUD_PIN_KEY = "sudox-cloud-pin-v1";
 
@@ -15,17 +16,17 @@ export function normalizePlayerName(value) {
 }
 
 export function loadCloudPin() {
-  return localStorage.getItem(CLOUD_PIN_KEY) || "";
+  return readLocal(CLOUD_PIN_KEY) || "";
 }
 
 export function saveCloudPin(pin) {
   if (!validCloudPin(pin)) throw new Error("PIN 必須是 4 位數字");
-  localStorage.setItem(CLOUD_PIN_KEY, pin);
+  writeLocal(CLOUD_PIN_KEY, pin);
 }
 
 export async function callRpc(name, body) {
   if (!cloudConfigured()) throw new Error("雲端資料庫尚未設定");
-  const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${name}`, {
+  const response = await fetchWithTimeout(`${SUPABASE_URL}/rest/v1/rpc/${name}`, {
     method: "POST",
     headers: { apikey: SUPABASE_PUBLISHABLE_KEY, "Content-Type": "application/json" },
     body: JSON.stringify(body)
@@ -90,4 +91,17 @@ export async function renameCloudPlayer({ playerId, pin, playerName }) {
     p_pin: pin,
     p_player_name: cleanName
   });
+}
+
+export async function fetchWithTimeout(url, options = {}) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 12000);
+  try {
+    const response = await fetch(url, { ...options, signal: controller.signal });
+    const body = await response.text();
+    return { ok: response.ok, status: response.status, text: async () => body, json: async () => JSON.parse(body) };
+  } catch (error) {
+    if (controller.signal.aborted) throw new Error("雲端連線逾時，進度已保留在本機，請重試同步");
+    throw error;
+  } finally { clearTimeout(timeout); }
 }

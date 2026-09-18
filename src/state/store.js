@@ -1,5 +1,7 @@
-import { normalizeSession } from "../game/flow.js?v=v58";
-import { mergeIslandStates } from "../island/model.js?v=v58";
+import { normalizeSession } from "../game/flow.js?v=v59";
+import { mergeIslandStates } from "../island/model.js?v=v59";
+
+import { readLocal, writeLocal } from "./storage.js?v=v59";
 
 const STORAGE_KEY = "sudox-progress-v3";
 const SESSION_KEY = "sudox-session-v3";
@@ -123,6 +125,10 @@ export function mergeProgressHighWater(primary, secondary = {}) {
   return {
     ...base,
     floors,
+    achievements: [...new Set([...(base.achievements || []), ...(other.achievements || [])])],
+    achievementStats: Object.fromEntries(Object.keys(defaultProgress.achievementStats).map((key) => [key, Math.max(0, Number(base.achievementStats?.[key]) || 0, Number(other.achievementStats?.[key]) || 0)])),
+    rewardedRuns: [...new Set([...(base.rewardedRuns || []), ...(other.rewardedRuns || [])])],
+    cardCollection: [...new Set([...(base.cardCollection || []), ...(other.cardCollection || [])])],
     completedGames: Math.max(0, Math.floor(Number(base.completedGames) || 0), Math.floor(Number(other.completedGames) || 0)),
     totalStars: Math.max(0, Math.floor(Number(base.totalStars) || 0), Math.floor(Number(other.totalStars) || 0)),
     level: Math.max(1, Math.floor(Number(base.level) || 1), Math.floor(Number(other.level) || 1)),
@@ -180,7 +186,7 @@ function normalizedInventory(inventory = {}) {
 
 function normalizedProgress(saved = {}) {
   // Drop legacy unlock gate — product rule is free difficulty choice from day one.
-  const { unlockedDifficulty: _legacyUnlockedDifficulty, ...safeSaved } = saved && typeof saved === "object" ? saved : {};
+  const { unlockedDifficulty: _legacyUnlockedDifficulty, settledSession: _localSettlement, ...safeSaved } = saved && typeof saved === "object" ? saved : {};
   const playerName = typeof safeSaved.playerName === "string" ? safeSaved.playerName.replace(/[\u0000-\u001f\u007f]/g, "").trim().slice(0, 16) : "";
   const playerId = typeof safeSaved.playerId === "string" && /^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(safeSaved.playerId) ? safeSaved.playerId : createPlayerId();
   const progress = {
@@ -197,7 +203,7 @@ function normalizedProgress(saved = {}) {
     inventory: normalizedInventory(safeSaved.inventory),
     cardCollection: Array.isArray(safeSaved.cardCollection) ? safeSaved.cardCollection.filter((cardId) => typeof cardId === "string" && /^[a-zA-Z][a-zA-Z0-9]{0,40}$/.test(cardId)).slice(0, 60) : [],
     bestTimes: safeSaved.bestTimes || {},
-    rewardedRuns: Array.isArray(safeSaved.rewardedRuns) ? safeSaved.rewardedRuns : [],
+    rewardedRuns: Array.isArray(safeSaved.rewardedRuns) ? [...new Set(safeSaved.rewardedRuns.filter((id) => typeof id === "string" && id.length > 0 && id.length <= 160))] : [],
     achievements: Array.isArray(safeSaved.achievements) ? [...new Set(safeSaved.achievements.filter((id) => typeof id === "string" && /^[a-zA-Z][a-zA-Z0-9]{0,40}$/.test(id)))].slice(0, 50) : [],
     achievementStats: {
       perfectGames: Math.floor(safeNumber(safeSaved.achievementStats?.perfectGames)),
@@ -225,51 +231,57 @@ function normalizedProgress(saved = {}) {
   return progress;
 }
 
-function validSession(session) {
-  return Boolean(normalizeSession(session));
-}
-
 export function loadProgress() {
   try {
-    const legacy = LEGACY_STORAGE_KEYS.map((key) => localStorage.getItem(key)).find(Boolean);
-    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || legacy || "null") || {};
+    const legacy = LEGACY_STORAGE_KEYS.map((key) => readLocal(key)).find(Boolean);
+    const saved = JSON.parse(readLocal(STORAGE_KEY) || legacy || "null") || {};
     return normalizedProgress(saved);
   } catch {
     return normalizedProgress();
   }
 }
 
-export function saveProgress(progress, { touch = true } = {}) {
+export function saveProgress(progress, { touch = true, settledSession } = {}) {
   if (progress && "unlockedDifficulty" in progress) delete progress.unlockedDifficulty;
   if (touch || !normalizeUpdatedAt(progress.updatedAt)) {
     progress.updatedAt = new Date().toISOString();
   }
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(progress));
+  let previous = null;
+  try { previous = JSON.parse(readLocal(STORAGE_KEY) || "null"); } catch { /* damaged legacy save */ }
+  const checkpoint = settledSession === undefined
+    ? (previous?.playerId === progress.playerId ? previous?.settledSession || null : null)
+    : settledSession;
+  // One atomic local write commits rewards and the remaining card choices together.
+  writeLocal(STORAGE_KEY, JSON.stringify({ ...progress, settledSession: checkpoint }));
+  if (touch) globalThis.dispatchEvent?.(new CustomEvent("sudox-progress-saved"));
   return progress;
 }
 
 export function saveSession(session) {
-  localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+  writeLocal(SESSION_KEY, JSON.stringify(session));
 }
 
 export function loadSession() {
   try {
-    const session = JSON.parse(localStorage.getItem(SESSION_KEY) || "null");
-    return normalizeSession(session);
+    const saved = JSON.parse(readLocal(STORAGE_KEY) || "null");
+    const checkpoint = normalizeSession(saved?.settledSession, { allowTerminal: true });
+    if (checkpoint?.game.completed) return checkpoint;
+    const session = JSON.parse(readLocal(SESSION_KEY) || "null");
+    return normalizeSession(session, { allowTerminal: true });
   } catch {
     return null;
   }
 }
 
 export function clearSession() {
-  localStorage.removeItem(SESSION_KEY);
+  writeLocal(SESSION_KEY, null);
 }
 
-export function addCard(progress, cardId) {
+export function addCard(progress, cardId, { persist = true } = {}) {
   const next = { ...progress, inventory: { ...progress.inventory }, cardCollection: [...progress.cardCollection] };
   next.inventory[cardId] = (next.inventory[cardId] || 0) + 1;
   if (!next.cardCollection.includes(cardId)) next.cardCollection.push(cardId);
-  saveProgress(next);
+  if (persist) saveProgress(next);
   return next;
 }
 
@@ -295,8 +307,11 @@ export function spendCoins(progress, amount) {
  * @param {string} [difficulty]
  * @param {number | null} [completedFloor] floor just cleared — next floor must be >= completed + 1
  */
-export function rewardProgress(progress, xpReward, bonusCoins = 0, stars = 0, difficulty = "easy", completedFloor = null) {
+export function rewardProgress(progress, xpReward, bonusCoins = 0, stars = 0, difficulty = "easy", completedFloor = null, { persist = true, runId = "" } = {}) {
+  if (runId && progress.rewardedRuns?.includes(runId)) return progress;
   const next = { ...progress, floors: { ...progress.floors } };
+  // ponytail: retain run IDs for replay protection; use a versioned watermark if the save-size ceiling is approached.
+  if (runId) next.rewardedRuns = [...(progress.rewardedRuns || []), runId];
   next.xp += xpReward;
   next.coins += Math.ceil(xpReward / 5) + bonusCoins;
   next.completedGames += 1;
@@ -317,7 +332,7 @@ export function rewardProgress(progress, xpReward, bonusCoins = 0, stars = 0, di
     next.coins += 25;
   }
   // No difficulty unlock gate — medium/hard stay available from the first session.
-  saveProgress(next);
+  if (persist) saveProgress(next);
   return next;
 }
 
@@ -381,7 +396,7 @@ export function parseSaveCode(code) {
  */
 export function importSaveCode(code, { touch = true } = {}) {
   const parsed = parseSaveCode(code);
-  saveProgress(parsed.progress, { touch });
+  saveProgress(parsed.progress, { touch, settledSession: null });
   if (parsed.session) saveSession(parsed.session);
   else clearSession();
   return { progress: parsed.progress, session: loadSession(), exportedAt: parsed.exportedAt };

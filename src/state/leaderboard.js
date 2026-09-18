@@ -1,5 +1,6 @@
-import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "../config.js?v=v58";
-import { loadCloudPin, validCloudPin } from "./cloud.js?v=v58";
+import { readLocal, writeLocal } from "./storage.js?v=v59";
+import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "../config.js?v=v59";
+import { fetchWithTimeout, loadCloudPin, validCloudPin } from "./cloud.js?v=v59";
 
 const QUEUE_KEY = "sudox-score-queue-v1";
 const difficulties = new Set(["easy", "medium", "hard", "alin"]);
@@ -15,7 +16,7 @@ function headers(extra = {}) {
 
 function loadQueue() {
   try {
-    const queue = JSON.parse(localStorage.getItem(QUEUE_KEY) || "[]");
+    const queue = JSON.parse(readLocal(QUEUE_KEY) || "[]");
     return Array.isArray(queue) ? queue.slice(-30) : [];
   } catch {
     return [];
@@ -23,7 +24,7 @@ function loadQueue() {
 }
 
 function saveQueue(queue) {
-  localStorage.setItem(QUEUE_KEY, JSON.stringify(queue.slice(-30)));
+  writeLocal(QUEUE_KEY, JSON.stringify(queue.slice(-30)));
 }
 
 /** Strip any legacy PIN field so the offline queue never stores credentials. */
@@ -101,7 +102,7 @@ export function scoreOutranks(candidate, current) {
 async function sendScore(score) {
   const pin = loadCloudPin();
   if (!validCloudPin(pin)) throw new Error("需要 4 位數家庭 PIN 才能上傳成績");
-  const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/submit_leaderboard_score`, {
+  const response = await fetchWithTimeout(`${SUPABASE_URL}/rest/v1/rpc/submit_leaderboard_score`, {
     method: "POST",
     headers: headers(),
     body: JSON.stringify({ ...sanitizeQueuedScore(score), p_pin: pin })
@@ -147,7 +148,6 @@ export function flushPendingScores() {
 }
 
 export async function queueLeaderboardScore(score) {
-  if (flushPromise) await flushPromise;
   const clean = sanitizeQueuedScore(score);
   const queue = loadQueue();
   const existing = queue.findIndex((item) => item.p_player_id === clean.p_player_id && item.p_difficulty === clean.p_difficulty);
@@ -155,6 +155,7 @@ export async function queueLeaderboardScore(score) {
     if (scoreOutranks(clean, queue[existing])) queue[existing] = clean;
   } else queue.push(clean);
   saveQueue(queue);
+  if (flushPromise) await flushPromise;
   return flushPendingScores();
 }
 
@@ -167,7 +168,7 @@ export async function fetchLeaderboard(difficulty = "easy") {
     order: "floor.desc,score.desc",
     limit: "50"
   });
-  const response = await fetch(`${SUPABASE_URL}/rest/v1/leaderboard_scores?${query}`, { headers: headers() });
+  const response = await fetchWithTimeout(`${SUPABASE_URL}/rest/v1/leaderboard_scores?${query}`, { headers: headers() });
   if (!response.ok) throw new Error(`無法讀取排行榜 (${response.status})`);
   return response.json();
 }
@@ -179,7 +180,7 @@ export async function fetchPlayerLeaderboardRows(playerId) {
     player_id: `eq.${playerId}`,
     order: "difficulty.asc"
   });
-  const response = await fetch(`${SUPABASE_URL}/rest/v1/leaderboard_scores?${query}`, { headers: headers() });
+  const response = await fetchWithTimeout(`${SUPABASE_URL}/rest/v1/leaderboard_scores?${query}`, { headers: headers() });
   if (!response.ok) throw new Error(`無法讀取玩家排行榜進度 (${response.status})`);
   return response.json();
 }
@@ -188,7 +189,7 @@ export async function updateLeaderboardTaunt({ playerId, pin, taunt, difficulty 
   if (!leaderboardConfigured()) throw new Error("排行榜尚未連接資料庫");
   if (!difficulties.has(difficulty)) throw new Error("排行榜難度不正確");
   const cleanTaunt = normalizeLeaderboardTaunt(taunt);
-  const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/update_leaderboard_taunt`, {
+  const response = await fetchWithTimeout(`${SUPABASE_URL}/rest/v1/rpc/update_leaderboard_taunt`, {
     method: "POST",
     headers: headers(),
     body: JSON.stringify({
@@ -207,7 +208,7 @@ export async function updateLeaderboardAvatar({ playerId, pin, avatar, color }) 
   const cleanAvatar = typeof avatar === "string" && /^[a-z_]+$/.test(avatar) ? avatar : null;
   if (!cleanAvatar) return;
   const cleanColor = Math.max(0, Math.min(7, Math.floor(Number(color) || 0)));
-  const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/update_leaderboard_avatar`, {
+  const response = await fetchWithTimeout(`${SUPABASE_URL}/rest/v1/rpc/update_leaderboard_avatar`, {
     method: "POST",
     headers: headers(),
     body: JSON.stringify({ p_player_id: playerId, p_pin: pin, p_player_avatar: cleanAvatar, p_avatar_color: cleanColor })

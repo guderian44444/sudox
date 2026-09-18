@@ -1,9 +1,9 @@
 # 小島建設模式 Handoff
 
-更新日期：2026-08-11
-開發分支：`feature/island-building`；正式部署分支：`main`
-目前版次：`v58`／Service Worker `sudox-shell-v58`
-狀態：正式模式 release 已封版；測試模式預設關閉；正式像素美術仍可後續逐批替換 fallback。
+更新日期：2026-09-18
+開發／Pages 發佈分支：`codex/fix-sudoku-stability`；`main` 保留 v58
+目前版次：`v59`／Service Worker `sudox-shell-v59`
+狀態：v59 BUG 修正版由獨立分支發佈；測試模式預設關閉。修正與驗證見 `docs/bugfix-v59.md`，實際部署結果以 GitHub Pages build 為準。
 
 ## 一句話狀態
 

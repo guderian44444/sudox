@@ -9,14 +9,14 @@ import {
   reclamationQuote,
   recipeInputsLabel,
   recipeOutputsLabel
-} from "./catalog.js?v=v58";
-import { currentAttractionVisitorIds } from "./attractions.js?v=v58";
-import { islandItemMarkup, islandSpriteMarkup, islandTerrainUrl } from "./assets.js?v=v58";
-import { adjustedConstructionDuration, companionAbility, companionReductionPercent, constructionTeamRate } from "./companions.js?v=v58";
-import { FRIEND_ROSTER } from "../game/friends.js?v=v58";
-import { axialDistance, axialKey, axialToPixel, footprintCells, HEX_DIRECTIONS, HEX_HEIGHT, HEX_WIDTH, hexRange, mapPixelBounds } from "./hex.js?v=v58";
-import { availableTransportMethods, buildingName, LOGISTICS_METHODS, partnerAcceptedItems, partnerLogisticsOffers, shipmentQuote } from "./logistics.js?v=v58";
-import { availableInventoryQuantity, buildingAnchorAt, buildingAt, constructionAnchorAt, constructionAt, constructionJobWorkTags, helperQuote, initialWorkerHireCost, islandHomeLevel, islandInventoryCapacity, islandInventoryUsed, isReclaimable } from "./model.js?v=v58";
+} from "./catalog.js?v=v59";
+import { currentAttractionVisitorIds } from "./attractions.js?v=v59";
+import { islandItemMarkup, islandSpriteMarkup, islandTerrainUrl } from "./assets.js?v=v59";
+import { adjustedConstructionDuration, companionAbility, companionReductionPercent, constructionTeamRate } from "./companions.js?v=v59";
+import { FRIEND_ROSTER } from "../game/friends.js?v=v59";
+import { axialDistance, axialKey, axialToPixel, footprintCells, HEX_DIRECTIONS, HEX_HEIGHT, HEX_WIDTH, hexRange, mapPixelBounds } from "./hex.js?v=v59";
+import { availableTransportMethods, buildingName, LOGISTICS_METHODS, partnerAcceptedItems, partnerLogisticsOffers, shipmentQuote } from "./logistics.js?v=v59";
+import { availableInventoryQuantity, buildingAnchorAt, buildingAt, constructionAnchorAt, constructionAt, constructionJobWorkTags, helperQuote, initialWorkerHireCost, islandHomeLevel, islandInventoryCapacity, islandInventoryUsed, isReclaimable } from "./model.js?v=v59";
 
 const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({
   "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"

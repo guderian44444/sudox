@@ -3,15 +3,16 @@
  * Mutates the game object and returns structured events for the UI layer.
  * Also owns the full runtime game factory + session normalization (P2).
  */
-import { createGame, DIFFICULTIES, relatedCells } from "./sudoku.js?v=v58";
+import { createGame, DIFFICULTIES, relatedCells, validSudokuGrid } from "./sudoku.js?v=v59";
 import {
   ADVENTURE_RULES,
   calculateStars,
   completedSudokuUnits,
   drawTreasureCards,
   newlyCompletedSudokuUnits,
-  treasureClaimsForFloor
-} from "./adventure.js?v=v58";
+  treasureClaimsForFloor,
+  TREASURE_CARDS
+} from "./adventure.js?v=v59";
 
 const DIFFICULTY_IDS = new Set(Object.keys(DIFFICULTIES));
 
@@ -61,7 +62,7 @@ function validNotes(notes) {
 
 function normalizeCardIds(list) {
   if (!Array.isArray(list)) return [];
-  return [...new Set(list.filter((id) => typeof id === "string" && /^[a-zA-Z][a-zA-Z0-9]{0,40}$/.test(id)))];
+  return [...new Set(list.filter((id) => typeof id === "string" && Object.hasOwn(TREASURE_CARDS, id)))];
 }
 
 function normalizeHealGoals(goals = {}) {
@@ -122,6 +123,7 @@ export function createAdventureFields(difficulty, equippedCards = []) {
     failed: false,
     actions: 0,
     correctStreak: 0,
+    solvedCells: [],
     healGoals: { streak: false, row: false, box: false },
     completedUnits: { rows: [], columns: [], boxes: [] },
     milestones: [],
@@ -151,6 +153,7 @@ export function createAdventureGame({
   return {
     ...base,
     ...createAdventureFields(safeDifficulty, equippedCards),
+    runId: globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`,
     floor: clampInt(floor, 1, 1000000, 1)
   };
 }
@@ -167,7 +170,8 @@ export function normalizeRuntimeGame(raw, { allowTerminal = false } = {}) {
   if (!validGrid(raw.puzzle, true) || !validGrid(raw.solution, false) || !validGrid(raw.values, true) || !validNotes(raw.notes)) {
     return null;
   }
-  if (!boardsConsistent(raw.puzzle, raw.solution, raw.values)) return null;
+  if (!validSudokuGrid(raw.solution, false) || !boardsConsistent(raw.puzzle, raw.solution, raw.values)) return null;
+  if (raw.completed && !raw.values.every((value, index) => value === raw.solution[index])) return null;
 
   const rules = ADVENTURE_RULES[difficulty] || ADVENTURE_RULES.easy;
   const maxHealth = rules.maxHealth;
@@ -179,6 +183,7 @@ export function normalizeRuntimeGame(raw, { allowTerminal = false } = {}) {
   const health = clampInt(raw.health, 0, maxHealth, failed ? 0 : maxHealth);
   const game = {
     difficulty,
+    runId: typeof raw.runId === "string" && raw.runId.length > 0 && raw.runId.length <= 160 ? raw.runId : `legacy-${raw.startedAt}-${raw.puzzle.join("")}`,
     puzzle: [...raw.puzzle],
     solution: [...raw.solution],
     values: [...raw.values],
@@ -186,6 +191,7 @@ export function normalizeRuntimeGame(raw, { allowTerminal = false } = {}) {
     selected: normalizeSelected(raw.selected, raw.puzzle, raw.values),
     mistakes: clampInt(raw.mistakes, 0, 9999, 0),
     elapsed: clampInt(raw.elapsed, 0, 10_000_000, 0),
+    clockRemainderMs: clampInt(raw.clockRemainderMs, 0, 999, 0),
     startedAt: Number.isFinite(Number(raw.startedAt)) ? Number(raw.startedAt) : Date.now(),
     completed,
     failed,
@@ -195,6 +201,7 @@ export function normalizeRuntimeGame(raw, { allowTerminal = false } = {}) {
     shields: clampInt(raw.shields, 0, 99, 0),
     actions: clampInt(raw.actions, 0, 1_000_000, 0),
     correctStreak: clampInt(raw.correctStreak, 0, 81, 0),
+    solvedCells: [...new Set([...(Array.isArray(raw.solvedCells) ? raw.solvedCells.filter((index) => Number.isInteger(index) && index >= 0 && index < 81 && !raw.puzzle[index]) : []), ...raw.values.flatMap((value, index) => value && !raw.puzzle[index] ? [index] : [])])],
     healGoals: normalizeHealGoals(raw.healGoals ?? defaults.healGoals),
     completedUnits: normalizeCompletedUnits(raw.completedUnits, raw.values),
     milestones: Array.isArray(raw.milestones)
@@ -234,12 +241,12 @@ export function isValidRuntimeGame(game, { allowTerminal = false } = {}) {
  * Validate + normalize a persisted session envelope.
  * @returns {null | { game: object, equippedCards: string[], alinMode: boolean }}
  */
-export function normalizeSession(session) {
+export function normalizeSession(session, { allowTerminal = false } = {}) {
   if (!session || typeof session !== "object") return null;
   if (session.alinMode != null && typeof session.alinMode !== "boolean") return null;
   if (session.equippedCards != null && !Array.isArray(session.equippedCards)) return null;
 
-  const game = normalizeRuntimeGame(session.game, { allowTerminal: false });
+  const game = normalizeRuntimeGame(session.game, { allowTerminal });
   if (!game) return null;
 
   const equippedCards = normalizeCardIds(
@@ -284,7 +291,7 @@ export function removeRelatedNotes(game, index, number) {
  * @returns {{ type: "noop"|"note"|"mistake"|"correct", index?: number, number?: number, blockedByShield?: boolean, failed?: boolean }}
  */
 export function applyPlayerDigit(game, number, { noteMode = false, alinMode = false, index = game?.selected } = {}) {
-  if (!canEditCell(game, index)) return { type: "noop" };
+  if (!canEditCell(game, index) || !Number.isInteger(number) || number < 1 || number > 9 || game.values[index]) return { type: "noop" };
 
   if (noteMode) {
     const notes = new Set(game.notes[index]);
@@ -312,7 +319,11 @@ export function applyPlayerDigit(game, number, { noteMode = false, alinMode = fa
   }
 
   game.actions += 1;
-  game.correctStreak += 1;
+  game.solvedCells ||= [];
+  if (!game.solvedCells.includes(index)) {
+    game.correctStreak += 1;
+    game.solvedCells.push(index);
+  }
   game.values[index] = number;
   game.notes[index] = [];
   removeRelatedNotes(game, index, number);
@@ -447,6 +458,8 @@ export function applyHintFill(game, index = game?.selected) {
   const value = game.solution[index];
   game.actions += 1;
   game.hintsUsed = (game.hintsUsed || 0) + 1;
+  game.solvedCells ||= [];
+  if (!game.solvedCells.includes(index)) game.solvedCells.push(index);
   game.values[index] = value;
   game.notes[index] = [];
   removeRelatedNotes(game, index, value);
