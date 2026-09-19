@@ -1,8 +1,8 @@
-import { playSound, resumeAudio, setSoundEnabled, stopAudio } from "./game/audio.js?v=v60";
-import { advanceGameClock } from "./game/timer.js?v=v60";
-import { readLocal, writeLocal, storageWarning, retryLocalWrites } from "./state/storage.js?v=v60";
-import { DIFFICULTIES, relatedCells } from "./game/sudoku.js?v=v60";
-import { activateAutomaticTreasures, ADVENTURE_RULES, applyHintTreasure, applyImmediateTreasure, strongestEquippedRevive, sudokuUnitCells, TREASURE_AUTO_EFFECTS, TREASURE_CARDS } from "./game/adventure.js?v=v60";
+import { playSound, resumeAudio, setSoundEnabled, stopAudio } from "./game/audio.js?v=v61";
+import { advanceGameClock } from "./game/timer.js?v=v61";
+import { readLocal, writeLocal, storageWarning, retryLocalWrites } from "./state/storage.js?v=v61";
+import { DIFFICULTIES, VARIANTS, relatedCells } from "./game/sudoku.js?v=v61";
+import { activateAutomaticTreasures, ADVENTURE_RULES, applyHintTreasure, applyImmediateTreasure, strongestEquippedRevive, sudokuUnitCells, TREASURE_AUTO_EFFECTS, TREASURE_CARDS } from "./game/adventure.js?v=v61";
 import {
   applyHintFill,
   applyPlayerDigit,
@@ -14,27 +14,28 @@ import {
   removeRelatedNotes,
   RUN_MILESTONES,
   settleCompletedGame
-} from "./game/flow.js?v=v60";
-import { ACHIEVEMENTS, ACHIEVEMENT_CATEGORIES, ACHIEVEMENT_SERIES, achievementById, achievementRewardText, achievementSeriesProgress, achievementValue, equipAchievementReward, equippedAchievementReward, normalizeAchievementStats, recordAchievementGame } from "./game/achievements.js?v=v60";
-import { chooseFriendPair, chooseGardenEel, choosePartyFriends, FRIEND_ROSTER, nextDanceVariants } from "./game/friends.js?v=v60";
-import { ISLAND_TEST_MODE } from "./island/catalog.js?v=v60";
-import { availableInventoryQuantity, dismissIslandLetter, availableConstructionWorkerIds, availableHelperIds, collectFacility, createIslandState, finishIslandWork, hireConstructionHelper, marketSale, normalizeIslandState, selectSourceRecipe, settleIsland, startBuilding, startDemolition, startHomeUpgrade, startProcessing, startReclamation } from "./island/model.js?v=v60";
-import { DEMO_ISLAND_PARTNERS, dispatchDemoShipment, LOGISTICS_METHODS, mergeCloudLogistics, networkProfileSnapshot, normalizeIslandPartner, partnerLogisticsOffers, recordDispatchedShipment, shipmentQuote } from "./island/logistics.js?v=v60";
-import { formatIslandDuration, renderIslandScreen } from "./island/renderer.js?v=v60";
-import { cloudConfigured, loadCloudPin, loadCloudProgress, normalizePlayerName, renameCloudPlayer, saveCloudPin, saveCloudProgress, saveCloudProgressIfCurrent, validCloudPin } from "./state/cloud.js?v=v60";
-import { acknowledgeIslandLogistics, dispatchIslandShipment, getIslandLogistics, listIslandPartners, publishIslandNetwork } from "./state/island-cloud.js?v=v60";
-import { buildScore, fetchLeaderboard, fetchPlayerLeaderboardRows, flushPendingScores, leaderboardConfigured, normalizeLeaderboardTaunt, pendingScoreCount, queueLeaderboardScore, updateLeaderboardAvatar, updateLeaderboardTaunt } from "./state/leaderboard.js?v=v60";
-import { addCard, clearSession, consumeCard, exportSaveCode, importSaveCode, loadProgress, loadSession, mergeProgressHighWater, nextFloorFromCompleted, parseSaveCode, preferSaveSide, raiseFloorProgress, reconcileFloorsFromLeaderboardRows, rewardProgress, saveProgress, saveSession, saveTimestampMs, sessionFloorBehindProgress, spendCoins } from "./state/store.js?v=v60";
+} from "./game/flow.js?v=v61";
+import { ACHIEVEMENTS, ACHIEVEMENT_CATEGORIES, ACHIEVEMENT_SERIES, achievementById, achievementRewardText, achievementSeriesProgress, achievementValue, equipAchievementReward, equippedAchievementReward, normalizeAchievementStats, recordAchievementGame } from "./game/achievements.js?v=v61";
+import { chooseFriendPair, chooseGardenEel, choosePartyFriends, FRIEND_ROSTER, nextDanceVariants } from "./game/friends.js?v=v61";
+import { ISLAND_TEST_MODE } from "./island/catalog.js?v=v61";
+import { availableInventoryQuantity, dismissIslandLetter, availableConstructionWorkerIds, availableHelperIds, collectFacility, createIslandState, finishIslandWork, hireConstructionHelper, marketSale, normalizeIslandState, selectSourceRecipe, settleIsland, startBuilding, startDemolition, startHomeUpgrade, startProcessing, startReclamation } from "./island/model.js?v=v61";
+import { DEMO_ISLAND_PARTNERS, dispatchDemoShipment, LOGISTICS_METHODS, mergeCloudLogistics, networkProfileSnapshot, normalizeIslandPartner, partnerLogisticsOffers, recordDispatchedShipment, shipmentQuote } from "./island/logistics.js?v=v61";
+import { formatIslandDuration, renderIslandScreen } from "./island/renderer.js?v=v61";
+import { cloudConfigured, loadCloudPin, loadCloudProgress, normalizePlayerName, renameCloudPlayer, saveCloudPin, saveCloudProgress, saveCloudProgressIfCurrent, validCloudPin } from "./state/cloud.js?v=v61";
+import { acknowledgeIslandLogistics, dispatchIslandShipment, getIslandLogistics, listIslandPartners, publishIslandNetwork } from "./state/island-cloud.js?v=v61";
+import { buildScore, fetchLeaderboard, fetchPlayerLeaderboardRows, flushPendingScores, leaderboardConfigured, normalizeLeaderboardTaunt, pendingScoreCount, queueLeaderboardScore, updateLeaderboardAvatar, updateLeaderboardTaunt } from "./state/leaderboard.js?v=v61";
+import { addCard, clearSession, consumeCard, exportSaveCode, importSaveCode, loadProgress, loadSession, mergeProgressHighWater, nextFloorFromCompleted, parseSaveCode, preferSaveSide, raiseFloorProgress, reconcileFloorsFromLeaderboardRows, rewardProgress, saveProgress, saveSession, saveTimestampMs, sessionFloorBehindProgress, spendCoins } from "./state/store.js?v=v61";
 
 const app = document.querySelector("#app");
-const APP_VERSION = "v60";
-const APP_LAST_UPDATED = "2026-09-18T22:09:41+08:00";
+const APP_VERSION = "v61";
+const APP_LAST_UPDATED = "2026-09-19T20:53:16+08:00";
 let progress = loadProgress();
 const migratedAchievements = recordAchievementGame(progress);
 progress = migratedAchievements.progress;
 if (migratedAchievements.changed) saveProgress(progress, { touch: false });
 const restoredSession = loadSession();
 let game = restoredSession?.game || createAdventureGame({ difficulty: "easy", floor: 1 });
+let generatingGame = null;
 let noteMode = false;
 let alinMode = restoredSession?.alinMode || false;
 let showBackpack = false;
@@ -195,7 +196,7 @@ function setAvatarFace(face, duration = 2000) {
   }, duration);
 }
 const currentHintCost = () => alinMode ? 0 : DIFFICULTIES[game.difficulty].hintCost;
-const progressDifficulty = (difficulty = game?.difficulty, mode = alinMode) => mode ? "alin" : difficulty;
+const progressDifficulty = (difficulty = game?.difficulty, mode = alinMode, variant = game?.variant) => variant && variant !== "classic" ? variant : mode ? "alin" : difficulty;
 const escapeHtml = (value) => String(value).replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character]);
 const normalizePinInput = (value) => String(value)
   .replace(/[０-９]/g, (digit) => String(digit.charCodeAt(0) - 0xFF10))
@@ -1170,10 +1171,10 @@ function render() {
   scheduleSessionSave();
   const levelTarget = progress.level * 100;
   const selectedValue = game.values[game.selected];
-  const related = relatedCells(game.selected);
+  const related = relatedCells(game.selected, game);
   const inventoryTotal = Object.values(progress.inventory).reduce((total, count) => total + count, 0);
   app.innerHTML = `
-    <main class="shell ${game.started ? "game-active" : ""}">
+    <main class="shell ${game.started ? "game-active" : ""}" ${generatingGame ? "inert" : ""}>
       <header class="topbar">
         <div class="brand">${mascot()}<div><span>阿霖的數獨島</span><small>ALIN'S SUDOKU ISLAND</small></div></div>
         <div class="topbar-actions"><div class="wallet" aria-label="玩家資源"><span>⭐ ${progress.totalStars}</span><span>🪙 ${progress.coins}</span></div><button id="open-island" class="save-button">🏝️ <span>小島</span></button><button id="toggle-sound" class="save-button sound-button" aria-label="${soundEnabled ? "關閉音效" : "開啟音效"}" aria-pressed="${soundEnabled}">${soundEnabled ? "🔊" : "🔇"}</button><button id="open-achievements" class="save-button" aria-label="成就圖鑑">🏅</button><button id="open-avatar-picker" class="save-button">🐾 <span>頭像</span></button><button id="open-leaderboard" class="save-button">🏆 <span>排行</span></button><button id="open-save-center" class="save-button">💾 <span>存檔</span></button></div>
@@ -1186,6 +1187,8 @@ function render() {
 
       <section class="game-layout">
         <aside class="side-panel difficulty-panel">
+          <div class="section-title"><span>選擇玩法</span><small>獨立模式</small></div>
+          ${variantPickerMarkup()}
           <div class="section-title"><span>選擇旅程</span><small>難度</small></div>
           <div class="difficulty-list">
             ${Object.entries(DIFFICULTIES).map(([key, item]) => `
@@ -1210,6 +1213,7 @@ function render() {
             <button class="icon-button" id="restart" aria-label="重新開始">↻</button>
           </div>
           ${playerHonorsMarkup()}
+          ${game.variant !== "classic" ? `<div class="variant-rule"><strong>${VARIANTS[game.variant].icon} ${VARIANTS[game.variant].label}</strong><span>${VARIANTS[game.variant].rule}</span></div>` : ""}
           <div class="adventure-status">
             <span class="health">${alinMode ? "🌈 不限失誤" : `${"❤️".repeat(game.health)}${"🤍".repeat(Math.max(0, game.maxHealth - game.health))}`}${game.shields ? ` 🛡️${game.shields}` : ""}</span>
             ${game.floor > 1 ? `<span class="farm-badge">♻️ 探索層：55% XP・每 3 層寶物</span>` : ""}
@@ -1221,17 +1225,19 @@ function render() {
           </div>
           <div class="board-stage">
             ${decorationMarkup(equippedAchievementReward(progress, "boardDecoration")?.achievement)}
-            <div class="sudoku-board ${game.started ? "" : "waiting"}" role="grid" aria-label="${game.started ? "數獨盤面" : "按下開始後顯示題目"}">
+            <div class="sudoku-board variant-${game.variant} ${game.variant !== "classic" ? "variant-board" : ""} ${game.started ? "" : "waiting"}" role="grid" aria-label="${game.started ? "數獨盤面" : "按下開始後顯示題目"}">
             ${game.values.map((value, index) => {
               const fixed = game.puzzle[index] !== 0;
               const selected = index === game.selected;
               const same = selectedValue && value === selectedValue;
-              return `<button class="cell ${fixed ? "fixed" : ""} ${selected ? "selected" : ""} ${related.has(index) ? "related" : ""} ${same ? "same" : ""}" data-cell="${index}" role="gridcell" ${game.started ? "" : "disabled"} aria-label="${game.started ? `第 ${Math.floor(index / 9) + 1} 列第 ${(index % 9) + 1} 欄${value ? `，數字 ${value}` : "，空白"}` : "題目尚未開始"}">
+              return `<button class="cell ${fixed ? "fixed" : ""} ${selected ? "selected" : ""} ${related.has(index) ? "related" : ""} ${same ? "same" : ""}" data-cell="${index}" role="gridcell" ${game.started ? "" : "disabled"} aria-label="${game.started ? cellAriaLabel(index) : "題目尚未開始"}">
                 ${cellContent(index)}
               </button>`;
             }).join("")}
+            ${variantOverlayMarkup()}
             </div>
           </div>
+          ${game.variant !== "classic" ? `<p class="variant-cell-detail" aria-live="polite">${variantCellDetail()}</p>` : ""}
           <div class="number-pad" aria-label="數字鍵盤">${Array.from({ length: 9 }, (_, index) => `<button data-number="${index + 1}">${index + 1}</button>`).join("")}</div>
           <div class="tools">
             <button id="undo" aria-label="清除目前格"><span>⌫</span><small>清除</small></button>
@@ -1261,18 +1267,62 @@ function render() {
       </section>
       <footer class="app-footer" aria-label="版本資訊"><span>版次 ${APP_VERSION}</span><span>最後更新 ${formatDateTime(APP_LAST_UPDATED)}（台灣時間）</span></footer>
     </main>
-    ${showNameSetup ? nameSetupModal() : showLeaderboard ? leaderboardModal() : showAchievements ? achievementModal() : showSaveCenter ? saveCenterModal() : showBackpack ? backpackModal() : showAvatarPicker ? avatarPickerModal() : !game.started ? startModal() : game.completed ? completionModal() : game.failed ? failureModal() : ""}
+    ${showNameSetup ? nameSetupModal() : generatingGame ? generationModal() : showLeaderboard ? leaderboardModal() : showAchievements ? achievementModal() : showSaveCenter ? saveCenterModal() : showBackpack ? backpackModal() : showAvatarPicker ? avatarPickerModal() : !game.started ? startModal() : game.completed ? completionModal() : game.failed ? failureModal() : ""}
   `;
   bindEvents();
   syncLeaderboardStatusUi();
   playNextCellWave();
 }
 
+function variantPickerMarkup(prestart = false) {
+  return `<div class="variant-picker ${prestart ? "prestart-variants" : ""}" role="group" aria-label="選擇數獨玩法">${Object.entries(VARIANTS).map(([id, item]) => `<button data-variant="${id}" aria-pressed="${game.variant === id}" ${game.started ? "disabled" : ""}><span>${item.icon}</span><strong>${item.label}</strong></button>`).join("")}</div>`;
+}
+
+function cellAriaLabel(index) {
+  const value = game.values[index];
+  return `第 ${Math.floor(index / 9) + 1} 列第 ${index % 9 + 1} 欄${value ? `，數字 ${value}` : "，空白"}${game.variant === "killer" ? `，籠總和 ${game.cages.find(cage => cage.cells.includes(index)).sum}` : ""}`;
+}
+
+function variantCellDetail() {
+  if (!game.started) return "";
+  if (game.variant === "killer") {
+    const cage = game.cages.find(cage => cage.cells.includes(game.selected));
+    if (!cage) return "";
+    const filled = cage.cells.reduce((sum, cell) => sum + game.values[cell], 0), empty = cage.cells.filter(cell => !game.values[cell]).length;
+    return `Σ 這一籠：總和 ${cage.sum}・已填 ${filled}・剩餘 ${cage.sum - filled}（${empty} 格），籠內不可重複。`;
+  }
+  if (game.variant === "thermo") {
+    const path = game.thermometers.find(path => path.includes(game.selected));
+    return path ? `🌡️ 由圓球算起第 ${path.indexOf(game.selected) + 1}／${path.length} 格，往末端的數字要更大。` : "點選溫度計上的格子，可查看它的位置。";
+  }
+  if (game.variant === "diagonal") return "╳ 兩條對角線各有 1–9；中央格同時屬於兩條線。";
+  return "";
+}
+
+function variantOverlayMarkup() {
+  if (!game.started || game.variant === "classic") return "";
+  const point = cell => `${cell % 9 * 50 + 25},${Math.floor(cell / 9) * 50 + 25}`;
+  let content = "";
+  if (game.variant === "diagonal") content = '<path class="diagonal-line" d="M25 25 425 425M425 25 25 425"/>';
+  if (game.variant === "thermo") content = game.thermometers.map(path => `<g class="thermometer"><polyline points="${path.map(point).join(" ")}"/><circle cx="${path[0] % 9 * 50 + 25}" cy="${Math.floor(path[0] / 9) * 50 + 25}" r="18"/></g>`).join("");
+  if (game.variant === "killer") content = game.cages.map((cage, cageIndex) => {
+    const cells = new Set(cage.cells);
+    const lines = cage.cells.map(cell => {
+      const x = cell % 9 * 50, y = Math.floor(cell / 9) * 50;
+      return [!cells.has(cell - 9) ? `M${x+3} ${y+3}H${x+47}` : "", !cells.has(cell + 9) ? `M${x+3} ${y+47}H${x+47}` : "", (cell % 9 === 0 || !cells.has(cell - 1)) ? `M${x+3} ${y+3}V${y+47}` : "", (cell % 9 === 8 || !cells.has(cell + 1)) ? `M${x+47} ${y+3}V${y+47}` : ""].join("");
+    }).join("");
+    return `<path class="killer-cage" data-cage="${cageIndex}" d="${lines}"/>`;
+  }).join("");
+  return `<svg class="variant-overlay" viewBox="0 0 450 450" aria-hidden="true">${content}</svg>`;
+}
+
 function startModal() {
   const selectedCards = equippedCards.map((cardId) => TREASURE_CARDS[cardId]).filter(Boolean);
   return `<div class="modal-backdrop"><section class="modal start-modal" role="dialog" aria-modal="true" aria-labelledby="start-title">
     <div class="start-friends" aria-hidden="true"><span>🐱</span><span>🏝️</span><span>🐭</span></div><p class="eyebrow">FLOOR ${game.floor}</p><h2 id="start-title">出發前選寶物</h2>
-    <p>先確認難度與本關寶物，按下開始後才會顯示題目並開始計時。</p>
+    <p>先選玩法、難度與寶物，按下開始後才顯示題目並開始計時。</p>
+    ${variantPickerMarkup(true)}
+    <p class="prestart-rule">${VARIANTS[game.variant].rule}</p>
     <div class="prestart-difficulties" aria-label="選擇難度">${Object.entries(DIFFICULTIES).map(([key, item]) => `<button data-prestart-difficulty="${key}" class="${game.difficulty === key ? "active" : ""}">${item.icon} ${item.label}</button>`).join("")}</div>
     <button id="prestart-alin-mode" class="prestart-alin ${alinMode ? "active" : ""}" aria-pressed="${alinMode}">♾️ 阿霖模式：${alinMode ? "開啟" : "關閉"}</button>
     <div class="prestart-loadout">
@@ -1293,7 +1343,7 @@ function completionModal() {
     <div class="celebrate">🎉</div><p class="eyebrow">FLOOR ${game.floor} COMPLETE</p><h2 id="complete-title">第 ${game.floor} 層完成！</h2>
     <div class="stars-earned" aria-label="獲得 ${game.stars} 顆星">${"⭐".repeat(game.stars)}${"☆".repeat(3 - game.stars)}</div>
     <div class="reward-row"><span>⭐ +${game.xpReward} XP</span><span>🪙 +${totalCoins}</span></div>
-    <p class="cloud-result">${leaderboardConfigured() ? "🏆 成績已加入全球排行同步佇列" : "🏆 排行榜等待連接資料庫"}</p>
+    <p class="cloud-result">${game.variant !== "classic" ? `${VARIANTS[game.variant].icon} ${VARIANTS[game.variant].label}模式進度已保存` : leaderboardConfigured() ? "🏆 成績已加入全球排行同步佇列" : "🏆 排行榜等待連接資料庫"}</p>
     ${game.floor > 1 ? `<p class="farm-reward-note">探索層採 55% 經驗；下一局前往第 ${nextFloor} 層</p>` : ""}
     ${game.timeBonus ? `<p class="speed-bonus">⚡ 目標時間內完成，速度獎勵 +${game.timeBonus} 金幣</p>` : `<p class="speed-bonus calm">慢慢玩也很好，關卡沒有時間限制</p>`}
     ${(game.unlockedAchievementIds || []).length ? `<section class="completion-achievements"><strong>🏅 本局解鎖 ${game.unlockedAchievementIds.length} 個階段</strong><ul>${game.unlockedAchievementIds.map(achievementById).filter(Boolean).map((stage)=>`<li>${stage.icon} ${escapeHtml(stage.name)}<small>${escapeHtml(achievementRewardText(stage))}</small></li>`).join("")}</ul><button id="open-completion-achievements" class="secondary-button">查看成就與外觀</button></section>` : ""}
@@ -1564,13 +1614,14 @@ function syncLeaderboardStatusUi() {
 
 function cellContent(index) {
   if (!game.started) return "";
-  return String(game.values[index] || (game.notes[index].length
+  const cage = game.variant === "killer" ? game.cages.find(cage => cage.cells[0] === index) : null;
+  return (cage ? `<small class="cage-sum">${cage.sum}</small>` : "") + String(game.values[index] ? `<span class="cell-value">${game.values[index]}</span>` : (game.notes[index].length
     ? `<span class="notes">${Array.from({ length: 9 }, (_, n) => `<i>${game.notes[index].includes(n + 1) ? n + 1 : ""}</i>`).join("")}</span>` : ""));
 }
 
 function updateBoard({ save = true } = {}) {
   if (game.completed || game.failed || !document.querySelector(".sudoku-board")) { render(); return; }
-  const related = relatedCells(game.selected);
+  const related = relatedCells(game.selected, game);
   const selectedValue = game.values[game.selected];
   document.querySelectorAll("[data-cell]").forEach((cell) => {
     const index = Number(cell.dataset.cell), value = game.values[index];
@@ -1579,9 +1630,10 @@ function updateBoard({ save = true } = {}) {
     cell.classList.toggle("same", Boolean(selectedValue && value === selectedValue));
     const content = cellContent(index);
     if (cell.innerHTML.trim() !== content) cell.innerHTML = content;
-    cell.setAttribute("aria-label", `第 ${Math.floor(index / 9) + 1} 列第 ${(index % 9) + 1} 欄${value ? `，數字 ${value}` : "，空白"}`);
+    cell.setAttribute("aria-label", cellAriaLabel(index));
   });
   const text = (selector, value) => { const element = document.querySelector(selector); if (element) element.textContent = value; };
+  text(".variant-cell-detail", variantCellDetail());
   text(".health", (alinMode ? "🌈 不限失誤" : "❤️".repeat(game.health) + "🤍".repeat(Math.max(0, game.maxHealth - game.health))) + (game.shields ? ` 🛡️${game.shields}` : ""));
   text(".mistakes", `${alinMode ? "🌈 阿霖模式・目前" : "本局"}答錯 ${game.mistakes} 次`);
   text(".run-milestone-badge", `🏅 本局 ${game.milestones.length}/${RUN_MILESTONES.length}`);
@@ -1598,6 +1650,9 @@ function updateBoard({ save = true } = {}) {
 
 function bindEvents() {
   bindAchievementEvents();
+  document.querySelectorAll("[data-variant]").forEach(button => button.addEventListener("click", () => { if (!game.started) newGame(game.difficulty, button.dataset.variant); }));
+  document.querySelector("#cancel-generation")?.addEventListener("click", () => { cancelPuzzleGeneration(); if (game.started && !game.completed && !game.failed) startTimer(); render(); });
+  document.querySelector("#retry-generation")?.addEventListener("click", () => newGame(generatingGame.options.difficulty, generatingGame.options.variant));
   document.querySelectorAll("[data-cell]").forEach((button) => button.addEventListener("click", () => { game.selected = Number(button.dataset.cell); updateBoard({ save: false }); }));
   document.querySelectorAll("[data-number]").forEach((button) => button.addEventListener("click", () => enterNumber(Number(button.dataset.number))));
   document.querySelectorAll("[data-difficulty]").forEach((button) => button.addEventListener("click", () => { if (!game.started) newGame(button.dataset.difficulty); }));
@@ -1785,6 +1840,7 @@ async function createPlayer() {
 }
 
 function applyImportedSave(imported, { mergeWithLocal = null } = {}) {
+  cancelPuzzleGeneration();
   resetGameEffects();
   clearTimeout(sessionSaveTimer);
   timerWasActive = false;
@@ -1804,7 +1860,7 @@ function applyImportedSave(imported, { mergeWithLocal = null } = {}) {
     clearSession();
     equippedCards = [];
     const fallbackDifficulty = game?.difficulty && game.difficulty !== "alin" ? game.difficulty : "easy";
-    const fallbackProgressDifficulty = progressDifficulty(fallbackDifficulty, alinMode);
+    const fallbackProgressDifficulty = progressDifficulty(fallbackDifficulty, alinMode, "classic");
     game = createAdventureGame({
       difficulty: fallbackDifficulty,
       floor: progress.floors?.[fallbackProgressDifficulty] || 1,
@@ -1830,14 +1886,8 @@ function reconcileActiveSessionFloor() {
     return false;
   }
 
-  const floor = Math.max(1, Math.floor(Number(progress.floors?.[difficulty]) || 1));
-  resetGameEffects();
-  timerWasActive = false;
-  clearInterval(timerId);
-  equippedCards = equippedCards.filter((cardId) => progress.inventory[cardId] > 0).slice(0, 2);
-  game = createAdventureGame({ difficulty: game.difficulty, floor, equippedCards });
+  newGame(game.difficulty, game.variant);
   clearSession();
-  lastWaveVariants = { row: null, column: null, box: null };
   return true;
 }
 
@@ -2325,7 +2375,7 @@ function checkCompletion() {
 
 function gameClockActive() {
   return activeScreen === "game" && document.visibilityState !== "hidden"
-    && game.started && !game.completed && !game.failed
+    && !generatingGame && game.started && !game.completed && !game.failed
     && !showNameSetup && !showSaveCenter && !showLeaderboard && !showBackpack && !showAchievements && !showAvatarPicker;
 }
 
@@ -2353,6 +2403,7 @@ function startTimer() {
 }
 
 function startGame() {
+  if (generatingGame) return;
   if (game.started || game.completed || game.failed) return;
   if (!progress.playerAvatar) {
     showAvatarPicker = true;
@@ -2374,37 +2425,68 @@ function startGame() {
   });
 }
 
-function newGame(difficulty) {
+function cancelPuzzleGeneration() {
+  if (!generatingGame) return;
+  generatingGame.worker?.terminate();
+  clearTimeout(generatingGame.timeout);
+  generatingGame = null;
+}
+
+function generationModal() {
+  const { options, error } = generatingGame;
+  return `<div class="modal-backdrop"><section class="modal generation-modal" role="dialog" aria-modal="true" aria-labelledby="generation-title"><div class="celebrate">${VARIANTS[options.variant].icon}</div><h2 id="generation-title">${error ? "暫時無法出題" : `準備${VARIANTS[options.variant].label}題目`}</h2><p role="status">${error ? escapeHtml(error) : "正在確認唯一解，請稍候…"}</p>${error ? '<button id="retry-generation" class="primary-button">重試出題</button>' : ""}<button id="cancel-generation" class="secondary-button">返回原本遊戲</button></section></div>`;
+}
+
+function newGame(difficulty, variant = game?.variant || "classic") {
   if (game?.completed && game.remainingClaims > 0) return;
+  if (!Object.hasOwn(VARIANTS, variant) || !Object.hasOwn(DIFFICULTIES, difficulty)) return;
   updateGameClock();
   timerWasActive = false;
+  cancelPuzzleGeneration();
   resetGameEffects();
   clearTimeout(sessionSaveTimer);
-  saveProgress(progress, { touch: false, settledSession: null });
   clearInterval(timerId);
-  cellWaveQueue = [];
-  cellWaveActive = false;
-  equippedCards = equippedCards.filter((cardId) => progress.inventory[cardId] > 0).slice(0, 2);
-  const difficultyProgress = progressDifficulty(difficulty, alinMode);
-  // If we just cleared a board, never re-open a lower floor than completed + 1.
-  const fromLastClear = game?.completed && game?.difficulty === difficulty
-    ? nextFloorFromCompleted(game.floor)
-    : 1;
+  equippedCards = equippedCards.filter(cardId => progress.inventory[cardId] > 0).slice(0, 2);
+  const difficultyProgress = progressDifficulty(difficulty, alinMode, variant);
+  const fromLastClear = game?.completed && game?.difficulty === difficulty && game.variant === variant ? nextFloorFromCompleted(game.floor) : 1;
   const floor = Math.max(progress.floors[difficultyProgress] || 1, fromLastClear, 1);
-  if ((progress.floors[difficultyProgress] || 1) < floor) {
-    progress = raiseFloorProgress(progress, difficultyProgress, floor);
-    saveProgress(progress);
-  }
-  game = createAdventureGame({
-    difficulty,
-    floor,
-    equippedCards
-  });
-  noteMode = false;
-  showBackpack = false;
-  lastWaveVariants = { row: null, column: null, box: null };
-  refreshBoardBuddies();
+  const options = { difficulty, variant, floor, equippedCards };
+  const finish = (next) => {
+    next.floor = Math.max(next.floor, progress.floors[progressDifficulty(difficulty, alinMode, variant)] || 1);
+    saveProgress(progress, { touch: false, settledSession: null });
+    game = next;
+    noteMode = false;
+    showBackpack = false;
+    lastWaveVariants = { row: null, column: null, box: null };
+    refreshBoardBuddies();
+    render();
+  };
+  if (variant === "classic") { finish(createAdventureGame(options)); return; }
+  const request = { options, playerId: progress.playerId, worker: null, error: "" };
+  generatingGame = request;
   render();
+  document.querySelector("#cancel-generation")?.focus({ preventScroll: true });
+  const fail = () => {
+    if (generatingGame !== request) return;
+    request.worker?.terminate(); clearTimeout(request.timeout);
+    request.error = "題目尚未準備完成，請重試，或返回原本遊戲。";
+    render();
+    document.querySelector("#retry-generation")?.focus({ preventScroll: true });
+  };
+  try {
+    const worker = new Worker(new URL("./game/puzzle-worker.js?v=v61", import.meta.url), { type: "module" });
+    request.worker = worker;
+    request.timeout = setTimeout(fail, 15000);
+    worker.onerror = (event) => { event.preventDefault(); fail(); };
+    worker.onmessage = ({ data }) => {
+      if (generatingGame !== request) return;
+      if (progress.playerId !== request.playerId) { cancelPuzzleGeneration(); render(); return; }
+      if (!data.game) { fail(); return; }
+      cancelPuzzleGeneration();
+      finish(data.game);
+    };
+    worker.postMessage(options);
+  } catch { fail(); }
 }
 
 function toggleAlinMode() {
@@ -2417,7 +2499,7 @@ document.addEventListener("keydown", (event) => {
   const target = event.target;
   const isFormControl = target instanceof HTMLElement
     && (target.matches("input, textarea, select, button") || target.isContentEditable);
-  if (activeScreen === "island" || isFormControl || showNameSetup || showSaveCenter || showLeaderboard || showBackpack || showAchievements || showAvatarPicker) return;
+  if (generatingGame || activeScreen === "island" || isFormControl || showNameSetup || showSaveCenter || showLeaderboard || showBackpack || showAchievements || showAvatarPicker) return;
   if (/^[1-9]$/.test(event.key)) enterNumber(Number(event.key));
   if (["Backspace", "Delete", "0"].includes(event.key)) clearCell();
   if (event.key.toLowerCase() === "n") { noteMode = !noteMode; updateBoard({ save: false }); }
@@ -2490,5 +2572,5 @@ window.addEventListener("online", () => {
 flushPendingScores().catch(() => {});
 
 if ("serviceWorker" in navigator && location.protocol !== "file:") {
-  navigator.serviceWorker.register(new URL("sw.js?v=v60", document.baseURI), { updateViaCache: "none" }).catch(() => {});
+  navigator.serviceWorker.register(new URL("sw.js?v=v61", document.baseURI), { updateViaCache: "none" }).catch(() => {});
 }

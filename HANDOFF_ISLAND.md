@@ -1,9 +1,9 @@
 # 小島建設模式 Handoff
 
-更新日期：2026-09-18
-開發／Pages 發佈分支：`codex/achievements-v2-tiers`；`codex/fix-sudoku-stability` 保留 v59；`main` 保留 v58
-目前版次：`v60`／Service Worker `sudox-shell-v60`
-狀態：v60 成就 V2 由獨立分支發佈，包含 v59 穩定性修復；實際部署結果以 GitHub Pages build 為準。測試模式預設關閉。成就規則與遷移見 `docs/achievements-v2.md`；BUG 修正見 `docs/bugfix-v59.md`。
+更新日期：2026-09-19
+v61 發布分支與 Pages 來源：`codex/sudoku-variant-modes`；`main` 保留 v58
+目前版次：`v61`／Service Worker `sudox-shell-v61`
+狀態：v61 發布內容為對角線、溫度計與 Killer 獨立玩法；包含 v60 成就 V2 與 v59 穩定性修復。玩法與驗證見 `docs/sudoku-variants.md`。測試模式預設關閉。成就規則與遷移見 `docs/achievements-v2.md`；BUG 修正見 `docs/bugfix-v59.md`。
 
 ## 一句話狀態
 

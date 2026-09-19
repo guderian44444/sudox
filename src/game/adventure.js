@@ -1,3 +1,5 @@
+import { candidatesForCell } from "./sudoku.js?v=v61";
+
 export const ADVENTURE_RULES = {
   easy: { maxHealth: 5, treasurePoolSize: 10 },
   medium: { maxHealth: 4, treasurePoolSize: 30 },
@@ -136,7 +138,7 @@ export function applyImmediateTreasure(game, card, { alinMode = false, index = g
   } else if (card.effect === "shield") game.shields += card.value;
   else if (card.effect === "candidates") {
     if (!Number.isInteger(index) || game.values[index]) return false;
-    game.notes[index] = candidatesFor(game.values, index);
+    game.notes[index] = candidatesFor(game.values, index, game);
     game.candidateAssists = (game.candidateAssists || 0) + 1;
   } else if (card.effect === "freeze") game.frozenSeconds += card.value;
   else if (card.effect === "xpBoost") {
@@ -214,19 +216,6 @@ export function calculateStars(game) {
   return stars;
 }
 
-export function candidatesFor(values, index) {
-  if (values[index]) return [];
-  const row = Math.floor(index / 9);
-  const col = index % 9;
-  const used = new Set();
-  for (let i = 0; i < 9; i += 1) {
-    used.add(values[row * 9 + i]);
-    used.add(values[i * 9 + col]);
-  }
-  const startRow = Math.floor(row / 3) * 3;
-  const startCol = Math.floor(col / 3) * 3;
-  for (let r = startRow; r < startRow + 3; r += 1) {
-    for (let c = startCol; c < startCol + 3; c += 1) used.add(values[r * 9 + c]);
-  }
-  return Array.from({ length: 9 }, (_, number) => number + 1).filter((number) => !used.has(number));
+export function candidatesFor(values, index, rules = {}) {
+  return candidatesForCell(values, index, rules);
 }

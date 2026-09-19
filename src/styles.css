@@ -843,3 +843,29 @@ button:focus-visible { outline: 3px solid #4f9dd9; outline-offset: 2px; }
   .achievement-tabs { grid-template-columns:repeat(2,minmax(0,1fr)); }.achievement-preview { grid-template-columns:80px minmax(0,1fr); padding:12px; gap:10px; }
   .achievement-stage { grid-template-columns:30px minmax(0,1fr) 43px; gap:6px; }.achievement-series summary { gap:8px; }
 }
+
+/* Variant constraints share the grid coordinates; digits and notes stay above the marks. */
+.variant-picker { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:7px; margin:10px 0 15px; }
+.variant-picker button { min-height:46px; padding:9px 5px; display:flex; align-items:center; justify-content:center; gap:7px; border:1px solid #d8dcd9; border-radius:12px; background:#fffdf8; color:#45645a; font-size:13px; cursor:pointer; }
+.variant-picker button[aria-pressed="true"] { background:#def2e6; border-color:#468b70; box-shadow:inset 0 0 0 1px #468b70; }
+.variant-picker button:disabled { cursor:default; opacity:.7; }
+.prestart-variants { grid-template-columns:repeat(4,minmax(0,1fr)); }
+.prestart-variants button { flex-direction:column; gap:4px; }
+.prestart-rule { padding:10px; background:#eef5ee; border-radius:10px; font-size:13px; line-height:1.65; color:#426457; }
+.variant-rule { display:grid; gap:4px; margin:0 0 12px; padding:10px 12px; border-radius:12px; background:#f0f6f1; color:#42675c; font-size:12px; line-height:1.5; }
+.variant-rule strong { font-size:14px; }
+.variant-cell-detail { min-height:2.8em; margin:7px 0 3px; font-size:12px; line-height:1.4; color:#5c6c69; }
+.variant-overlay { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; z-index:1; fill:none; }
+.sudoku-board.variant-board > .cell { z-index:auto; }
+.cell-value { position:relative; z-index:2; }
+.variant-board .notes { z-index:2; }
+.diagonal-line { stroke:#9b7ed2; stroke-width:10; stroke-opacity:.2; }
+.thermometer { fill:#99bbc9; stroke:#99bbc9; opacity:.55; }
+.thermometer polyline { fill:none; stroke-width:18; stroke-linecap:round; stroke-linejoin:round; }
+.thermometer circle { stroke:none; }
+.killer-cage { stroke:#8b6851; stroke-width:1.4; stroke-dasharray:4 2; stroke-linejoin:round; }
+.cage-sum { position:absolute; top:2px; left:3px; z-index:3; padding:0 2px; background:#fffdf8; color:#775231; font-size:clamp(10px,1.4vw,12px); line-height:1.05; font-weight:900; border-radius:2px; }
+.variant-killer .cell-value { top:4px; }
+.variant-killer .notes { inset:10px 2px 1px; }
+.variant-killer .notes i { font-size:clamp(6px,2vw,9px); }
+@media (max-width:680px) { .difficulty-panel > .variant-picker { grid-template-columns:repeat(4,minmax(0,1fr)); } .variant-picker button { font-size:12px; } }

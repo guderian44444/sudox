@@ -1,6 +1,6 @@
-import { readLocal, writeLocal } from "./storage.js?v=v60";
-import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "../config.js?v=v60";
-import { fetchWithTimeout, loadCloudPin, validCloudPin } from "./cloud.js?v=v60";
+import { readLocal, writeLocal } from "./storage.js?v=v61";
+import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "../config.js?v=v61";
+import { fetchWithTimeout, loadCloudPin, validCloudPin } from "./cloud.js?v=v61";
 
 const QUEUE_KEY = "sudox-score-queue-v1";
 const difficulties = new Set(["easy", "medium", "hard", "alin"]);
@@ -75,6 +75,7 @@ export function normalizeLeaderboardTaunt(value) {
 }
 
 export function buildScore(progress, game, alinMode = false, { appVersion = "" } = {}) {
+  if (game.variant && game.variant !== "classic") return null;
   const progressDifficulty = alinMode ? "alin" : game.difficulty;
   const score = game.floor * 10000 + game.stars * 1000 + Math.max(0, 2000 - game.elapsed) - game.mistakes * 100;
   return sanitizeQueuedScore({
@@ -148,6 +149,7 @@ export function flushPendingScores() {
 }
 
 export async function queueLeaderboardScore(score) {
+  if (!score) return { submitted: 0, pending: pendingScoreCount(), skipped: true };
   const clean = sanitizeQueuedScore(score);
   const queue = loadQueue();
   const existing = queue.findIndex((item) => item.p_player_id === clean.p_player_id && item.p_difficulty === clean.p_difficulty);

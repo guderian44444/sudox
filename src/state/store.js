@@ -1,8 +1,8 @@
-import { mergeAchievementEvidence, normalizeAchievementEvidence, normalizeAchievementEquipment, normalizeAchievementIds, normalizeAchievementStats } from "../game/achievements.js?v=v60";
-import { normalizeSession } from "../game/flow.js?v=v60";
-import { mergeIslandStates } from "../island/model.js?v=v60";
+import { mergeAchievementEvidence, normalizeAchievementEvidence, normalizeAchievementEquipment, normalizeAchievementIds, normalizeAchievementStats } from "../game/achievements.js?v=v61";
+import { normalizeSession } from "../game/flow.js?v=v61";
+import { mergeIslandStates } from "../island/model.js?v=v61";
 
-import { readLocal, writeLocal } from "./storage.js?v=v60";
+import { readLocal, writeLocal } from "./storage.js?v=v61";
 
 const STORAGE_KEY = "sudox-progress-v3";
 const SESSION_KEY = "sudox-session-v3";
@@ -44,7 +44,7 @@ const defaultProgress = {
   rewardedRuns: [],
   achievements: [],
   achievementStats: { perfectGames: 0, speedGames: 0, alinGames: 0 },
-  floors: { easy: 1, medium: 1, hard: 1, alin: 1 },
+  floors: { easy: 1, medium: 1, hard: 1, alin: 1, diagonal: 1, thermo: 1, killer: 1 },
   floorModelVersion: 2,
   playerAvatar: "",
   avatarColor: 0,
@@ -174,7 +174,7 @@ export function reconcileFloorsFromLeaderboardRows(progress, rows = []) {
 
 /** Return whether an active run is older than the saved next floor. */
 export function sessionFloorBehindProgress(progress, game, alinMode = false) {
-  const difficulty = alinMode ? "alin" : game?.difficulty;
+  const difficulty = game?.variant && game.variant !== "classic" ? game.variant : alinMode ? "alin" : game?.difficulty;
   if (!difficulty || defaultProgress.floors[difficulty] == null) return false;
   const nextFloor = Math.max(1, Math.floor(Number(progress?.floors?.[difficulty]) || 1));
   const activeFloor = Math.max(1, Math.floor(Number(game?.floor) || 1));

@@ -3,7 +3,7 @@
  * Mutates the game object and returns structured events for the UI layer.
  * Also owns the full runtime game factory + session normalization (P2).
  */
-import { createGame, DIFFICULTIES, relatedCells, validSudokuGrid } from "./sudoku.js?v=v60";
+import { createGame, DIFFICULTIES, relatedCells, normalizeVariantRules, validVariantGrid, candidatesForCell } from "./sudoku.js?v=v61";
 import {
   ADVENTURE_RULES,
   calculateStars,
@@ -12,7 +12,7 @@ import {
   newlyCompletedSudokuUnits,
   treasureClaimsForFloor,
   TREASURE_CARDS
-} from "./adventure.js?v=v60";
+} from "./adventure.js?v=v61";
 
 const DIFFICULTY_IDS = new Set(Object.keys(DIFFICULTIES));
 
@@ -151,10 +151,11 @@ export function createAdventureFields(difficulty, equippedCards = []) {
 export function createAdventureGame({
   difficulty = "easy",
   floor = 1,
-  equippedCards = []
+  equippedCards = [],
+  variant = "classic"
 } = {}) {
   const safeDifficulty = DIFFICULTY_IDS.has(difficulty) ? difficulty : "easy";
-  const base = createGame(safeDifficulty);
+  const base = createGame(safeDifficulty, variant);
   return {
     ...base,
     ...createAdventureFields(safeDifficulty, equippedCards),
@@ -175,7 +176,8 @@ export function normalizeRuntimeGame(raw, { allowTerminal = false } = {}) {
   if (!validGrid(raw.puzzle, true) || !validGrid(raw.solution, false) || !validGrid(raw.values, true) || !validNotes(raw.notes)) {
     return null;
   }
-  if (!validSudokuGrid(raw.solution, false) || !boardsConsistent(raw.puzzle, raw.solution, raw.values)) return null;
+  const variantRules = normalizeVariantRules(raw);
+  if (!variantRules || !validVariantGrid(raw.solution, variantRules, false) || !boardsConsistent(raw.puzzle, raw.solution, raw.values)) return null;
   if (raw.completed && !raw.values.every((value, index) => value === raw.solution[index])) return null;
 
   const rules = ADVENTURE_RULES[difficulty] || ADVENTURE_RULES.easy;
@@ -188,6 +190,7 @@ export function normalizeRuntimeGame(raw, { allowTerminal = false } = {}) {
   const health = clampInt(raw.health, 0, maxHealth, failed ? 0 : maxHealth);
   const game = {
     difficulty,
+    ...variantRules,
     achievementTrackingVersion: raw.achievementTrackingVersion === 2 && [raw.noteActions, raw.candidateAssists, raw.minHealth, raw.revivesUsed].every((value) => Number.isInteger(value) && value >= 0) ? 2 : 0,
     noteActions: clampInt(raw.noteActions, 0, 1_000_000, 0),
     candidateAssists: clampInt(raw.candidateAssists, 0, 1000, 0),
@@ -292,6 +295,15 @@ export function canEditCell(game, index = game?.selected) {
 }
 
 export function removeRelatedNotes(game, index, number) {
+  if (game.variant && game.variant !== "classic") {
+    game.notes.forEach((notes, cell) => {
+      if (notes.length) {
+        const candidates = candidatesForCell(game.values, cell, game);
+        game.notes[cell] = notes.filter(note => candidates.includes(note));
+      }
+    });
+    return;
+  }
   relatedCells(index).forEach((cell) => {
     game.notes[cell] = game.notes[cell].filter((note) => note !== number);
   });
@@ -458,7 +470,7 @@ export function settleCompletedGame(game, { alinMode = false } = {}) {
   const barehand = tracked && !game.equippedCards.length && !game.usedCards.length && !game.revivesUsed;
   return {
     runId: game.runId,
-    mode: alinMode ? "alin" : game.difficulty,
+    mode: game.variant && game.variant !== "classic" ? game.variant : alinMode ? "alin" : game.difficulty,
     noMistake: game.mistakes === 0,
     noHint: game.hintsUsed === 0,
     barehand,
@@ -472,7 +484,7 @@ export function settleCompletedGame(game, { alinMode = false } = {}) {
     cardChoices: game.cardChoices,
     perfect: game.mistakes === 0 && game.hintsUsed === 0,
     speed: game.timeBonus > 0,
-    alin: Boolean(alinMode)
+    alin: Boolean(alinMode && (!game.variant || game.variant === "classic"))
   };
 }
 

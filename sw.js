@@ -1,6 +1,6 @@
-const CACHE_NAME = "sudox-shell-v60";
+const CACHE_NAME = "sudox-shell-v61";
 const BASE_PATH = new URL("./", self.location.href).pathname;
-const RELEASE_QUERY = "?v=v60";
+const RELEASE_QUERY = "?v=v61";
 const APP_SHELL = [
   BASE_PATH,
   `${BASE_PATH}index.html`,
@@ -17,6 +17,7 @@ const APP_SHELL = [
   `${BASE_PATH}src/island/model.js${RELEASE_QUERY}`,
   `${BASE_PATH}src/island/renderer.js${RELEASE_QUERY}`,
   `${BASE_PATH}src/game/sudoku.js${RELEASE_QUERY}`,
+  `${BASE_PATH}src/game/puzzle-worker.js${RELEASE_QUERY}`,
   `${BASE_PATH}src/game/audio.js${RELEASE_QUERY}`,
   `${BASE_PATH}src/game/timer.js${RELEASE_QUERY}`,
   `${BASE_PATH}src/state/storage.js${RELEASE_QUERY}`,
