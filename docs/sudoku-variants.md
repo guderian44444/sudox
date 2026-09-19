@@ -1,5 +1,7 @@
 # 三種獨立數獨玩法／v61
 
+> v62 的 COMBO、鍵盤與分層排行榜更新見 [combo-leaderboards-v62.md](combo-leaderboards-v62.md)。下文的共用層數與不送排行榜描述是 v61 行為。
+
 開發與發布分支：`codex/sudoku-variant-modes`。v61 線上入口：https://guderian44444.github.io/sudox/ 。
 
 ## 玩家操作

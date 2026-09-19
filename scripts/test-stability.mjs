@@ -33,7 +33,7 @@ assert.equal(applyPlayerDigit(resumed, 99).type, "noop");
 const hintCell = game.values.findIndex((value) => !value);
 applyHintFill(game, hintCell); clearEditableCell(game, hintCell);
 applyPlayerDigit(game, game.solution[hintCell], { index: hintCell });
-assert.equal(game.correctStreak, 1);
+assert.equal(game.correctStreak, 0, "answer hints reset the combo and cannot be erased/refilled to restore it");
 assert.equal(normalizeSession({ game: { ...game, puzzle: Array(81).fill(1), solution: Array(81).fill(1), values: Array(81).fill(1) } }), null);
 assert.equal(countSolutions(Array(81).fill(1)), 0);
 assert.deepEqual(normalizeSession({ game, equippedCards: ["unknownCard"] }).equippedCards, []);

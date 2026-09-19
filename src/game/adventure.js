@@ -1,4 +1,4 @@
-import { candidatesForCell } from "./sudoku.js?v=v61";
+import { candidatesForCell } from "./sudoku.js?v=v62";
 
 export const ADVENTURE_RULES = {
   easy: { maxHealth: 5, treasurePoolSize: 10 },
@@ -172,6 +172,7 @@ export function applyHintTreasure(game, card, index = game?.selected) {
   while (targets.length < card.value && otherEmptyCells.length) {
     targets.push(otherEmptyCells.splice(Math.floor(Math.random() * otherEmptyCells.length), 1)[0]);
   }
+  if (targets.length) { game.correctStreak = 0; game.unitCombo = 0; }
   targets.forEach((target) => {
     game.values[target] = game.solution[target];
     game.notes[target] = [];

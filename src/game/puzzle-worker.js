@@ -1,4 +1,4 @@
-import { createAdventureGame } from "./flow.js?v=v61";
+import { createAdventureGame } from "./flow.js?v=v62";
 
 self.onmessage = ({ data }) => {
   try { self.postMessage({ game: createAdventureGame(data) }); }

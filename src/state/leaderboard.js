@@ -1,9 +1,10 @@
-import { readLocal, writeLocal } from "./storage.js?v=v61";
-import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "../config.js?v=v61";
-import { fetchWithTimeout, loadCloudPin, validCloudPin } from "./cloud.js?v=v61";
+import { gameModeKey, RANKING_KEYS } from "../game/sudoku.js?v=v62";
+import { readLocal, writeLocal } from "./storage.js?v=v62";
+import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "../config.js?v=v62";
+import { fetchWithTimeout, loadCloudPin, validCloudPin } from "./cloud.js?v=v62";
 
 const QUEUE_KEY = "sudox-score-queue-v1";
-const difficulties = new Set(["easy", "medium", "hard", "alin"]);
+const difficulties = new Set(RANKING_KEYS);
 let flushPromise = null;
 
 export function leaderboardConfigured() {
@@ -75,13 +76,13 @@ export function normalizeLeaderboardTaunt(value) {
 }
 
 export function buildScore(progress, game, alinMode = false, { appVersion = "" } = {}) {
-  if (game.variant && game.variant !== "classic") return null;
-  const progressDifficulty = alinMode ? "alin" : game.difficulty;
+  const progressDifficulty = gameModeKey(game.variant || "classic", game.difficulty, alinMode);
+  if (!progressDifficulty) return null;
   const score = game.floor * 10000 + game.stars * 1000 + Math.max(0, 2000 - game.elapsed) - game.mistakes * 100;
   return sanitizeQueuedScore({
     p_player_id: progress.playerId,
     p_player_name: progress.playerName,
-    p_difficulty: alinMode ? "alin" : game.difficulty,
+    p_difficulty: progressDifficulty,
     p_floor: game.floor,
     p_score: Math.max(0, Math.round(score)),
     p_elapsed_seconds: Math.max(0, Math.round(game.elapsed)),
@@ -110,7 +111,8 @@ async function sendScore(score) {
   });
   if (!response.ok) {
     const detail = await response.text();
-    if (/Invalid cloud PIN|P0001/i.test(detail)) throw new Error("家庭 PIN 驗證失敗，無法上傳成績");
+    if (/Invalid leaderboard score|difficulty_check/i.test(detail) && !["easy", "medium", "hard", "alin"].includes(score.p_difficulty)) throw new Error("新模式排行榜尚待資料庫更新，成績已保留，稍後可重試");
+    if (/Invalid cloud PIN/i.test(detail)) throw new Error("家庭 PIN 驗證失敗，無法上傳成績");
     throw new Error(`排行榜寫入失敗 (${response.status})`);
   }
 }

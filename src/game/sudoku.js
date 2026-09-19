@@ -204,6 +204,22 @@ function sumMasks(size, sum) {
   return digitCombinations.get(key);
 }
 
+// Classic keys stay compatible with existing scores; each variant has its own difficulty and assist board.
+export function gameModeKey(variant = "classic", difficulty = "easy", alinMode = false) {
+  if (!Object.hasOwn(VARIANTS, variant) || !Object.hasOwn(DIFFICULTIES, difficulty)) return null;
+  return variant === "classic" ? (alinMode ? "alin" : difficulty) : `${variant}_${difficulty}${alinMode ? "_alin" : ""}`;
+}
+
+export const RANKING_KEYS = Object.freeze(["easy", "medium", "hard", "alin", ...["diagonal", "thermo", "killer"].flatMap(variant =>
+  Object.keys(DIFFICULTIES).flatMap(difficulty => [gameModeKey(variant, difficulty), gameModeKey(variant, difficulty, true)]))]);
+
+export function parseGameModeKey(key) {
+  if (!RANKING_KEYS.includes(key)) return null;
+  if (key === "alin") return { variant: "classic", difficulty: "alin", assisted: true };
+  const [variant, difficulty, assist] = key.split("_");
+  return difficulty ? { variant, difficulty, assisted: assist === "alin" } : { variant: "classic", difficulty: key, assisted: false };
+}
+
 // Reject malformed or incomplete variant saves rather than silently loading a classic board.
 export function normalizeVariantRules(raw = {}) {
   const variant = raw.variant ?? "classic";

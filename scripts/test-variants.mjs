@@ -76,7 +76,7 @@ for (const variant of ["diagonal","thermo","killer"]) {
   const imported=parseSaveCode(exportSaveCode(progress,{game,equippedCards:[],alinMode:false}));
   assert.deepEqual(imported.session.game,restored);
   assert.equal(sessionFloorBehindProgress(progress,game),false,"classic hard floor must not replace variant board");
-  assert.equal(sessionFloorBehindProgress({...progress,floors:{...progress.floors,[variant]:4}},game),true);
+  assert.equal(sessionFloorBehindProgress({...progress,floors:{...progress.floors,[`${variant}_hard`]:4}},game),true);
   const corrupt={...game,variant:"thermo",thermometers:[]};assert.equal(normalizeRuntimeGame(corrupt),null);
   game.values=[...game.solution];const settlement=settleCompletedGame(game,{alinMode:true});
   let rewarded=rewardProgress(progress,settlement.xpReward,settlement.timeBonus,settlement.stars,variant,3,{persist:false,runId:game.runId});
@@ -84,7 +84,7 @@ for (const variant of ["diagonal","thermo","killer"]) {
   assert.equal(rewarded.floors[variant],4);assert.equal(rewarded.floors.hard,50);
   assert.equal(rewarded.achievementStats.hardGames,0);assert.equal(rewarded.achievementStats.alinGames,0);
   assert.equal(rewarded.completedGames,1);
-  assert.equal(buildScore(rewarded,game),null);
+  assert.equal(buildScore(rewarded,game).p_difficulty,`${variant}_hard`);
   assert.equal(mergeProgressHighWater(progress,rewarded).floors[variant],4);
 }
 const classic=createAdventureGame();delete classic.variant;delete classic.cages;delete classic.thermometers;

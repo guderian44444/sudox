@@ -31,7 +31,7 @@ npm.cmd run dev
 ## 家庭雲端與排行榜
 
 1. 建立一個 Supabase 專案。
-2. 新專案在 Supabase SQL Editor 執行 `supabase/leaderboard.sql`；既有專案另執行 `supabase/leaderboard-score-log-migration.sql`。
+2. 新專案在 Supabase SQL Editor 執行 `supabase/leaderboard.sql`；既有專案另執行 `supabase/leaderboard-score-log-migration.sql`；升級 v62 再執行 `supabase/leaderboard-variant-modes-migration.sql`，開放模式／難度／輔助分榜。
 3. 將 Project URL 與 `sb_publishable_...` key 填入 `src/config.js`。
 
 Publishable key 是設計給公開網頁使用的低權限金鑰；不要把 secret 或 service_role key 放入前端。排行榜只開放公開讀取，寫入成績與雲端存檔必須經過限制欄位的資料庫函式。雲端未設定或暫時離線時，遊戲仍會使用本機存檔。

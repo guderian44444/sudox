@@ -3,7 +3,7 @@
  * Mutates the game object and returns structured events for the UI layer.
  * Also owns the full runtime game factory + session normalization (P2).
  */
-import { createGame, DIFFICULTIES, relatedCells, normalizeVariantRules, validVariantGrid, candidatesForCell } from "./sudoku.js?v=v61";
+import { createGame, DIFFICULTIES, relatedCells, normalizeVariantRules, validVariantGrid, candidatesForCell, RANKING_KEYS } from "./sudoku.js?v=v62";
 import {
   ADVENTURE_RULES,
   calculateStars,
@@ -12,7 +12,7 @@ import {
   newlyCompletedSudokuUnits,
   treasureClaimsForFloor,
   TREASURE_CARDS
-} from "./adventure.js?v=v61";
+} from "./adventure.js?v=v62";
 
 const DIFFICULTY_IDS = new Set(Object.keys(DIFFICULTIES));
 
@@ -82,7 +82,7 @@ function normalizeCompletedUnits(units, values) {
   const actual = completedSudokuUnits(values);
   const pick = (key, claimed) => {
     if (!claimed) return [...actual[key]];
-    return claimed.filter((index) => actual[key].includes(index));
+    return claimed; // Keep earned units after clearing a cell, so refilling cannot farm COMBO/rewards.
   };
   return {
     rows: pick("rows", normalizeUnitIndexList(units?.rows)),
@@ -123,6 +123,7 @@ export function createAdventureFields(difficulty, equippedCards = []) {
     failed: false,
     actions: 0,
     correctStreak: 0,
+    unitCombo: 0,
     solvedCells: [],
     achievementTrackingVersion: 2,
     noteActions: 0,
@@ -159,6 +160,7 @@ export function createAdventureGame({
   return {
     ...base,
     ...createAdventureFields(safeDifficulty, equippedCards),
+    completedUnits: completedSudokuUnits(base.values),
     runId: globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`,
     floor: clampInt(floor, 1, 1000000, 1)
   };
@@ -209,11 +211,13 @@ export function normalizeRuntimeGame(raw, { allowTerminal = false } = {}) {
     completed,
     failed,
     floor: clampInt(raw.floor, 1, 1000000, 1),
+    floorKey: RANKING_KEYS.includes(raw.floorKey) ? raw.floorKey : null,
     maxHealth,
     health: failed ? 0 : health,
     shields: clampInt(raw.shields, 0, 99, 0),
     actions: clampInt(raw.actions, 0, 1_000_000, 0),
     correctStreak: clampInt(raw.correctStreak, 0, 81, 0),
+    unitCombo: clampInt(raw.unitCombo, 0, 27, 0),
     solvedCells: [...new Set([...(Array.isArray(raw.solvedCells) ? raw.solvedCells.filter((index) => Number.isInteger(index) && index >= 0 && index < 81 && !raw.puzzle[index]) : []), ...raw.values.flatMap((value, index) => value && !raw.puzzle[index] ? [index] : [])])],
     healGoals: normalizeHealGoals(raw.healGoals ?? defaults.healGoals),
     completedUnits: normalizeCompletedUnits(raw.completedUnits, raw.values),
@@ -329,6 +333,7 @@ export function applyPlayerDigit(game, number, { noteMode = false, alinMode = fa
     game.actions += 1;
     game.mistakes += 1;
     game.correctStreak = 0;
+    game.unitCombo = 0;
     let blockedByShield = false;
     if (!alinMode) {
       if (game.shields) {
@@ -395,7 +400,8 @@ function unitEvent(game, type, unitIndex, alinMode) {
  * After a correct fill (or hint), update streak/unit heal goals.
  * @returns {{ newlyCompleted: { rows: number[], columns: number[], boxes: number[] }, events: object[] }}
  */
-export function collectBoardProgressEvents(game, alinMode = false) {
+export function collectBoardProgressEvents(game, alinMode = false, { manual = true } = {}) {
+  if (!manual) { game.correctStreak = 0; game.unitCombo = 0; }
   const events = [];
   if (!game.healGoals) game.healGoals = { streak: false, row: false, box: false };
 
@@ -428,6 +434,7 @@ export function collectBoardProgressEvents(game, alinMode = false) {
     events.push(unitEvent(game, "box", box, alinMode));
   });
 
+  if (manual) game.unitCombo = (game.unitCombo || 0) + newlyCompleted.rows.length + newlyCompleted.columns.length + newlyCompleted.boxes.length;
   return { newlyCompleted, events };
 }
 
@@ -493,6 +500,8 @@ export function applyHintFill(game, index = game?.selected) {
   const value = game.solution[index];
   game.actions += 1;
   game.hintsUsed = (game.hintsUsed || 0) + 1;
+  game.correctStreak = 0;
+  game.unitCombo = 0;
   game.solvedCells ||= [];
   if (!game.solvedCells.includes(index)) game.solvedCells.push(index);
   game.values[index] = value;

@@ -1,8 +1,8 @@
-import { playSound, resumeAudio, setSoundEnabled, stopAudio } from "./game/audio.js?v=v61";
-import { advanceGameClock } from "./game/timer.js?v=v61";
-import { readLocal, writeLocal, storageWarning, retryLocalWrites } from "./state/storage.js?v=v61";
-import { DIFFICULTIES, VARIANTS, relatedCells } from "./game/sudoku.js?v=v61";
-import { activateAutomaticTreasures, ADVENTURE_RULES, applyHintTreasure, applyImmediateTreasure, strongestEquippedRevive, sudokuUnitCells, TREASURE_AUTO_EFFECTS, TREASURE_CARDS } from "./game/adventure.js?v=v61";
+import { playSound, resumeAudio, setSoundEnabled, stopAudio } from "./game/audio.js?v=v62";
+import { advanceGameClock } from "./game/timer.js?v=v62";
+import { readLocal, writeLocal, storageWarning, retryLocalWrites } from "./state/storage.js?v=v62";
+import { DIFFICULTIES, VARIANTS, gameModeKey, parseGameModeKey, relatedCells } from "./game/sudoku.js?v=v62";
+import { activateAutomaticTreasures, ADVENTURE_RULES, applyHintTreasure, applyImmediateTreasure, strongestEquippedRevive, sudokuUnitCells, TREASURE_AUTO_EFFECTS, TREASURE_CARDS } from "./game/adventure.js?v=v62";
 import {
   applyHintFill,
   applyPlayerDigit,
@@ -14,21 +14,21 @@ import {
   removeRelatedNotes,
   RUN_MILESTONES,
   settleCompletedGame
-} from "./game/flow.js?v=v61";
-import { ACHIEVEMENTS, ACHIEVEMENT_CATEGORIES, ACHIEVEMENT_SERIES, achievementById, achievementRewardText, achievementSeriesProgress, achievementValue, equipAchievementReward, equippedAchievementReward, normalizeAchievementStats, recordAchievementGame } from "./game/achievements.js?v=v61";
-import { chooseFriendPair, chooseGardenEel, choosePartyFriends, FRIEND_ROSTER, nextDanceVariants } from "./game/friends.js?v=v61";
-import { ISLAND_TEST_MODE } from "./island/catalog.js?v=v61";
-import { availableInventoryQuantity, dismissIslandLetter, availableConstructionWorkerIds, availableHelperIds, collectFacility, createIslandState, finishIslandWork, hireConstructionHelper, marketSale, normalizeIslandState, selectSourceRecipe, settleIsland, startBuilding, startDemolition, startHomeUpgrade, startProcessing, startReclamation } from "./island/model.js?v=v61";
-import { DEMO_ISLAND_PARTNERS, dispatchDemoShipment, LOGISTICS_METHODS, mergeCloudLogistics, networkProfileSnapshot, normalizeIslandPartner, partnerLogisticsOffers, recordDispatchedShipment, shipmentQuote } from "./island/logistics.js?v=v61";
-import { formatIslandDuration, renderIslandScreen } from "./island/renderer.js?v=v61";
-import { cloudConfigured, loadCloudPin, loadCloudProgress, normalizePlayerName, renameCloudPlayer, saveCloudPin, saveCloudProgress, saveCloudProgressIfCurrent, validCloudPin } from "./state/cloud.js?v=v61";
-import { acknowledgeIslandLogistics, dispatchIslandShipment, getIslandLogistics, listIslandPartners, publishIslandNetwork } from "./state/island-cloud.js?v=v61";
-import { buildScore, fetchLeaderboard, fetchPlayerLeaderboardRows, flushPendingScores, leaderboardConfigured, normalizeLeaderboardTaunt, pendingScoreCount, queueLeaderboardScore, updateLeaderboardAvatar, updateLeaderboardTaunt } from "./state/leaderboard.js?v=v61";
-import { addCard, clearSession, consumeCard, exportSaveCode, importSaveCode, loadProgress, loadSession, mergeProgressHighWater, nextFloorFromCompleted, parseSaveCode, preferSaveSide, raiseFloorProgress, reconcileFloorsFromLeaderboardRows, rewardProgress, saveProgress, saveSession, saveTimestampMs, sessionFloorBehindProgress, spendCoins } from "./state/store.js?v=v61";
+} from "./game/flow.js?v=v62";
+import { ACHIEVEMENTS, ACHIEVEMENT_CATEGORIES, ACHIEVEMENT_SERIES, achievementById, achievementRewardText, achievementSeriesProgress, achievementValue, equipAchievementReward, equippedAchievementReward, normalizeAchievementStats, recordAchievementGame } from "./game/achievements.js?v=v62";
+import { chooseFriendPair, chooseGardenEel, choosePartyFriends, FRIEND_ROSTER, nextDanceVariants } from "./game/friends.js?v=v62";
+import { ISLAND_TEST_MODE } from "./island/catalog.js?v=v62";
+import { availableInventoryQuantity, dismissIslandLetter, availableConstructionWorkerIds, availableHelperIds, collectFacility, createIslandState, finishIslandWork, hireConstructionHelper, marketSale, normalizeIslandState, selectSourceRecipe, settleIsland, startBuilding, startDemolition, startHomeUpgrade, startProcessing, startReclamation } from "./island/model.js?v=v62";
+import { DEMO_ISLAND_PARTNERS, dispatchDemoShipment, LOGISTICS_METHODS, mergeCloudLogistics, networkProfileSnapshot, normalizeIslandPartner, partnerLogisticsOffers, recordDispatchedShipment, shipmentQuote } from "./island/logistics.js?v=v62";
+import { formatIslandDuration, renderIslandScreen } from "./island/renderer.js?v=v62";
+import { cloudConfigured, loadCloudPin, loadCloudProgress, normalizePlayerName, renameCloudPlayer, saveCloudPin, saveCloudProgress, saveCloudProgressIfCurrent, validCloudPin } from "./state/cloud.js?v=v62";
+import { acknowledgeIslandLogistics, dispatchIslandShipment, getIslandLogistics, listIslandPartners, publishIslandNetwork } from "./state/island-cloud.js?v=v62";
+import { buildScore, fetchLeaderboard, fetchPlayerLeaderboardRows, flushPendingScores, leaderboardConfigured, normalizeLeaderboardTaunt, pendingScoreCount, queueLeaderboardScore, updateLeaderboardAvatar, updateLeaderboardTaunt } from "./state/leaderboard.js?v=v62";
+import { addCard, clearSession, consumeCard, exportSaveCode, importSaveCode, loadProgress, loadSession, mergeProgressHighWater, nextFloorFromCompleted, parseSaveCode, preferSaveSide, raiseFloorProgress, reconcileFloorsFromLeaderboardRows, rewardProgress, saveProgress, saveSession, saveTimestampMs, sessionFloorBehindProgress, spendCoins } from "./state/store.js?v=v62";
 
 const app = document.querySelector("#app");
-const APP_VERSION = "v61";
-const APP_LAST_UPDATED = "2026-09-19T20:53:16+08:00";
+const APP_VERSION = "v62";
+const APP_LAST_UPDATED = "2026-09-19T22:31:48+08:00";
 let progress = loadProgress();
 const migratedAchievements = recordAchievementGame(progress);
 progress = migratedAchievements.progress;
@@ -38,6 +38,7 @@ let game = restoredSession?.game || createAdventureGame({ difficulty: "easy", fl
 let generatingGame = null;
 let noteMode = false;
 let alinMode = restoredSession?.alinMode || false;
+alignVariantSessionFloor();
 let showBackpack = false;
 let showSaveCenter = false;
 let showNameSetup = !progress.playerName;
@@ -49,7 +50,8 @@ let achievementPreviewId = "";
 let achievementReturnFocusId = "open-achievements";
 const achievementOpenSeries = new Set();
 let showAvatarPicker = false;
-let leaderboardDifficulty = game.difficulty;
+let leaderboardDifficulty = gameModeKey(game.variant, game.difficulty, alinMode);
+let leaderboardRequest = 0;
 let leaderboardRows = [];
 let leaderboardStatus = "";
 let leaderboardTauntStatus = "";
@@ -196,7 +198,7 @@ function setAvatarFace(face, duration = 2000) {
   }, duration);
 }
 const currentHintCost = () => alinMode ? 0 : DIFFICULTIES[game.difficulty].hintCost;
-const progressDifficulty = (difficulty = game?.difficulty, mode = alinMode, variant = game?.variant) => variant && variant !== "classic" ? variant : mode ? "alin" : difficulty;
+const progressDifficulty = (difficulty = game?.difficulty, mode = alinMode, variant = game?.variant) => gameModeKey(variant || "classic", difficulty, mode);
 const escapeHtml = (value) => String(value).replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character]);
 const normalizePinInput = (value) => String(value)
   .replace(/[０-９]/g, (digit) => String(digit.charCodeAt(0) - 0xFF10))
@@ -1217,8 +1219,9 @@ function render() {
           <div class="adventure-status">
             <span class="health">${alinMode ? "🌈 不限失誤" : `${"❤️".repeat(game.health)}${"🤍".repeat(Math.max(0, game.maxHealth - game.health))}`}${game.shields ? ` 🛡️${game.shields}` : ""}</span>
             ${game.floor > 1 ? `<span class="farm-badge">♻️ 探索層：55% XP・每 3 層寶物</span>` : ""}
-            <div class="goal-chips" aria-label="回血目標">
-              <span class="${game.healGoals.streak ? "done" : ""}">連對 8 格</span><span class="${game.healGoals.row ? "done" : ""}">完成一行</span><span class="${game.healGoals.box ? "done" : ""}">完成一宮</span>
+            <div class="goal-chips combo-chips" aria-label="連擊計數" aria-live="polite" aria-atomic="true">
+              <span class="combo-chip" data-combo="correctStreak" data-count="${game.correctStreak}" title="每答對一個新格 +1；答錯或使用答案提示歸零">🔥 答對 COMBO <b>${game.correctStreak}</b></span>
+              <span class="combo-chip" data-combo="unitCombo" data-count="${game.unitCombo || 0}" title="每完成一行、一列或一宮 +1；答錯或使用答案提示歸零">✨ 完成 COMBO <b>${game.unitCombo || 0}</b><small>行・列・宮</small></span>
             </div>
             <span class="run-milestone-badge">🏅 本局 ${game.milestones?.length || 0}/${RUN_MILESTONES.length}</span>
             ${avatarMarkup()}
@@ -1322,7 +1325,7 @@ function startModal() {
     <div class="start-friends" aria-hidden="true"><span>🐱</span><span>🏝️</span><span>🐭</span></div><p class="eyebrow">FLOOR ${game.floor}</p><h2 id="start-title">出發前選寶物</h2>
     <p>先選玩法、難度與寶物，按下開始後才顯示題目並開始計時。</p>
     ${variantPickerMarkup(true)}
-    <p class="prestart-rule">${VARIANTS[game.variant].rule}</p>
+    <p class="prestart-rule">${VARIANTS[game.variant].rule}${game.variant === "killer" ? "<br>籠上總和就是提示。輕鬆：較多小籠；動腦：較少籠；高手：較大籠，需更多加總推理。" : ""}</p>
     <div class="prestart-difficulties" aria-label="選擇難度">${Object.entries(DIFFICULTIES).map(([key, item]) => `<button data-prestart-difficulty="${key}" class="${game.difficulty === key ? "active" : ""}">${item.icon} ${item.label}</button>`).join("")}</div>
     <button id="prestart-alin-mode" class="prestart-alin ${alinMode ? "active" : ""}" aria-pressed="${alinMode}">♾️ 阿霖模式：${alinMode ? "開啟" : "關閉"}</button>
     <div class="prestart-loadout">
@@ -1343,7 +1346,7 @@ function completionModal() {
     <div class="celebrate">🎉</div><p class="eyebrow">FLOOR ${game.floor} COMPLETE</p><h2 id="complete-title">第 ${game.floor} 層完成！</h2>
     <div class="stars-earned" aria-label="獲得 ${game.stars} 顆星">${"⭐".repeat(game.stars)}${"☆".repeat(3 - game.stars)}</div>
     <div class="reward-row"><span>⭐ +${game.xpReward} XP</span><span>🪙 +${totalCoins}</span></div>
-    <p class="cloud-result">${game.variant !== "classic" ? `${VARIANTS[game.variant].icon} ${VARIANTS[game.variant].label}模式進度已保存` : leaderboardConfigured() ? "🏆 成績已加入全球排行同步佇列" : "🏆 排行榜等待連接資料庫"}</p>
+    <p class="cloud-result">${leaderboardConfigured() ? "🏆 成績已加入全球排行同步佇列" : "🏆 排行榜等待連接資料庫"}</p>
     ${game.floor > 1 ? `<p class="farm-reward-note">探索層採 55% 經驗；下一局前往第 ${nextFloor} 層</p>` : ""}
     ${game.timeBonus ? `<p class="speed-bonus">⚡ 目標時間內完成，速度獎勵 +${game.timeBonus} 金幣</p>` : `<p class="speed-bonus calm">慢慢玩也很好，關卡沒有時間限制</p>`}
     ${(game.unlockedAchievementIds || []).length ? `<section class="completion-achievements"><strong>🏅 本局解鎖 ${game.unlockedAchievementIds.length} 個階段</strong><ul>${game.unlockedAchievementIds.map(achievementById).filter(Boolean).map((stage)=>`<li>${stage.icon} ${escapeHtml(stage.name)}<small>${escapeHtml(achievementRewardText(stage))}</small></li>`).join("")}</ul><button id="open-completion-achievements" class="secondary-button">查看成就與外觀</button></section>` : ""}
@@ -1487,20 +1490,38 @@ function nameSetupModal() {
   </section></div>`;
 }
 
+function rankingLabel(key) {
+  const mode = parseGameModeKey(key);
+  if (!mode) return "此榜單";
+  return `${VARIANTS[mode.variant].label}・${LEADERBOARD_MODES[mode.difficulty].label}${mode.assisted && mode.difficulty !== "alin" ? "・阿霖輔助" : ""}`;
+}
+
+function rankingTabsMarkup() {
+  const mode = parseGameModeKey(leaderboardDifficulty);
+  const difficulties = mode.variant === "classic" ? LEADERBOARD_MODES : DIFFICULTIES;
+  return `<div class="leaderboard-tabs ranking-modes" aria-label="排行榜模式">${Object.entries(VARIANTS).map(([key, item]) => `<button data-rank-variant="${key}" aria-pressed="${mode.variant === key}" class="${mode.variant === key ? "active" : ""}">${item.icon} ${item.label}</button>`).join("")}</div>
+    <div class="leaderboard-tabs ranking-difficulties" aria-label="排行榜難度">${Object.entries(difficulties).map(([difficulty, item]) => {
+      const key = difficulty === "alin" ? "alin" : gameModeKey(mode.variant, difficulty, mode.variant !== "classic" && mode.assisted);
+      return `<button data-rank-difficulty="${key}" aria-pressed="${leaderboardDifficulty === key}" class="${leaderboardDifficulty === key ? "active" : ""}">${item.icon} ${item.label}</button>`;
+    }).join("")}</div>
+    ${mode.variant !== "classic" ? `<div class="leaderboard-tabs ranking-assist" aria-label="是否使用阿霖輔助">${[false, true].map(assisted => `<button data-rank-difficulty="${gameModeKey(mode.variant, mode.difficulty, assisted)}" aria-pressed="${mode.assisted === assisted}" class="${mode.assisted === assisted ? "active" : ""}">${assisted ? "🌈 阿霖輔助" : "一般挑戰"}</button>`).join("")}</div>` : mode.difficulty === "alin" ? '<p class="ranking-note">保留原有經典阿霖榜，三種難度共用。</p>' : ""}
+    <p class="ranking-note">${rankingLabel(leaderboardDifficulty)}・各模式難度獨立比較</p>`;
+}
+
 function leaderboardModal() {
   const configured = leaderboardConfigured();
   const myRow = leaderboardRows.find((row) => row.player_id === progress.playerId);
-  const modeLabel = LEADERBOARD_MODES[leaderboardDifficulty]?.label || "此難度";
+  const modeLabel = rankingLabel(leaderboardDifficulty);
   const tauntHint = myRow
     ? `只套用在「${modeLabel}」榜・最多 48 字`
     : `先在「${modeLabel}」完成一局上榜後就能留言`;
   return `<div class="modal-backdrop"><section class="modal leaderboard-modal" role="dialog" aria-modal="true" aria-labelledby="leaderboard-title">
     <div class="celebrate">🏆</div><h2 id="leaderboard-title">家庭全球排行</h2>
-    <div class="leaderboard-tabs">${Object.entries(LEADERBOARD_MODES).map(([key, item]) => `<button data-rank-difficulty="${key}" class="${leaderboardDifficulty === key ? "active" : ""}">${item.icon} ${item.label}</button>`).join("")}</div>
+    ${rankingTabsMarkup()}
     ${!configured ? `<div class="empty-ranking"><strong>尚未連接資料庫</strong><small>設定 Supabase 後，家人的成績會出現在這裡。</small></div>` : leaderboardStatus ? `<div class="empty-ranking"><span class="loading-orbit">☁️</span><small>${escapeHtml(leaderboardStatus)}</small></div>` : leaderboardRows.length ? `<div class="leaderboard-list">${leaderboardRows.map((row, index) => `
       <div class="leaderboard-row ${row.player_id === progress.playerId ? "mine" : ""}"><b>${index + 1}</b>${avatarMarkup(index, row)}<span class="leaderboard-player"><strong>${escapeHtml(row.player_name)}</strong><small>${row.stars}⭐・${row.mistakes} 次失誤・${formatTime(row.elapsed_seconds)}</small>${row.taunt ? `<q>${escapeHtml(row.taunt)}</q>` : `<q class="quiet">還沒有留下嗆聲</q>`}</span><span class="leaderboard-result"><strong>第 ${row.floor} 層</strong><time datetime="${escapeHtml(row.updated_at || "")}">最後更新<br>${formatLeaderboardUpdatedAt(row.updated_at)}</time></span></div>`).join("")}</div>` : `<div class="empty-ranking"><strong>還沒有成績</strong><small>完成第一層就能成為榜首！</small></div>`}
     ${configured ? `<div class="taunt-editor"><label for="leaderboard-taunt">📣 ${escapeHtml(modeLabel)}・我的島主宣言</label><div><input id="leaderboard-taunt" maxlength="48" value="${escapeHtml(myRow?.taunt || "")}" placeholder="例如：這難度先借我坐一下！"><button id="save-leaderboard-taunt" ${myRow ? "" : "disabled"}>送出</button></div><small>${escapeHtml(leaderboardTauntStatus || tauntHint)}</small></div>` : ""}
-    <p class="pending-scores">${pendingScoreCount() ? `尚有 ${pendingScoreCount()} 筆離線成績等待同步` : "每位玩家、每個難度只保留最佳成績；嗆聲也依難度分開"}</p>
+    <p class="pending-scores">${pendingScoreCount() ? `尚有 ${pendingScoreCount()} 筆離線成績等待同步` : "每個模式、難度與輔助榜各自保留最佳成績與留言"}</p>
     <button id="close-leaderboard" class="primary-button">回到遊戲</button>
   </section></div>`;
 }
@@ -1639,7 +1660,15 @@ function updateBoard({ save = true } = {}) {
   text(".run-milestone-badge", `🏅 本局 ${game.milestones.length}/${RUN_MILESTONES.length}`);
   text(".wallet span:last-child", `🪙 ${progress.coins}`);
   text(".avatar-bubble", getAvatarFace());
-  document.querySelectorAll(".goal-chips span").forEach((chip, index) => chip.classList.toggle("done", game.healGoals[["streak", "row", "box"][index]]));
+  document.querySelectorAll("[data-combo]").forEach(chip => {
+    const count = game[chip.dataset.combo] || 0, previous = Number(chip.dataset.count);
+    chip.dataset.count = count;
+    chip.querySelector("b").textContent = count;
+    if (count > previous && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      chip.getAnimations().forEach(animation => animation.cancel());
+      chip.animate([{ transform: "scale(1) rotate(0)" }, { transform: "scale(1.16) rotate(-4deg)", offset: .3 }, { transform: "scale(1.1) rotate(3deg)", offset: .6 }, { transform: "scale(1) rotate(0)" }], { duration: 420, easing: "ease-out" });
+    }
+  });
   const notes = document.querySelector("#notes");
   notes?.classList.toggle("active", noteMode);
   notes?.setAttribute("aria-pressed", String(noteMode));
@@ -1684,7 +1713,11 @@ function bindEvents() {
   document.querySelector("#open-achievements")?.addEventListener("click", openAchievements);
   document.querySelector("#open-completion-achievements")?.addEventListener("click", openAchievements);
   document.querySelector("#close-achievements")?.addEventListener("click", closeAchievements);
-  document.querySelector("#close-leaderboard")?.addEventListener("click", () => { showLeaderboard = false; render(); });
+  document.querySelector("#close-leaderboard")?.addEventListener("click", () => { showLeaderboard = false; leaderboardRequest++; render(); });
+  document.querySelectorAll("[data-rank-variant]").forEach(button => button.addEventListener("click", () => {
+    const current = parseGameModeKey(leaderboardDifficulty);
+    changeLeaderboardDifficulty(gameModeKey(button.dataset.rankVariant, current.difficulty === "alin" ? "easy" : current.difficulty, current.assisted));
+  }));
   document.querySelectorAll("[data-rank-difficulty]").forEach((button) => button.addEventListener("click", () => changeLeaderboardDifficulty(button.dataset.rankDifficulty)));
   document.querySelector("#save-leaderboard-taunt")?.addEventListener("click", saveLeaderboardTaunt);
   document.querySelector("#open-save-center")?.addEventListener("click", openSaveCenter);
@@ -1852,6 +1885,7 @@ function applyImportedSave(imported, { mergeWithLocal = null } = {}) {
     game = imported.session.game;
     equippedCards = imported.session.equippedCards || [];
     alinMode = imported.session.alinMode || false;
+    alignVariantSessionFloor();
     // Session may be mid-floor while floors counter lagged — keep next-floor high water.
     if (game?.difficulty && game?.floor) {
       progress = raiseFloorProgress(progress, progressDifficulty(game.difficulty, alinMode), game.floor);
@@ -1870,6 +1904,15 @@ function applyImportedSave(imported, { mergeWithLocal = null } = {}) {
   }
   saveProgress(progress, { touch: false, settledSession: null });
   persistSession();
+}
+
+// v61 variant floors mixed difficulties. Preserve its board and legacy total, not a false rank.
+function alignVariantSessionFloor() {
+  const key = gameModeKey(game.variant, game.difficulty, alinMode);
+  if (game.variant !== "classic" && !game.completed && game.floorKey !== key) {
+    game.floor = progress.floors[key] || 1;
+    game.floorKey = key;
+  }
 }
 
 /** Keep an active run aligned with the saved next-floor record across devices. */
@@ -2086,7 +2129,7 @@ async function syncCloudNowInternal(showFeedback = false) {
 
 async function openLeaderboardModal() {
   showLeaderboard = true;
-  leaderboardDifficulty = alinMode ? "alin" : game.difficulty;
+  leaderboardDifficulty = gameModeKey(game.variant, game.difficulty, alinMode);
   leaderboardRows = [];
   leaderboardStatus = leaderboardConfigured() ? "正在讀取全球排行…" : "";
   leaderboardTauntStatus = "";
@@ -2097,10 +2140,14 @@ async function openLeaderboardModal() {
 
 async function refreshLeaderboard() {
   if (!leaderboardConfigured()) return;
+  const key = leaderboardDifficulty, request = ++leaderboardRequest;
   try {
-    leaderboardRows = await fetchLeaderboard(leaderboardDifficulty);
+    const rows = await fetchLeaderboard(key);
+    if (request !== leaderboardRequest || key !== leaderboardDifficulty || !showLeaderboard) return;
+    leaderboardRows = rows;
     leaderboardStatus = "";
   } catch (error) {
+    if (request !== leaderboardRequest || key !== leaderboardDifficulty || !showLeaderboard) return;
     leaderboardRows = [];
     leaderboardStatus = error.message || "排行榜暫時無法連線";
   }
@@ -2135,6 +2182,7 @@ async function retryLeaderboardSync() {
 }
 
 function changeLeaderboardDifficulty(difficulty) {
+  if (!parseGameModeKey(difficulty)) return;
   leaderboardDifficulty = difficulty;
   leaderboardRows = [];
   leaderboardStatus = "正在讀取全球排行…";
@@ -2150,8 +2198,9 @@ async function saveLeaderboardTaunt() {
     render();
     return;
   }
+  const key = leaderboardDifficulty, playerId = progress.playerId;
   const taunt = normalizeLeaderboardTaunt(document.querySelector("#leaderboard-taunt")?.value || "");
-  const modeLabel = LEADERBOARD_MODES[leaderboardDifficulty]?.label || "此難度";
+  const modeLabel = rankingLabel(leaderboardDifficulty);
   leaderboardTauntStatus = `正在送出「${modeLabel}」嗆聲…`;
   render();
   try {
@@ -2159,13 +2208,15 @@ async function saveLeaderboardTaunt() {
       playerId: progress.playerId,
       pin,
       taunt,
-      difficulty: leaderboardDifficulty
+      difficulty: key
     });
+    if (key !== leaderboardDifficulty || playerId !== progress.playerId || !showLeaderboard) return;
     leaderboardTauntStatus = taunt
       ? `「${modeLabel}」嗆聲已更新！`
       : `已清除「${modeLabel}」嗆聲`;
     await refreshLeaderboard();
   } catch (error) {
+    if (key !== leaderboardDifficulty || playerId !== progress.playerId || !showLeaderboard) return;
     leaderboardTauntStatus = error.message || "嗆聲暫時無法送出";
     if (showLeaderboard) render();
   }
@@ -2228,8 +2279,8 @@ function presentNewMilestones(milestones) {
   });
 }
 
-function afterCorrectFill() {
-  const { newlyCompleted, events } = collectBoardProgressEvents(game, alinMode);
+function afterCorrectFill(manual = true) {
+  const { newlyCompleted, events } = collectBoardProgressEvents(game, alinMode, { manual });
   presentBoardProgressEvents(events);
   presentNewMilestones(collectNewMilestones(game));
   checkCompletion();
@@ -2276,7 +2327,7 @@ function useHint() {
   if (cost) progress = spendCoins(progress, cost);
   if (!applyHintFill(game, game.selected)) return;
   setAvatarFace("thinking", 1500);
-  afterCorrectFill();
+  afterCorrectFill(false);
   updateBoard();
 }
 
@@ -2300,7 +2351,7 @@ function useCard(cardId) {
   else if (!applyImmediateTreasure(game, card, { alinMode, index })) return;
   progress = consumeCard(progress, cardId);
   game.usedCards.push(cardId);
-  if (card.effect === "hint") afterCorrectFill();
+  if (card.effect === "hint") afterCorrectFill(false);
   render();
   showGameEffect(card.icon, `${card.name}發動！`, resultDetail, "card");
 }
@@ -2448,10 +2499,11 @@ function newGame(difficulty, variant = game?.variant || "classic") {
   clearInterval(timerId);
   equippedCards = equippedCards.filter(cardId => progress.inventory[cardId] > 0).slice(0, 2);
   const difficultyProgress = progressDifficulty(difficulty, alinMode, variant);
-  const fromLastClear = game?.completed && game?.difficulty === difficulty && game.variant === variant ? nextFloorFromCompleted(game.floor) : 1;
+  const fromLastClear = game?.completed && game?.difficulty === difficulty && game.variant === variant && (game.floorKey === difficultyProgress || (variant === "classic" && !game.floorKey)) ? nextFloorFromCompleted(game.floor) : 1;
   const floor = Math.max(progress.floors[difficultyProgress] || 1, fromLastClear, 1);
   const options = { difficulty, variant, floor, equippedCards };
   const finish = (next) => {
+    next.floorKey = difficultyProgress;
     next.floor = Math.max(next.floor, progress.floors[progressDifficulty(difficulty, alinMode, variant)] || 1);
     saveProgress(progress, { touch: false, settledSession: null });
     game = next;
@@ -2474,7 +2526,7 @@ function newGame(difficulty, variant = game?.variant || "classic") {
     document.querySelector("#retry-generation")?.focus({ preventScroll: true });
   };
   try {
-    const worker = new Worker(new URL("./game/puzzle-worker.js?v=v61", import.meta.url), { type: "module" });
+    const worker = new Worker(new URL("./game/puzzle-worker.js?v=v62", import.meta.url), { type: "module" });
     request.worker = worker;
     request.timeout = setTimeout(fail, 15000);
     worker.onerror = (event) => { event.preventDefault(); fail(); };
@@ -2498,11 +2550,20 @@ function toggleAlinMode() {
 document.addEventListener("keydown", (event) => {
   const target = event.target;
   const isFormControl = target instanceof HTMLElement
-    && (target.matches("input, textarea, select, button") || target.isContentEditable);
-  if (generatingGame || activeScreen === "island" || isFormControl || showNameSetup || showSaveCenter || showLeaderboard || showBackpack || showAchievements || showAvatarPicker) return;
-  if (/^[1-9]$/.test(event.key)) enterNumber(Number(event.key));
-  if (["Backspace", "Delete", "0"].includes(event.key)) clearCell();
-  if (event.key.toLowerCase() === "n") { noteMode = !noteMode; updateBoard({ save: false }); }
+    && (target.matches("input, textarea, select") || target.isContentEditable);
+  if (event.isComposing || event.ctrlKey || event.metaKey || event.altKey || event.repeat || generatingGame || activeScreen === "island" || isFormControl || showNameSetup || showSaveCenter || showLeaderboard || showBackpack || showAchievements || showAvatarPicker || !game.started || game.completed || game.failed) return;
+  if (/^[1-9]$/.test(event.key)) { event.preventDefault(); enterNumber(Number(event.key)); }
+  else if (["Backspace", "Delete", "0"].includes(event.key)) { event.preventDefault(); clearCell(); }
+  else if (event.key.toLowerCase() === "n") { event.preventDefault(); noteMode = !noteMode; updateBoard({ save: false }); }
+  else if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(event.key)) {
+    event.preventDefault();
+    const row = Math.floor(game.selected / 9), col = game.selected % 9;
+    const nextRow = Math.max(0, Math.min(8, row + (event.key === "ArrowDown" ? 1 : event.key === "ArrowUp" ? -1 : 0)));
+    const nextCol = Math.max(0, Math.min(8, col + (event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0)));
+    game.selected = nextRow * 9 + nextCol;
+    updateBoard({ save: false });
+    document.querySelector(`[data-cell="${game.selected}"]`)?.focus({ preventScroll: true });
+  }
 });
 
 function showStorageWarning() {
@@ -2572,5 +2633,5 @@ window.addEventListener("online", () => {
 flushPendingScores().catch(() => {});
 
 if ("serviceWorker" in navigator && location.protocol !== "file:") {
-  navigator.serviceWorker.register(new URL("sw.js?v=v61", document.baseURI), { updateViaCache: "none" }).catch(() => {});
+  navigator.serviceWorker.register(new URL("sw.js?v=v62", document.baseURI), { updateViaCache: "none" }).catch(() => {});
 }

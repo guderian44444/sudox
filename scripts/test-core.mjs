@@ -438,7 +438,7 @@ assert(normalizeLeaderboardTaunt("哈".repeat(60)).length === 48, "排行榜嗆�
 assert(/p_difficulty/.test(leaderboardSource) && /update_leaderboard_taunt/.test(leaderboardSource), "嗆聲更新 API 應帶上難度");
 assert(/p_difficulty text/.test(leaderboardSql) && /and difficulty = p_difficulty/.test(leaderboardSql), "DB 嗆聲更新應只寫入對應難度列");
 assert(!/set taunt = trim\(p_taunt\)\s*where player_id = p_player_id;\s*end;/.test(leaderboardSql), "嗆聲不可再一次寫入該玩家所有難度");
-assert(/difficulty: leaderboardDifficulty|p_difficulty: difficulty/.test(appSource), "前端送出嗆聲應使用目前排行榜分頁難度");
+assert(/difficulty: key|p_difficulty: difficulty/.test(appSource), "前端送出嗆聲應使用目前排行榜分頁難度");
 assert(/只套用在|嗆聲也依難度分開/.test(appSource), "UI 應提示嗆聲依難度分開");
 Object.defineProperty(globalThis, "navigator", { value: { onLine: true }, configurable: true });
 memory.set("sudox-cloud-pin-v1", "0428");
