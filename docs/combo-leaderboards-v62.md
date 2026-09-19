@@ -1,6 +1,6 @@
 # v62 COMBO、鍵盤與分層排行榜
 
-開發分支：`codex/combo-mode-leaderboards`。本機完成，尚未推送／部署；線上維持 v61。正式資料庫遷移已於 2026-09-19 由使用者在 SQL 編輯器執行成功；新 RPC 分類驗證已確認。
+開發與發布分支：`codex/combo-mode-leaderboards`。v62 線上入口：https://guderian44444.github.io/sudox/ 。正式資料庫遷移已於 2026-09-19 由使用者在 SQL 編輯器執行成功；新 RPC 分類驗證已確認。
 
 ## COMBO
 

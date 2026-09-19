@@ -1,9 +1,9 @@
 # 小島建設模式 Handoff
 
 更新日期：2026-09-19
-開發分支：`codex/combo-mode-leaderboards`；Pages 仍由 `codex/sudoku-variant-modes` 提供 v61；`main` 保留 v58
+v62 發布分支與 Pages 來源：`codex/combo-mode-leaderboards`；`codex/sudoku-variant-modes` 保留 v61；`main` 保留 v58
 目前版次：`v62`／Service Worker `sudox-shell-v62`
-狀態：v62 本機開發加入 COMBO、鍵盤輸入修正與模式分層排行榜。正式資料庫已套用 `supabase/leaderboard-variant-modes-migration.sql` 並確認新分類驗證；網頁尚未發布。詳見 `docs/combo-leaderboards-v62.md`。v61 已有對角線、溫度計與 Killer 獨立玩法；包含 v60 成就 V2 與 v59 穩定性修復。玩法與驗證見 `docs/sudoku-variants.md`。測試模式預設關閉。成就規則與遷移見 `docs/achievements-v2.md`；BUG 修正見 `docs/bugfix-v59.md`。
+狀態：v62 發布內容加入 COMBO、鍵盤輸入修正與模式分層排行榜。正式資料庫已套用 `supabase/leaderboard-variant-modes-migration.sql` 並確認新分類驗證；實際部署結果以 GitHub Pages build 為準。詳見 `docs/combo-leaderboards-v62.md`。v61 已有對角線、溫度計與 Killer 獨立玩法；包含 v60 成就 V2 與 v59 穩定性修復。玩法與驗證見 `docs/sudoku-variants.md`。測試模式預設關閉。成就規則與遷移見 `docs/achievements-v2.md`；BUG 修正見 `docs/bugfix-v59.md`。
 
 ## 一句話狀態
 
