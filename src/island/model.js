@@ -8,10 +8,10 @@ import {
   RECIPE_CATALOG,
   STARTER_LAND_RADIUS,
   reclamationQuote
-} from "./catalog.js?v=v62";
-import { attractionVisitorIds } from "./attractions.js?v=v62";
-import { constructionTeamRate } from "./companions.js?v=v62";
-import { axialDistance, axialKey, axialNeighbors, footprintCells, hexRange, parseAxialKey } from "./hex.js?v=v62";
+} from "./catalog.js?v=v63";
+import { attractionVisitorIds } from "./attractions.js?v=v63";
+import { constructionTeamRate } from "./companions.js?v=v63";
+import { axialDistance, axialKey, axialNeighbors, footprintCells, hexRange, parseAxialKey } from "./hex.js?v=v63";
 
 const clone = (value) => JSON.parse(JSON.stringify(value));
 const safeObject = (value) => value && typeof value === "object" && !Array.isArray(value) ? value : {};

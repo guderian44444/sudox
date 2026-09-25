@@ -4,11 +4,13 @@ import vm from "node:vm";
 import { createAdventureGame, applyPlayerDigit, clearEditableCell, applyHintFill, collectBoardProgressEvents, collectNewMilestones, normalizeSession, settleCompletedGame, claimRewardCard } from "../src/game/flow.js";
 import { generatePuzzle, countSolutions, validSudokuGrid } from "../src/game/sudoku.js";
 import { advanceGameClock } from "../src/game/timer.js";
-import { loadProgress, saveProgress, loadSession, saveSession, clearSession, rewardProgress, addCard, mergeProgressHighWater, exportSaveCode, parseSaveCode } from "../src/state/store.js";
+import { createPlayerProgress, loadProgress, saveProgress, loadSession, saveSession, clearSession, rewardProgress, addCard, mergeProgressHighWater, exportSaveCode, parseSaveCode } from "../src/state/store.js";
 
 const source = readFileSync(new URL("../src/app.js", import.meta.url), "utf8");
 const version = /const APP_VERSION = "(v\d+)"/.exec(source)[1];
 const { storageWarning, retryLocalWrites } = await import(`../src/state/storage.js?v=${version}`);
+const { createCloudPin, validCloudPin } = await import(`../src/state/cloud.js?v=${version}`);
+assert(validCloudPin(createCloudPin()), "generated recovery PIN must be four digits");
 const memory = new Map();
 let writes = 0, failWrites = false;
 globalThis.localStorage = {
@@ -57,6 +59,11 @@ console.log(`Hard generation (desktop, 100): median ${generationMs[50].toFixed(2
 
 // Completion + pending cards + rewards share one storage write; reload and claim remain idempotent.
 let progress = loadProgress();
+const secondPlayer = createPlayerProgress("新玩家");
+assert.notEqual(secondPlayer.playerId, progress.playerId, "new players need a separate cloud identity");
+assert.equal(secondPlayer.playerName, "新玩家");
+assert.equal(secondPlayer.coins, 20, "new players must not inherit the previous player's progress");
+assert.equal(secondPlayer.completedGames, 0);
 game.values = [...game.solution];
 const settlement = settleCompletedGame(game);
 progress = rewardProgress(progress, settlement.xpReward, settlement.timeBonus, settlement.stars, "easy", 1, { persist: false, runId: game.runId });

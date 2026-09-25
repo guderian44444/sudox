@@ -1,4 +1,4 @@
-import { candidatesForCell } from "./sudoku.js?v=v62";
+import { candidatesForCell } from "./sudoku.js?v=v63";
 
 export const ADVENTURE_RULES = {
   easy: { maxHealth: 5, treasurePoolSize: 10 },

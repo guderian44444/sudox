@@ -1,9 +1,9 @@
-import { gameModeKey, RANKING_KEYS } from "../game/sudoku.js?v=v62";
-import { mergeAchievementEvidence, normalizeAchievementEvidence, normalizeAchievementEquipment, normalizeAchievementIds, normalizeAchievementStats } from "../game/achievements.js?v=v62";
-import { normalizeSession } from "../game/flow.js?v=v62";
-import { mergeIslandStates } from "../island/model.js?v=v62";
+import { gameModeKey, RANKING_KEYS } from "../game/sudoku.js?v=v63";
+import { mergeAchievementEvidence, normalizeAchievementEvidence, normalizeAchievementEquipment, normalizeAchievementIds, normalizeAchievementStats } from "../game/achievements.js?v=v63";
+import { normalizeSession } from "../game/flow.js?v=v63";
+import { mergeIslandStates } from "../island/model.js?v=v63";
 
-import { readLocal, writeLocal } from "./storage.js?v=v62";
+import { readLocal, writeLocal } from "./storage.js?v=v63";
 
 const STORAGE_KEY = "sudox-progress-v3";
 const SESSION_KEY = "sudox-session-v3";
@@ -233,6 +233,10 @@ function normalizedProgress(saved = {}) {
   Object.assign(progress, normalizeAchievementEquipment(progress));
   delete progress.unlockedDifficulty;
   return progress;
+}
+
+export function createPlayerProgress(playerName) {
+  return normalizedProgress({ playerName });
 }
 
 export function loadProgress() {

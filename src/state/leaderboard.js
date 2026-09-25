@@ -1,7 +1,7 @@
-import { gameModeKey, RANKING_KEYS } from "../game/sudoku.js?v=v62";
-import { readLocal, writeLocal } from "./storage.js?v=v62";
-import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "../config.js?v=v62";
-import { fetchWithTimeout, loadCloudPin, validCloudPin } from "./cloud.js?v=v62";
+import { gameModeKey, RANKING_KEYS } from "../game/sudoku.js?v=v63";
+import { readLocal, writeLocal } from "./storage.js?v=v63";
+import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "../config.js?v=v63";
+import { fetchWithTimeout, loadCloudPin, validCloudPin } from "./cloud.js?v=v63";
 
 const QUEUE_KEY = "sudox-score-queue-v1";
 const difficulties = new Set(RANKING_KEYS);

@@ -1,4 +1,4 @@
-import { FRIEND_ROSTER } from "../game/friends.js?v=v62";
+import { FRIEND_ROSTER } from "../game/friends.js?v=v63";
 
 function stableHash(value) {
   let hash = 2166136261;

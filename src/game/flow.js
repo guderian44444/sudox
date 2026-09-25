@@ -3,7 +3,7 @@
  * Mutates the game object and returns structured events for the UI layer.
  * Also owns the full runtime game factory + session normalization (P2).
  */
-import { createGame, DIFFICULTIES, relatedCells, normalizeVariantRules, validVariantGrid, candidatesForCell, RANKING_KEYS } from "./sudoku.js?v=v62";
+import { createGame, DIFFICULTIES, relatedCells, normalizeVariantRules, validVariantGrid, candidatesForCell, RANKING_KEYS } from "./sudoku.js?v=v63";
 import {
   ADVENTURE_RULES,
   calculateStars,
@@ -12,7 +12,7 @@ import {
   newlyCompletedSudokuUnits,
   treasureClaimsForFloor,
   TREASURE_CARDS
-} from "./adventure.js?v=v62";
+} from "./adventure.js?v=v63";
 
 const DIFFICULTY_IDS = new Set(Object.keys(DIFFICULTIES));
 

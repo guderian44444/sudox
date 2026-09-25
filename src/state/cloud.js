@@ -1,5 +1,5 @@
-import { readLocal, writeLocal } from "./storage.js?v=v62";
-import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "../config.js?v=v62";
+import { readLocal, writeLocal } from "./storage.js?v=v63";
+import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "../config.js?v=v63";
 
 const CLOUD_PIN_KEY = "sudox-cloud-pin-v1";
 
@@ -9,6 +9,12 @@ export function cloudConfigured() {
 
 export function validCloudPin(pin) {
   return /^\d{4}$/.test(pin);
+}
+
+export function createCloudPin() {
+  const value = new Uint32Array(1);
+  crypto.getRandomValues(value);
+  return String(value[0] % 10000).padStart(4, "0");
 }
 
 export function normalizePlayerName(value) {

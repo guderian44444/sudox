@@ -1,5 +1,5 @@
-import { BUILDING_CATALOG, ITEM_CATALOG, RECIPE_CATALOG } from "./catalog.js?v=v62";
-import { activeVehicleCount, availableInventoryQuantity, scheduleProcessingInputBatches } from "./model.js?v=v62";
+import { BUILDING_CATALOG, ITEM_CATALOG, RECIPE_CATALOG } from "./catalog.js?v=v63";
+import { activeVehicleCount, availableInventoryQuantity, scheduleProcessingInputBatches } from "./model.js?v=v63";
 
 const clone = (value) => JSON.parse(JSON.stringify(value));
 const safeInt = (value, fallback = 0) => Number.isFinite(Number(value)) ? Math.max(0, Math.floor(Number(value))) : fallback;

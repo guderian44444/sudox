@@ -1,8 +1,8 @@
-import { playSound, resumeAudio, setSoundEnabled, stopAudio } from "./game/audio.js?v=v62";
-import { advanceGameClock } from "./game/timer.js?v=v62";
-import { readLocal, writeLocal, storageWarning, retryLocalWrites } from "./state/storage.js?v=v62";
-import { DIFFICULTIES, VARIANTS, gameModeKey, parseGameModeKey, relatedCells } from "./game/sudoku.js?v=v62";
-import { activateAutomaticTreasures, ADVENTURE_RULES, applyHintTreasure, applyImmediateTreasure, strongestEquippedRevive, sudokuUnitCells, TREASURE_AUTO_EFFECTS, TREASURE_CARDS } from "./game/adventure.js?v=v62";
+import { playSound, resumeAudio, setSoundEnabled, stopAudio } from "./game/audio.js?v=v63";
+import { advanceGameClock } from "./game/timer.js?v=v63";
+import { readLocal, writeLocal, storageWarning, retryLocalWrites } from "./state/storage.js?v=v63";
+import { DIFFICULTIES, VARIANTS, gameModeKey, parseGameModeKey, relatedCells } from "./game/sudoku.js?v=v63";
+import { activateAutomaticTreasures, ADVENTURE_RULES, applyHintTreasure, applyImmediateTreasure, strongestEquippedRevive, sudokuUnitCells, TREASURE_AUTO_EFFECTS, TREASURE_CARDS } from "./game/adventure.js?v=v63";
 import {
   applyHintFill,
   applyPlayerDigit,
@@ -14,21 +14,21 @@ import {
   removeRelatedNotes,
   RUN_MILESTONES,
   settleCompletedGame
-} from "./game/flow.js?v=v62";
-import { ACHIEVEMENTS, ACHIEVEMENT_CATEGORIES, ACHIEVEMENT_SERIES, achievementById, achievementRewardText, achievementSeriesProgress, achievementValue, equipAchievementReward, equippedAchievementReward, normalizeAchievementStats, recordAchievementGame } from "./game/achievements.js?v=v62";
-import { chooseFriendPair, chooseGardenEel, choosePartyFriends, FRIEND_ROSTER, nextDanceVariants } from "./game/friends.js?v=v62";
-import { ISLAND_TEST_MODE } from "./island/catalog.js?v=v62";
-import { availableInventoryQuantity, dismissIslandLetter, availableConstructionWorkerIds, availableHelperIds, collectFacility, createIslandState, finishIslandWork, hireConstructionHelper, marketSale, normalizeIslandState, selectSourceRecipe, settleIsland, startBuilding, startDemolition, startHomeUpgrade, startProcessing, startReclamation } from "./island/model.js?v=v62";
-import { DEMO_ISLAND_PARTNERS, dispatchDemoShipment, LOGISTICS_METHODS, mergeCloudLogistics, networkProfileSnapshot, normalizeIslandPartner, partnerLogisticsOffers, recordDispatchedShipment, shipmentQuote } from "./island/logistics.js?v=v62";
-import { formatIslandDuration, renderIslandScreen } from "./island/renderer.js?v=v62";
-import { cloudConfigured, loadCloudPin, loadCloudProgress, normalizePlayerName, renameCloudPlayer, saveCloudPin, saveCloudProgress, saveCloudProgressIfCurrent, validCloudPin } from "./state/cloud.js?v=v62";
-import { acknowledgeIslandLogistics, dispatchIslandShipment, getIslandLogistics, listIslandPartners, publishIslandNetwork } from "./state/island-cloud.js?v=v62";
-import { buildScore, fetchLeaderboard, fetchPlayerLeaderboardRows, flushPendingScores, leaderboardConfigured, normalizeLeaderboardTaunt, pendingScoreCount, queueLeaderboardScore, updateLeaderboardAvatar, updateLeaderboardTaunt } from "./state/leaderboard.js?v=v62";
-import { addCard, clearSession, consumeCard, exportSaveCode, importSaveCode, loadProgress, loadSession, mergeProgressHighWater, nextFloorFromCompleted, parseSaveCode, preferSaveSide, raiseFloorProgress, reconcileFloorsFromLeaderboardRows, rewardProgress, saveProgress, saveSession, saveTimestampMs, sessionFloorBehindProgress, spendCoins } from "./state/store.js?v=v62";
+} from "./game/flow.js?v=v63";
+import { ACHIEVEMENTS, ACHIEVEMENT_CATEGORIES, ACHIEVEMENT_SERIES, achievementById, achievementRewardText, achievementSeriesProgress, achievementValue, equipAchievementReward, equippedAchievementReward, normalizeAchievementStats, recordAchievementGame } from "./game/achievements.js?v=v63";
+import { chooseFriendPair, chooseGardenEel, choosePartyFriends, FRIEND_ROSTER, nextDanceVariants } from "./game/friends.js?v=v63";
+import { ISLAND_TEST_MODE } from "./island/catalog.js?v=v63";
+import { availableInventoryQuantity, dismissIslandLetter, availableConstructionWorkerIds, availableHelperIds, collectFacility, createIslandState, finishIslandWork, hireConstructionHelper, marketSale, normalizeIslandState, selectSourceRecipe, settleIsland, startBuilding, startDemolition, startHomeUpgrade, startProcessing, startReclamation } from "./island/model.js?v=v63";
+import { DEMO_ISLAND_PARTNERS, dispatchDemoShipment, LOGISTICS_METHODS, mergeCloudLogistics, networkProfileSnapshot, normalizeIslandPartner, partnerLogisticsOffers, recordDispatchedShipment, shipmentQuote } from "./island/logistics.js?v=v63";
+import { formatIslandDuration, renderIslandScreen } from "./island/renderer.js?v=v63";
+import { cloudConfigured, createCloudPin, loadCloudPin, loadCloudProgress, normalizePlayerName, renameCloudPlayer, saveCloudPin, saveCloudProgress, saveCloudProgressIfCurrent, validCloudPin } from "./state/cloud.js?v=v63";
+import { acknowledgeIslandLogistics, dispatchIslandShipment, getIslandLogistics, listIslandPartners, publishIslandNetwork } from "./state/island-cloud.js?v=v63";
+import { buildScore, fetchLeaderboard, fetchPlayerLeaderboardRows, flushPendingScores, leaderboardConfigured, normalizeLeaderboardTaunt, pendingScoreCount, queueLeaderboardScore, updateLeaderboardAvatar, updateLeaderboardTaunt } from "./state/leaderboard.js?v=v63";
+import { addCard, clearSession, consumeCard, createPlayerProgress, exportSaveCode, importSaveCode, loadProgress, loadSession, mergeProgressHighWater, nextFloorFromCompleted, parseSaveCode, preferSaveSide, raiseFloorProgress, reconcileFloorsFromLeaderboardRows, rewardProgress, saveProgress, saveSession, saveTimestampMs, sessionFloorBehindProgress, spendCoins } from "./state/store.js?v=v63";
 
 const app = document.querySelector("#app");
-const APP_VERSION = "v62";
-const APP_LAST_UPDATED = "2026-09-19T22:31:48+08:00";
+const APP_VERSION = "v63";
+const APP_LAST_UPDATED = "2026-09-25T13:49:03+08:00";
 let progress = loadProgress();
 const migratedAchievements = recordAchievementGame(progress);
 progress = migratedAchievements.progress;
@@ -1472,21 +1472,19 @@ function bindAchievementEvents() {
 }
 
 function nameSetupModal() {
-  const rememberedPin = validCloudPin(loadCloudPin()) ? loadCloudPin() : "";
-  const defaultStatus = rememberedPin
-    ? "本機已記住家庭 PIN，已自動填入；同一台裝置的舊玩家不必重設。"
-    : cloudConfigured()
-      ? "第一次玩請建立玩家；換裝置才需要輸入名稱與 PIN 載入雲端。"
-      : "資料庫尚未設定，目前可先建立本機玩家。";
+  const defaultStatus = cloudConfigured()
+    ? "建立新玩家可留空 PIN，系統會產生找回碼；載入舊玩家才輸入原本的 PIN。"
+    : "資料庫尚未設定，目前可先建立本機玩家。";
   return `<div class="modal-backdrop"><section class="modal name-modal" role="dialog" aria-modal="true" aria-labelledby="name-title">
     <div class="celebrate">🏝️</div><p class="eyebrow">WELCOME</p><h2 id="name-title">冒險家叫什麼名字？</h2>
-    <p>名稱會顯示在家庭排行榜。4 位數家庭 PIN 用來在其他裝置找回雲端存檔；同一台裝置會記住，不必每次重輸。</p>
+    <p>建立新玩家會從全新進度開始。PIN 可留空，由系統產生 4 位數雲端找回碼；換裝置時才需要輸入。</p>
     <label class="field-label" for="player-name">玩家名稱</label>
-    <input id="player-name" class="name-input" maxlength="16" autocomplete="nickname" value="${escapeHtml(progress.playerName || "")}" placeholder="例如：阿霖">
-    <label class="field-label" for="family-pin">家庭 PIN${rememberedPin ? "（本機已記住）" : ""}</label>
-    <input id="family-pin" class="name-input pin-input" type="text" maxlength="4" inputmode="numeric" pattern="[0-9]*" enterkeyhint="done" autocomplete="off" placeholder="4 位數字" value="${escapeHtml(rememberedPin)}">
+    <input id="player-name" class="name-input" maxlength="16" autocomplete="nickname" placeholder="例如：阿霖">
+    <label class="field-label" for="family-pin">新玩家 PIN（可留空）／舊玩家原 PIN</label>
+    <input id="family-pin" class="name-input pin-input" type="text" maxlength="4" inputmode="numeric" pattern="[0-9]*" enterkeyhint="done" autocomplete="off" placeholder="4 位數字">
     <p class="name-status" role="status">${escapeHtml(nameSetupStatus || defaultStatus)}</p>
     <div class="save-actions"><button id="create-player">✨ 建立新玩家</button><button id="load-cloud-player" ${cloudConfigured() ? "" : "disabled"}>☁️ 載入雲端進度</button></div>
+    ${progress.playerName ? '<button id="cancel-player-switch" class="secondary-button">返回目前玩家</button>' : ""}
   </section></div>`;
 }
 
@@ -1733,6 +1731,7 @@ function bindEvents() {
   });
   document.querySelector("#unlock-family-pin-btn")?.addEventListener("click", unlockFamilyPin);
   document.querySelector("#create-player")?.addEventListener("click", createPlayer);
+  document.querySelector("#cancel-player-switch")?.addEventListener("click", () => { showNameSetup = false; nameSetupStatus = ""; render(); });
   document.querySelector("#load-cloud-player")?.addEventListener("click", loadExistingPlayer);
   document.querySelector("#close-backpack")?.addEventListener("click", () => { showBackpack = false; game.equippedCards = [...equippedCards]; render(); });
   document.querySelector("#open-avatar-picker")?.addEventListener("click", () => { showAvatarPicker = true; render(); });
@@ -1770,11 +1769,11 @@ function closeAchievements() {
   document.getElementById(achievementReturnFocusId)?.focus({ preventScroll: true });
 }
 
-function playerSetupValues() {
+function playerSetupValues(allowEmptyPin = false) {
   const playerName = normalizePlayerName(document.querySelector("#player-name")?.value || "");
   const pin = normalizePinInput(document.querySelector("#family-pin")?.value || "");
   if (!playerName) throw new Error("請輸入玩家名稱");
-  if (!validCloudPin(pin)) throw new Error("家庭 PIN 必須是 4 位數字");
+  if ((!allowEmptyPin || pin) && !validCloudPin(pin)) throw new Error("家庭 PIN 必須是 4 位數字");
   return { playerName, pin };
 }
 
@@ -1851,20 +1850,22 @@ async function renamePlayer() {
 
 async function createPlayer() {
   try {
-    const { playerName, pin } = playerSetupValues();
-    const nextProgress = { ...progress, playerName };
+    const { playerName, pin: enteredPin } = playerSetupValues(true);
+    const pin = enteredPin || createCloudPin();
+    const nextProgress = createPlayerProgress(playerName);
     if (cloudConfigured() && navigator.onLine) {
       nameSetupStatus = "正在建立家庭雲端存檔…";
       document.querySelector(".name-status").textContent = nameSetupStatus;
       await saveCloudProgress({ playerId: nextProgress.playerId, playerName, pin, saveCode: cloudProgressSaveCode(nextProgress) });
     }
-    progress = nextProgress;
-    saveProgress(progress);
     saveCloudPin(pin);
+    applyImportedSave({ progress: nextProgress, session: null });
     showNameSetup = false;
+    showSaveCenter = !enteredPin;
     nameSetupStatus = "";
+    cloudSyncStatus = !enteredPin ? `已自動產生找回 PIN：${pin}。請記下，換裝置載入玩家時要用。` : "";
     render();
-    showCelebration("👋", `歡迎，${playerName}！`, cloudConfigured() ? "雲端存檔已建立" : "目前使用本機存檔");
+    showCelebration("👋", `歡迎，${playerName}！`, cloudConfigured() && navigator.onLine ? "雲端存檔已建立" : "目前使用本機存檔");
   } catch (error) {
     nameSetupStatus = error.message || "無法建立玩家";
     const status = document.querySelector(".name-status");
@@ -1873,6 +1874,7 @@ async function createPlayer() {
 }
 
 function applyImportedSave(imported, { mergeWithLocal = null } = {}) {
+  cloudHydrationPending = false;
   cancelPuzzleGeneration();
   resetGameEffects();
   clearTimeout(sessionSaveTimer);
@@ -1893,6 +1895,7 @@ function applyImportedSave(imported, { mergeWithLocal = null } = {}) {
   } else {
     clearSession();
     equippedCards = [];
+    alinMode = false;
     const fallbackDifficulty = game?.difficulty && game.difficulty !== "alin" ? game.difficulty : "easy";
     const fallbackProgressDifficulty = progressDifficulty(fallbackDifficulty, alinMode, "classic");
     game = createAdventureGame({
@@ -2526,7 +2529,7 @@ function newGame(difficulty, variant = game?.variant || "classic") {
     document.querySelector("#retry-generation")?.focus({ preventScroll: true });
   };
   try {
-    const worker = new Worker(new URL("./game/puzzle-worker.js?v=v62", import.meta.url), { type: "module" });
+    const worker = new Worker(new URL("./game/puzzle-worker.js?v=v63", import.meta.url), { type: "module" });
     request.worker = worker;
     request.timeout = setTimeout(fail, 15000);
     worker.onerror = (event) => { event.preventDefault(); fail(); };
@@ -2633,5 +2636,5 @@ window.addEventListener("online", () => {
 flushPendingScores().catch(() => {});
 
 if ("serviceWorker" in navigator && location.protocol !== "file:") {
-  navigator.serviceWorker.register(new URL("sw.js?v=v62", document.baseURI), { updateViaCache: "none" }).catch(() => {});
+  navigator.serviceWorker.register(new URL("sw.js?v=v63", document.baseURI), { updateViaCache: "none" }).catch(() => {});
 }
